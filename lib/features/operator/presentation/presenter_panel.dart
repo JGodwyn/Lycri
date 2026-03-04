@@ -36,7 +36,7 @@ class PresenterPanel extends StatelessWidget {
             children: [
               Text(
                 'Presenter',
-                style: AppTypography.bodySm.copyWith(
+                style: AppTypography.titleLg.copyWith(
                   color: AppColors.textSubtle,
                 ),
               ),

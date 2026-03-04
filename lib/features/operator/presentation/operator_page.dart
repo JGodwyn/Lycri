@@ -20,7 +20,7 @@ class OperatorPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── Left: lyric input sidebar ──────────────────────────────────
-            SizedBox(width: 224, child: const LyricInputPanel()),
+            SizedBox(width: 280, child: const LyricInputPanel()),
 
             const SizedBox(width: AppSpacing.md),
 
@@ -30,7 +30,7 @@ class OperatorPage extends StatelessWidget {
             const SizedBox(width: AppSpacing.md),
 
             // ── Right: style editor ──────────────────────────────────────
-            SizedBox(width: 192, child: const EditorPanel()),
+            SizedBox(width: 280, child: const EditorPanel()),
           ],
         ),
       ),

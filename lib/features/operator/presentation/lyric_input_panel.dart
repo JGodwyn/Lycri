@@ -4,6 +4,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/lycri_button.dart';
 
 /// Left panel of the operator window.
 /// Contains the app title, a hint, a lyrics text field, and a Continue button.
@@ -28,27 +29,27 @@ class LyricInputPanel extends StatelessWidget {
             style: AppTypography.headingMd.copyWith(color: AppColors.textBold),
           ),
 
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.lg),
 
           // ── Hint row ────────────────────────────────────────────────────
           Row(
             children: [
               Icon(
                 Icons.info_outline_rounded,
-                size: 13,
-                color: AppColors.iconSubtle,
+                size: 16,
+                color: AppColors.iconMinimal,
               ),
-              const SizedBox(width: AppSpacing.xs),
+              const SizedBox(width: AppSpacing.sm),
               Text(
                 'Start by pasting a lyric below…',
-                style: AppTypography.bodySm.copyWith(
+                style: AppTypography.bodyMd.copyWith(
                   color: AppColors.textSubtle,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.lg),
 
           // ── Lyrics text field ────────────────────────────────────────────
           Expanded(
@@ -93,47 +94,12 @@ class LyricInputPanel extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
 
           // ── Continue button ──────────────────────────────────────────────
-          SizedBox(width: double.infinity, child: _ContinueButton()),
+          LycriButton(
+            label: 'Continue',
+            onPressed: () {},
+            trailingIcon: Icons.arrow_forward,
+          ),
         ],
-      ),
-    );
-  }
-}
-
-class _ContinueButton extends StatefulWidget {
-  @override
-  State<_ContinueButton> createState() => _ContinueButtonState();
-}
-
-class _ContinueButtonState extends State<_ContinueButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xl,
-          vertical: AppSpacing.md,
-        ),
-        decoration: BoxDecoration(
-          color: _hovered ? AppColors.surface0 : AppColors.surface1,
-          borderRadius: BorderRadius.circular(AppRadius.full),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Continue',
-              style: AppTypography.btnSm.copyWith(color: AppColors.textSubtle),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Icon(Icons.arrow_forward, size: 12, color: AppColors.iconSubtle),
-          ],
-        ),
       ),
     );
   }

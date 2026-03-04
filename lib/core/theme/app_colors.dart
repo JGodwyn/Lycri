@@ -81,10 +81,17 @@ class AppColors {
 
   // ─── Button State Tokens (brand) ──────────────────────────────────────────
 
+  // Primary
   static const Color btnBrandPrimaryRest = orange400;
   static const Color btnBrandPrimaryHover = orange600;
   static const Color btnBrandPrimaryPressed = orange800;
   static const Color btnBrandPrimaryDisabled = gray300;
+
+  // Secondary
+  static const Color btnBrandSecondaryRest = orange100;
+  static const Color btnBrandSecondaryHover = orange200;
+  static const Color btnBrandSecondaryPressed = orange400;
+  static const Color btnBrandSecondaryDisabled = gray100;
 
   // ─── Icon Tokens ──────────────────────────────────────────────────────────
 

@@ -75,7 +75,7 @@ class AppTypography {
   static const TextStyle titleLg = TextStyle(
     fontFamily: fontDisplay,
     fontSize: 22,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w400,
     letterSpacing: -0.66,
     height: 28 / 22,
   );

@@ -25,7 +25,7 @@ class EditorPanel extends StatelessWidget {
         children: [
           Text(
             'Editor',
-            style: AppTypography.titleSm.copyWith(color: AppColors.textBold),
+            style: AppTypography.titleLg.copyWith(color: AppColors.textBold),
           ),
           // Style controls will be added here in a later iteration.
         ],
