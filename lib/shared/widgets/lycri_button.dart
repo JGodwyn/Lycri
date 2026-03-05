@@ -28,6 +28,9 @@ class LycriButton extends StatefulWidget {
     this.variant = LycriButtonVariant.primary,
     this.leadingIcon,
     this.trailingIcon,
+    this.fillWidth = false,
+    this.height = 40,
+    this.disabled = false,
   });
 
   /// The text displayed inside the button.
@@ -46,6 +49,17 @@ class LycriButton extends StatefulWidget {
   /// Optional icon shown after the label. Hidden when `null`.
   final IconData? trailingIcon;
 
+  /// When `true`, the button stretches to fill its parent's width.
+  /// Defaults to `false` (intrinsic width).
+  final bool fillWidth;
+
+  /// The height of the button. Defaults to `40`.
+  final double height;
+
+  /// When `true`, the button is visually and functionally disabled.
+  /// Defaults to `false`.
+  final bool disabled;
+
   @override
   State<LycriButton> createState() => _LycriButtonState();
 }
@@ -54,15 +68,13 @@ class _LycriButtonState extends State<LycriButton> {
   bool _hovered = false;
   bool _pressed = false;
 
-  bool get _enabled => widget.onPressed != null;
+  bool get _enabled => !widget.disabled && widget.onPressed != null;
 
   // ── Colour resolution ────────────────────────────────────────────────────
 
   Color get _backgroundColor {
     if (!_enabled) {
-      return widget.variant == LycriButtonVariant.primary
-          ? AppColors.btnBrandPrimaryDisabled
-          : AppColors.btnBrandSecondaryDisabled;
+      return AppColors.btnBrandPrimaryDisabled;
     }
     if (_pressed) {
       return widget.variant == LycriButtonVariant.primary
@@ -81,7 +93,7 @@ class _LycriButtonState extends State<LycriButton> {
 
   Color get _foregroundColor {
     if (!_enabled) {
-      return AppColors.textMinimal;
+      return AppColors.textInverse;
     }
 
     // Primary always uses inverse (white) text.
@@ -122,14 +134,15 @@ class _LycriButtonState extends State<LycriButton> {
         onTapCancel: _enabled ? () => setState(() => _pressed = false) : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          height: 40,
+          height: widget.height,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           decoration: BoxDecoration(
             color: _backgroundColor,
             borderRadius: BorderRadius.circular(AppRadius.full),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                widget.fillWidth ? MainAxisSize.max : MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Leading icon — hidden when null

@@ -151,8 +151,8 @@ class AppTypography {
 
   static const TextStyle btnLg = TextStyle(
     fontFamily: fontDisplay,
-    fontSize: 18,
-    fontWeight: FontWeight.w700,
+    fontSize: 16,
+    fontWeight: FontWeight.w400,
     letterSpacing: -0.36,
     height: 20 / 18,
   );

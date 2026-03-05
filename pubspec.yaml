@@ -29,6 +29,7 @@ dependencies:
 
   # File handling
   file_picker: ^8.0.3
+  flutter_svg: ^2.2.3
 
 dev_dependencies:
   flutter_test:
@@ -43,6 +44,7 @@ flutter:
 
   assets:
     - .env
+    - assets/icons/
 
   fonts:
     # ── Libre Caslon Condensed (display / headings / UI labels) ───────────────

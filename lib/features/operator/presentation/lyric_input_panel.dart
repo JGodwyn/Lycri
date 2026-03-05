@@ -65,7 +65,7 @@ class LyricInputPanel extends StatelessWidget {
                 ),
                 filled: true,
                 fillColor: AppColors.surface3,
-                contentPadding: const EdgeInsets.all(AppSpacing.xmd),
+                contentPadding: const EdgeInsets.all(AppSpacing.lg),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   borderSide: BorderSide(
@@ -74,17 +74,17 @@ class LyricInputPanel extends StatelessWidget {
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   borderSide: BorderSide(
                     color: AppColors.borderSubtle,
                     width: AppStroke.md,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   borderSide: BorderSide(
                     color: AppColors.borderFocused,
-                    width: AppStroke.md,
+                    width: AppStroke.lg,
                   ),
                 ),
               ),
@@ -98,6 +98,7 @@ class LyricInputPanel extends StatelessWidget {
             label: 'Continue',
             onPressed: () {},
             trailingIcon: Icons.arrow_forward,
+            fillWidth: true,
           ),
         ],
       ),

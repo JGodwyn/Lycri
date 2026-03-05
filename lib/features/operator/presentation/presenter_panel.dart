@@ -4,6 +4,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/lycri_button.dart';
 
 /// Center panel of the operator window.
 /// Shows a top bar with the "Presenter" label and a "Go live" button,
@@ -19,13 +20,16 @@ class PresenterPanel extends StatelessWidget {
       children: [
         // ── Top bar ────────────────────────────────────────────────────────
         Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
+          padding: const EdgeInsets.only(
+            left: AppSpacing.lg,
+            right: AppSpacing.md,
+            top: AppSpacing.md,
+            bottom: AppSpacing.md,
           ),
+
           decoration: BoxDecoration(
             color: AppColors.surface4,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppRadius.full),
             border: Border.all(
               color: AppColors.borderMinimal,
               width: AppStroke.md,
@@ -40,7 +44,14 @@ class PresenterPanel extends StatelessWidget {
                   color: AppColors.textSubtle,
                 ),
               ),
-              _GoLiveButton(),
+              // ── Go Live button ──────────────────────────────────────────────
+              LycriButton(
+                label: 'Go Live',
+                onPressed: () {},
+                fillWidth: false,
+                height: 32,
+                disabled: true,
+              ),
             ],
           ),
         ),
@@ -66,27 +77,6 @@ class PresenterPanel extends StatelessWidget {
   }
 }
 
-/// Disabled "Go live" pill button in the presenter top bar.
-class _GoLiveButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface1,
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: Text(
-        'Go live',
-        style: AppTypography.btnSm.copyWith(color: AppColors.textMinimal),
-      ),
-    );
-  }
-}
-
 /// Empty state shown in the presenter area before any lyrics are loaded.
 class _EmptyPresenterState extends StatelessWidget {
   const _EmptyPresenterState();
@@ -106,7 +96,7 @@ class _EmptyPresenterState extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
 
           Text(
-            'Hi there. Waiting for lyrics!',
+            'Hi there. Waiting fork your lyrics!',
             style: AppTypography.bodyMd.copyWith(color: AppColors.textMinimal),
             textAlign: TextAlign.center,
           ),
