@@ -51,41 +51,21 @@ class PresenterPanel extends ConsumerWidget {
 
               Row(
                 children: [
-                  if (lyrics == null) ...[
-                    // ── Clear button (state 1 only) ──────────────────────────
-                    LycriButton(
-                      variant: LycriButtonVariant.secondary,
-                      label: 'Clear',
-                      onPressed: () {
-                        ref.read(lyricsProvider.notifier).clear();
-                      },
-                      fillWidth: false,
-                      height: 32,
-                    ),
-                  ] else ...[
-                    // ── Prev / Next arrows (state 2 only) ────────────────────
-                    LycriButton(
-                      variant: LycriButtonVariant.secondary,
-                      label: '',
-                      leadingIcon: Icons.arrow_back,
-                      onPressed: () {},
-                      fillWidth: false,
-                      height: 32,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    LycriButton(
-                      variant: LycriButtonVariant.secondary,
-                      label: '',
-                      trailingIcon: Icons.arrow_forward,
-                      onPressed: () {},
-                      fillWidth: false,
-                      height: 32,
-                    ),
-                  ],
+                  // ── Clear button ─────────────────────────────────────────
+                  LycriButton(
+                    variant: LycriButtonVariant.secondary,
+                    label: 'Clear',
+                    onPressed: () {
+                      ref.read(lyricsProvider.notifier).clear();
+                    },
+                    fillWidth: false,
+                    height: 32,
+                    disabled: lyrics == null,
+                  ),
 
                   const SizedBox(width: AppSpacing.md),
 
-                  // ── Go Live button (always visible) ────────────────────────
+                  // ── Go Live button ──────────────────────────────────────
                   LycriButton(
                     label: 'Go Live',
                     onPressed: () {},
