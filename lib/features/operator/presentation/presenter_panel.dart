@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/widgets/lycri_button.dart';
 
 /// Center panel of the operator window.
 /// Shows a top bar with the "Presenter" label and a "Go live" button,
-/// plus a large preview area that displays an empty state when no lyrics
-/// have been loaded yet.
-class PresenterPanel extends StatelessWidget {
+/// plus a large preview area that displays either an empty state or the
+/// submitted lyrics.
+class PresenterPanel extends ConsumerWidget {
   const PresenterPanel({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lyrics = ref.watch(lyricsProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -26,7 +31,6 @@ class PresenterPanel extends StatelessWidget {
             top: AppSpacing.md,
             bottom: AppSpacing.md,
           ),
-
           decoration: BoxDecoration(
             color: AppColors.surface4,
             borderRadius: BorderRadius.circular(AppRadius.full),
@@ -44,13 +48,52 @@ class PresenterPanel extends StatelessWidget {
                   color: AppColors.textSubtle,
                 ),
               ),
-              // ── Go Live button ──────────────────────────────────────────────
-              LycriButton(
-                label: 'Go Live',
-                onPressed: () {},
-                fillWidth: false,
-                height: 32,
-                disabled: true,
+
+              Row(
+                children: [
+                  if (lyrics == null) ...[
+                    // ── Clear button (state 1 only) ──────────────────────────
+                    LycriButton(
+                      variant: LycriButtonVariant.secondary,
+                      label: 'Clear',
+                      onPressed: () {
+                        ref.read(lyricsProvider.notifier).clear();
+                      },
+                      fillWidth: false,
+                      height: 32,
+                    ),
+                  ] else ...[
+                    // ── Prev / Next arrows (state 2 only) ────────────────────
+                    LycriButton(
+                      variant: LycriButtonVariant.secondary,
+                      label: '',
+                      leadingIcon: Icons.arrow_back,
+                      onPressed: () {},
+                      fillWidth: false,
+                      height: 32,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    LycriButton(
+                      variant: LycriButtonVariant.secondary,
+                      label: '',
+                      trailingIcon: Icons.arrow_forward,
+                      onPressed: () {},
+                      fillWidth: false,
+                      height: 32,
+                    ),
+                  ],
+
+                  const SizedBox(width: AppSpacing.md),
+
+                  // ── Go Live button (always visible) ────────────────────────
+                  LycriButton(
+                    label: 'Go Live',
+                    onPressed: () {},
+                    fillWidth: false,
+                    height: 32,
+                    disabled: lyrics == null,
+                  ),
+                ],
               ),
             ],
           ),
@@ -69,7 +112,16 @@ class PresenterPanel extends StatelessWidget {
                 width: AppStroke.md,
               ),
             ),
-            child: const _EmptyPresenterState(),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child:
+                  lyrics != null
+                      ? _LyricsPreview(
+                        key: const ValueKey('lyrics'),
+                        lyrics: lyrics,
+                      )
+                      : const _EmptyPresenterState(key: ValueKey('empty')),
+            ),
           ),
         ),
       ],
@@ -77,9 +129,33 @@ class PresenterPanel extends StatelessWidget {
   }
 }
 
+// ─── Lyrics preview ─────────────────────────────────────────────────────────
+
+class _LyricsPreview extends StatelessWidget {
+  const _LyricsPreview({super.key, required this.lyrics});
+
+  final String lyrics;
+
+  @override
+  Widget build(BuildContext context) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Text(
+          lyrics,
+          style: AppTypography.headingMd.copyWith(color: AppColors.textSubtle),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Empty state ────────────────────────────────────────────────────────────
+
 /// Empty state shown in the presenter area before any lyrics are loaded.
 class _EmptyPresenterState extends StatelessWidget {
-  const _EmptyPresenterState();
+  const _EmptyPresenterState({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -87,16 +163,21 @@ class _EmptyPresenterState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Waving hand — using the emoji rendered as a large Text widget
-          Text(
-            '\u{1F44B}',
-            style: TextStyle(fontSize: 48, color: AppColors.iconMinimal),
+          // Waving hand
+          SvgPicture.asset(
+            'assets/vectors/HandWaving.svg',
+            width: 48,
+            height: 48,
+            colorFilter: ColorFilter.mode(
+              AppColors.iconMinimal,
+              BlendMode.srcIn,
+            ),
           ),
 
           const SizedBox(height: AppSpacing.lg),
 
           Text(
-            'Hi there. Waiting fork your lyrics!',
+            'Hi there. Waiting for your lyrics!',
             style: AppTypography.bodyMd.copyWith(color: AppColors.textMinimal),
             textAlign: TextAlign.center,
           ),
