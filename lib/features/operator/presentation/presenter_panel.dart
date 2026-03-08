@@ -7,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/providers/lyrics_provider.dart';
+import '../../../shared/providers/presentation_window_provider.dart';
 import '../../../shared/widgets/lycri_button.dart';
 
 /// Center panel of the operator window.
@@ -19,6 +20,14 @@ class PresenterPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lyrics = ref.watch(lyricsProvider);
+    final isLive = ref.watch(presentationWindowProvider);
+
+    // Sync lyrics changes to the presentation window in real time.
+    ref.listen<String?>(lyricsProvider, (prev, next) {
+      if (ref.read(presentationWindowProvider)) {
+        ref.read(presentationWindowProvider.notifier).syncLyrics(next);
+      }
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -56,6 +65,10 @@ class PresenterPanel extends ConsumerWidget {
                     variant: LycriButtonVariant.secondary,
                     label: 'Clear',
                     onPressed: () {
+                      // End live if active, then clear lyrics.
+                      if (isLive) {
+                        ref.read(presentationWindowProvider.notifier).endLive();
+                      }
                       ref.read(lyricsProvider.notifier).clear();
                     },
                     fillWidth: false,
@@ -65,13 +78,21 @@ class PresenterPanel extends ConsumerWidget {
 
                   const SizedBox(width: AppSpacing.md),
 
-                  // ── Go Live button ──────────────────────────────────────
+                  // ── Go Live / End Live button ──────────────────────────
                   LycriButton(
-                    label: 'Go Live',
-                    onPressed: () {},
+                    label: isLive ? 'End Live' : 'Go Live',
+                    onPressed: () {
+                      if (isLive) {
+                        ref.read(presentationWindowProvider.notifier).endLive();
+                      } else {
+                        ref
+                            .read(presentationWindowProvider.notifier)
+                            .goLive(lyrics);
+                      }
+                    },
                     fillWidth: false,
                     height: 32,
-                    disabled: lyrics == null,
+                    disabled: !isLive && lyrics == null,
                   ),
                 ],
               ),

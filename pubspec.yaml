@@ -30,6 +30,7 @@ dependencies:
   # File handling
   file_picker: ^8.0.3
   flutter_svg: ^2.2.3
+  desktop_multi_window: ^0.3.0
 
 dev_dependencies:
   flutter_test:
