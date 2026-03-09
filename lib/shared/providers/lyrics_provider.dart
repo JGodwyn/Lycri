@@ -10,6 +10,16 @@ final lyricsProvider = StateNotifierProvider<LyricsNotifier, String?>(
   (ref) => LyricsNotifier(),
 );
 
+/// Derived provider that splits raw lyrics into individual non-empty lines.
+///
+/// Returns an empty list when no lyrics are set. Used by the presenter panel
+/// to render and navigate between individual lyric lines.
+final lyricsLinesProvider = Provider<List<String>>((ref) {
+  final raw = ref.watch(lyricsProvider);
+  if (raw == null) return [];
+  return raw.split('\n').where((l) => l.trim().isNotEmpty).toList();
+});
+
 class LyricsNotifier extends StateNotifier<String?> {
   LyricsNotifier() : super(null);
 

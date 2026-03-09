@@ -65,10 +65,11 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
       state = true;
 
-      // Send / re-sync lyrics.
+      // Send / re-sync lyrics and active line.
       if (lyrics != null && lyrics.trim().isNotEmpty) {
         await syncLyrics(lyrics);
       }
+      await syncActiveLine(0);
     } catch (e) {
       state = false;
       _controller = null;
@@ -94,6 +95,16 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     if (!state || _controller == null) return;
     try {
       await _channel.invokeMethod('updateLyrics', text);
+    } catch (_) {
+      // Silently ignore if the presentation window is not ready yet.
+    }
+  }
+
+  /// Send the active line index to the presentation window.
+  Future<void> syncActiveLine(int index) async {
+    if (!state || _controller == null) return;
+    try {
+      await _channel.invokeMethod('updateActiveLine', index);
     } catch (_) {
       // Silently ignore if the presentation window is not ready yet.
     }
