@@ -4,6 +4,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/lycri_dropdown.dart';
 
 /// Right panel of the operator window.
 /// Hosts the lyric style editor — currently the Text section controls.
@@ -62,10 +63,20 @@ class _EditorPanelState extends State<EditorPanel> {
             // ── Font Family ────────────────────────────────────────────────
             _buildLabel('Font Family'),
             const SizedBox(height: AppSpacing.md),
-            _FontFamilyDropdown(
-              selectedFont: _selectedFont,
-              fontFamilies: _fontFamilies,
+            LycriDropdown<String>(
+              items:
+                  _fontFamilies
+                      .map(
+                        (f) => LycriDropdownItem(
+                          value: f,
+                          label: f,
+                          fontFamily: f,
+                        ),
+                      )
+                      .toList(),
+              selectedValue: _selectedFont,
               onChanged: (font) => setState(() => _selectedFont = font),
+              leadingIcon: Icons.text_format,
             ),
 
             const SizedBox(height: AppSpacing.xl),
@@ -178,95 +189,7 @@ class _DottedLinePainter extends CustomPainter {
       color != oldDelegate.color;
 }
 
-// ─── Font family dropdown ───────────────────────────────────────────────────
 
-class _FontFamilyDropdown extends StatelessWidget {
-  const _FontFamilyDropdown({
-    required this.selectedFont,
-    required this.fontFamilies,
-    required this.onChanged,
-  });
-
-  final String selectedFont;
-  final List<String> fontFamilies;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      onSelected: onChanged,
-      offset: const Offset(0, 48),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      color: AppColors.surface4,
-      itemBuilder:
-          (_) =>
-              fontFamilies
-                  .map(
-                    (font) => PopupMenuItem<String>(
-                      value: font,
-                      child: Text(
-                        font,
-                        style: AppTypography.bodyMd.copyWith(
-                          fontFamily: font,
-                          color: AppColors.textBold,
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: AppColors.surface3,
-          borderRadius: BorderRadius.circular(AppRadius.full),
-          border: Border.all(
-            color: AppColors.borderSubtle,
-            width: AppStroke.md,
-          ),
-        ),
-        child: Row(
-          children: [
-            // "Tt" font icon
-            Text(
-              'T',
-              style: AppTypography.titleMd.copyWith(
-                color: AppColors.textBold,
-                fontWeight: FontWeight.w700,
-                fontSize: 18,
-              ),
-            ),
-            Text(
-              'T',
-              style: AppTypography.bodyMd.copyWith(
-                color: AppColors.textBold,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.xmd),
-            Expanded(
-              child: Text(
-                selectedFont,
-                style: AppTypography.bodyMd.copyWith(
-                  fontFamily: selectedFont,
-                  color: AppColors.textBold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 20,
-              color: AppColors.iconSubtle,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ─── Chip row (used for line count selector) ────────────────────────────────
 
@@ -390,7 +313,7 @@ class _AlignmentSelector extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.surfaceBrandLight,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
+        borderRadius: BorderRadius.circular(AppRadius.full),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -411,7 +334,7 @@ class _AlignmentSelector extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.surface4,
-                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      borderRadius: BorderRadius.circular(AppRadius.full),
                       border: Border.all(
                         color: AppColors.borderBrand,
                         width: AppStroke.lg,
@@ -496,8 +419,8 @@ class _ColorRow extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surface4,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        color: AppColors.surface3,
+        borderRadius: BorderRadius.circular(AppRadius.full),
         border: Border.all(color: AppColors.borderSubtle, width: AppStroke.md),
       ),
       child: Row(
@@ -527,7 +450,7 @@ class _ColorRow extends StatelessWidget {
           ),
 
           // Picker icon (non-functional placeholder)
-          Icon(Icons.colorize_rounded, size: 18, color: AppColors.iconSubtle),
+          Icon(Icons.palette, size: 18, color: AppColors.iconSubtle),
         ],
       ),
     );
