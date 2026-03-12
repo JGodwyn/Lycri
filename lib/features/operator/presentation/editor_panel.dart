@@ -270,6 +270,8 @@ class _FontFamilyDropdown extends StatelessWidget {
 
 // ─── Chip row (used for line count selector) ────────────────────────────────
 
+/// A pill-shaped tray with a light brand tint. A white pill indicator
+/// slides smoothly to the selected item instead of snapping.
 class _ChipRow extends StatelessWidget {
   const _ChipRow({
     required this.items,
@@ -281,59 +283,97 @@ class _ChipRow extends StatelessWidget {
   final String selected;
   final ValueChanged<String> onSelected;
 
+  static const _animDuration = Duration(milliseconds: 300);
+  static const _animCurve = Curves.easeOutCubic;
+
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.md,
-      runSpacing: AppSpacing.md,
-      children:
-          items.map((item) {
-            final isSelected = item == selected;
-            return MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: () => onSelected(item),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: AppSpacing.md,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.surface4 : AppColors.surface4,
-                    borderRadius: BorderRadius.circular(AppRadius.full),
-                    border: Border.all(
-                      color:
-                          isSelected
-                              ? AppColors.borderBrand
-                              : AppColors.borderSubtle,
-                      width: isSelected ? AppStroke.lg : AppStroke.md,
-                    ),
-                  ),
-                  child: Text(
-                    item,
-                    style: AppTypography.bodyMd.copyWith(
-                      color:
-                          isSelected
-                              ? AppColors.textBold
-                              : AppColors.textSubtle,
+    final selectedIndex = items.indexOf(selected).clamp(0, items.length - 1);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBrandLight,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth / items.length;
+
+          return SizedBox(
+            height: 40,
+            child: Stack(
+              children: [
+                // ── Sliding indicator pill ─────────────────────────────────
+                AnimatedPositioned(
+                  duration: _animDuration,
+                  curve: _animCurve,
+                  left: selectedIndex * itemWidth,
+                  top: 0,
+                  bottom: 0,
+                  width: itemWidth,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface4,
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      border: Border.all(
+                        color: AppColors.borderBrand,
+                        width: AppStroke.lg,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          }).toList(),
+
+                // ── Text labels ────────────────────────────────────────────
+                Row(
+                  children:
+                      items.map((item) {
+                        final isSelected = item == selected;
+                        return Expanded(
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => onSelected(item),
+                              child: Center(
+                                child: AnimatedDefaultTextStyle(
+                                  duration: _animDuration,
+                                  curve: _animCurve,
+                                  style: AppTypography.bodyMd.copyWith(
+                                    color:
+                                        isSelected
+                                            ? AppColors.textBold
+                                            : AppColors.textSubtle,
+                                  ),
+                                  child: Text(item),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
 // ─── Alignment selector ─────────────────────────────────────────────────────
 
+/// Alignment selector with a `surfaceBrandLight` tray and a sliding white
+/// pill indicator that glides to the selected option.
 class _AlignmentSelector extends StatelessWidget {
   const _AlignmentSelector({required this.selected, required this.onSelected});
 
   final String selected;
   final ValueChanged<String> onSelected;
+
+  static const _animDuration = Duration(milliseconds: 300);
+  static const _animCurve = Curves.easeOutCubic;
 
   static const _alignmentData = [
     {'label': 'Left', 'icon': Icons.format_align_left},
@@ -343,68 +383,97 @@ class _AlignmentSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <Widget>[];
-    for (var i = 0; i < _alignmentData.length; i++) {
-      final data = _alignmentData[i];
-      final label = data['label'] as String;
-      final icon = data['icon'] as IconData;
-      final isSelected = label == selected;
+    final labels = _alignmentData.map((d) => d['label'] as String).toList();
+    final selectedIndex = labels.indexOf(selected).clamp(0, labels.length - 1);
 
-      if (i > 0) {
-        items.add(const SizedBox(width: AppSpacing.md));
-      }
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBrandLight,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth / _alignmentData.length;
 
-      items.add(
-        Expanded(
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: () => onSelected(label),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xmd),
-                decoration: BoxDecoration(
-                  color: AppColors.surface4,
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  border: Border.all(
-                    color:
-                        isSelected
-                            ? AppColors.borderBrand
-                            : AppColors.borderSubtle,
-                    width: isSelected ? AppStroke.lg : AppStroke.md,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 24,
-                      color:
-                          isSelected
-                              ? AppColors.iconBold
-                              : AppColors.iconSubtle,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      label,
-                      style: AppTypography.bodySm.copyWith(
-                        color:
-                            isSelected
-                                ? AppColors.textBold
-                                : AppColors.textSubtle,
+          return SizedBox(
+            height: 64,
+            child: Stack(
+              children: [
+                // ── Sliding indicator pill ─────────────────────────────────
+                AnimatedPositioned(
+                  duration: _animDuration,
+                  curve: _animCurve,
+                  left: selectedIndex * itemWidth,
+                  top: 0,
+                  bottom: 0,
+                  width: itemWidth,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface4,
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      border: Border.all(
+                        color: AppColors.borderBrand,
+                        width: AppStroke.lg,
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
 
-    return Row(children: items);
+                // ── Icon + label cells ─────────────────────────────────────
+                Row(
+                  children:
+                      _alignmentData.map((data) {
+                        final label = data['label'] as String;
+                        final icon = data['icon'] as IconData;
+                        final isSelected = label == selected;
+
+                        return Expanded(
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => onSelected(label),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  AnimatedSwitcher(
+                                    duration: _animDuration,
+                                    child: Icon(
+                                      icon,
+                                      key: ValueKey('${label}_$isSelected'),
+                                      size: 24,
+                                      color:
+                                          isSelected
+                                              ? AppColors.iconBold
+                                              : AppColors.iconSubtle,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  AnimatedDefaultTextStyle(
+                                    duration: _animDuration,
+                                    curve: _animCurve,
+                                    style: AppTypography.bodySm.copyWith(
+                                      color:
+                                          isSelected
+                                              ? AppColors.textBold
+                                              : AppColors.textSubtle,
+                                    ),
+                                    child: Text(label),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 
