@@ -11,6 +11,21 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    // ── System fonts method channel ───────────────────────────────────────
+    let fontChannel = FlutterMethodChannel(
+      name: "com.lycri/system_fonts",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    fontChannel.setMethodCallHandler { (call, result) in
+      switch call.method {
+      case "getSystemFonts":
+        let fontFamilies = NSFontManager.shared.availableFontFamilies.sorted()
+        result(fontFamilies)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
     FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
       // Register plugins for each sub-window so method channels work.
       RegisterGeneratedPlugins(registry: controller)

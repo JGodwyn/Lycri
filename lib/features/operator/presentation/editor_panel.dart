@@ -1,39 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/providers/lyrics_style_provider.dart';
+import '../../../shared/providers/system_fonts_provider.dart';
 import '../../../shared/widgets/lycri_dropdown.dart';
 
 /// Right panel of the operator window.
 /// Hosts the lyric style editor — currently the Text section controls.
 /// Background section will be added in a future iteration.
-class EditorPanel extends StatefulWidget {
+class EditorPanel extends ConsumerStatefulWidget {
   const EditorPanel({super.key});
 
   @override
-  State<EditorPanel> createState() => _EditorPanelState();
+  ConsumerState<EditorPanel> createState() => _EditorPanelState();
 }
 
-class _EditorPanelState extends State<EditorPanel> {
+class _EditorPanelState extends ConsumerState<EditorPanel> {
   // ── Local UI state (will move to providers when wiring functionality) ────
 
-  String _selectedFont = 'Libre Caslon Condensed';
   String _selectedLineCount = 'Auto';
   String _selectedAlignment = 'Left';
   Color _selectedFontColor = const Color(0xFF000000);
-
-  static const List<String> _fontFamilies = [
-    'Libre Caslon Condensed',
-    'Libre Caslon Text',
-    'Source Code Pro',
-  ];
 
   static const List<String> _lineCounts = ['Auto', '1', '2', '3', '4', '5'];
 
   @override
   Widget build(BuildContext context) {
+    final fontsAsync = ref.watch(systemFontsProvider);
+    final selectedFont =
+        ref.watch(lyricsStyleProvider.select((s) => s.fontFamily));
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface4,
@@ -63,20 +63,40 @@ class _EditorPanelState extends State<EditorPanel> {
             // ── Font Family ────────────────────────────────────────────────
             _buildLabel('Font Family'),
             const SizedBox(height: AppSpacing.md),
-            LycriDropdown<String>(
-              items:
-                  _fontFamilies
-                      .map(
-                        (f) => LycriDropdownItem(
-                          value: f,
-                          label: f,
-                          fontFamily: f,
-                        ),
-                      )
-                      .toList(),
-              selectedValue: _selectedFont,
-              onChanged: (font) => setState(() => _selectedFont = font),
-              leadingIcon: Icons.text_format,
+            fontsAsync.when(
+              data: (fonts) => LycriDropdown<String>(
+                items: fonts
+                    .map(
+                      (f) => LycriDropdownItem(
+                        value: f,
+                        label: f,
+                        fontFamily: f,
+                      ),
+                    )
+                    .toList(),
+                selectedValue: selectedFont,
+                onChanged:
+                    (font) => ref
+                        .read(lyricsStyleProvider.notifier)
+                        .setFontFamily(font),
+                leadingIcon: Icons.text_format,
+              ),
+              loading: () => const SizedBox(
+                height: 48,
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+              error: (_, __) => Text(
+                'Failed to load fonts',
+                style: AppTypography.bodySm.copyWith(
+                  color: AppColors.textDanger,
+                ),
+              ),
             ),
 
             const SizedBox(height: AppSpacing.xl),
@@ -188,8 +208,6 @@ class _DottedLinePainter extends CustomPainter {
   bool shouldRepaint(covariant _DottedLinePainter oldDelegate) =>
       color != oldDelegate.color;
 }
-
-
 
 // ─── Chip row (used for line count selector) ────────────────────────────────
 
@@ -439,7 +457,7 @@ class _ColorRow extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(width: AppSpacing.xmd),
+          const SizedBox(width: AppSpacing.md),
 
           // Hex code
           Expanded(

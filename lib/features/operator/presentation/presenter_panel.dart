@@ -8,6 +8,7 @@ import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/providers/active_line_provider.dart';
 import '../../../shared/providers/lyrics_provider.dart';
+import '../../../shared/providers/lyrics_style_provider.dart';
 import '../../../shared/providers/presentation_window_provider.dart';
 import '../../../shared/widgets/lycri_button.dart';
 
@@ -59,6 +60,16 @@ class PresenterPanel extends ConsumerWidget {
     ref.listen<int>(activeLineProvider, (prev, next) {
       if (ref.read(presentationWindowProvider)) {
         ref.read(presentationWindowProvider.notifier).syncActiveLine(next);
+      }
+    });
+
+    // Sync font family to the presentation window.
+    ref.listen<LyricsStyleState>(lyricsStyleProvider, (prev, next) {
+      if (ref.read(presentationWindowProvider) &&
+          prev?.fontFamily != next.fontFamily) {
+        ref.read(presentationWindowProvider.notifier).syncFontFamily(
+          next.fontFamily,
+        );
       }
     });
 
@@ -161,9 +172,10 @@ class PresenterPanel extends ConsumerWidget {
                       if (isLive) {
                         ref.read(presentationWindowProvider.notifier).endLive();
                       } else {
-                        ref
-                            .read(presentationWindowProvider.notifier)
-                            .goLive(lyrics);
+                        ref.read(presentationWindowProvider.notifier).goLive(
+                          lyrics,
+                          ref.read(lyricsStyleProvider).fontFamily,
+                        );
                       }
                     },
                     fillWidth: false,
@@ -274,6 +286,7 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
   Widget build(BuildContext context) {
     final lines = ref.watch(lyricsLinesProvider);
     final activeIndex = ref.watch(activeLineProvider);
+    final styleState = ref.watch(lyricsStyleProvider);
 
     // Trigger scroll animation whenever the active line changes.
     ref.listen<int>(activeLineProvider, (prev, next) {
@@ -302,6 +315,7 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
                   duration: _animDuration,
                   curve: _animCurve,
                   style: AppTypography.headingMd.copyWith(
+                    fontFamily: styleState.fontFamily,
                     color:
                         isActive ? AppColors.textBold : AppColors.textMinimal,
                   ),

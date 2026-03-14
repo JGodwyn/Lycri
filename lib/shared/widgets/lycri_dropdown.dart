@@ -248,6 +248,10 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
   late final AnimationController _animController;
   late final Animation<double> _scaleAnim;
   late final Animation<double> _fadeAnim;
+  late final ScrollController _scrollController;
+
+  // Exact height per item (item height 48px + divider 1px).
+  static const _exactItemHeight = 49.0;
 
   @override
   void initState() {
@@ -265,12 +269,27 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
     _scaleAnim = Tween(begin: 0.75, end: 1.0).animate(curved);
     _fadeAnim = Tween(begin: 0.0, end: 1.0).animate(curved);
 
+    // ScrollController — center the selected item in the visible area.
+    final selectedIndex = widget.items.indexWhere(
+      (i) => i.value == widget.selectedValue,
+    );
+    final rawOffset =
+        selectedIndex > 0 ? selectedIndex * _exactItemHeight : 0.0;
+    // Shift up by half the dropdown height so the item sits in the middle.
+    // initialScrollOffset is automatically bound to maxScrollExtent by Flutter during layout.
+    final centeredOffset = (rawOffset -
+            widget.maxHeight / 2 +
+            _exactItemHeight / 2)
+        .clamp(0.0, double.infinity);
+    _scrollController = ScrollController(initialScrollOffset: centeredOffset);
+
     // Start the entrance animation immediately.
     _animController.forward();
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _animController.dispose();
     super.dispose();
   }
@@ -321,9 +340,11 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                     child: Scrollbar(
+                      controller: _scrollController,
                       thumbVisibility: true,
                       radius: const Radius.circular(AppRadius.full),
                       child: ListView.separated(
+                        controller: _scrollController,
                         padding: const EdgeInsets.symmetric(
                           vertical: AppSpacing.sm,
                         ),
@@ -394,9 +415,9 @@ class _DropdownMenuItemState extends State<_DropdownMenuItem> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
+          height: 48.0,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.lg,
-            vertical: AppSpacing.xmd,
           ),
           color: _hovered ? AppColors.surface3 : AppColors.surface4,
           child: Row(

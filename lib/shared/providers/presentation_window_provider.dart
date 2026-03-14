@@ -28,7 +28,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
   /// If a secondary display is connected, the window is positioned full-screen
   /// on it. Otherwise it opens centered on the primary display.
   /// If the window was previously hidden (End Live), it is re-shown.
-  Future<void> goLive(String? lyrics) async {
+  Future<void> goLive(String? lyrics, String fontFamily) async {
     if (state) return; // Already live.
 
     try {
@@ -66,6 +66,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       state = true;
 
       // Send / re-sync lyrics and active line.
+      await syncFontFamily(fontFamily);
       if (lyrics != null && lyrics.trim().isNotEmpty) {
         await syncLyrics(lyrics);
       }
@@ -88,6 +89,16 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     }
     // Keep _controller around so we can re-show on next goLive.
     state = false;
+  }
+
+  /// Send updated font family to the presentation window.
+  Future<void> syncFontFamily(String font) async {
+    if (!state || _controller == null) return;
+    try {
+      await _channel.invokeMethod('updateFontFamily', font);
+    } catch (_) {
+      // Silently ignore if the presentation window is not ready yet.
+    }
   }
 
   /// Send updated lyrics text to the presentation window.

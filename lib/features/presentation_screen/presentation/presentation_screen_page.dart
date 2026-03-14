@@ -28,6 +28,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Parsed non-empty lyric lines.
   List<String> _lines = [];
 
+  /// The font family used to render the lyrics.
+  String _fontFamily = 'Libre Caslon Condensed';
+
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
 
@@ -82,6 +85,13 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         final newIndex = (call.arguments as int?) ?? 0;
         setState(() => _activeLine = newIndex);
         _scrollToActive(newIndex);
+        return null;
+
+      case 'updateFontFamily':
+        final newFont = call.arguments as String?;
+        if (newFont != null) {
+          setState(() => _fontFamily = newFont);
+        }
         return null;
 
       default:
@@ -166,6 +176,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                                   duration: _animDuration,
                                   curve: _animCurve,
                                   style: AppTypography.displayMd.copyWith(
+                                    fontFamily: _fontFamily,
                                     color:
                                         i == _activeLine
                                             ? AppColors.textBold
