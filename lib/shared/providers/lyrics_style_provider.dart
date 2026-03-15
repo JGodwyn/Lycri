@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Holds the visual styling state for the lyrics presentation.
@@ -5,6 +6,7 @@ class LyricsStyleState {
   const LyricsStyleState({
     this.fontFamily = 'Libre Caslon Condensed',
     this.displayLines = 0, // 0 = Auto
+    this.textAlign = TextAlign.left,
   });
 
   /// The selected font family name.
@@ -13,10 +15,18 @@ class LyricsStyleState {
   /// The number of lines to display at once (0 = Auto).
   final int displayLines;
 
-  LyricsStyleState copyWith({String? fontFamily, int? displayLines}) {
+  /// The text alignment.
+  final TextAlign textAlign;
+
+  LyricsStyleState copyWith({
+    String? fontFamily,
+    int? displayLines,
+    TextAlign? textAlign,
+  }) {
     return LyricsStyleState(
       fontFamily: fontFamily ?? this.fontFamily,
       displayLines: displayLines ?? this.displayLines,
+      textAlign: textAlign ?? this.textAlign,
     );
   }
 }
@@ -40,5 +50,11 @@ class LyricsStyleNotifier extends StateNotifier<LyricsStyleState> {
   void setDisplayLines(int lines) {
     if (state.displayLines == lines) return;
     state = state.copyWith(displayLines: lines);
+  }
+
+  /// Updates the text alignment.
+  void setTextAlign(TextAlign align) {
+    if (state.textAlign == align) return;
+    state = state.copyWith(textAlign: align);
   }
 }

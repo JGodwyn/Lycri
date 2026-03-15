@@ -76,6 +76,11 @@ class PresenterPanel extends ConsumerWidget {
               .read(presentationWindowProvider.notifier)
               .syncDisplayLines(next.displayLines);
         }
+        if (prev?.textAlign != next.textAlign) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncTextAlign(next.textAlign);
+        }
       }
     });
 
@@ -185,6 +190,7 @@ class PresenterPanel extends ConsumerWidget {
                               lyrics,
                               style.fontFamily,
                               style.displayLines,
+                              style.textAlign,
                             );
                       }
                     },
@@ -329,7 +335,10 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
                     color:
                         isActive ? AppColors.textBold : AppColors.textMinimal,
                   ),
-                  child: Text(lines[i]),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(lines[i], textAlign: styleState.textAlign),
+                  ),
                 ),
               ),
             ),

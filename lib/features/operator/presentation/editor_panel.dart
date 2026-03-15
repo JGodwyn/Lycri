@@ -20,9 +20,6 @@ class EditorPanel extends ConsumerStatefulWidget {
 }
 
 class _EditorPanelState extends ConsumerState<EditorPanel> {
-  // ── Local UI state (will move to providers when wiring functionality) ────
-
-  String _selectedAlignment = 'Left';
   Color _selectedFontColor = const Color(0xFF000000);
 
   static const List<String> _lineCounts = ['Auto', '1', '2', '3', '4', '5'];
@@ -128,8 +125,9 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             _buildLabel('Alignment'),
             const SizedBox(height: AppSpacing.md),
             _AlignmentSelector(
-              selected: _selectedAlignment,
-              onSelected: (v) => setState(() => _selectedAlignment = v),
+              selectedActiveToken: ref.watch(lyricsStyleProvider).textAlign,
+              onSelected:
+                  (v) => ref.read(lyricsStyleProvider.notifier).setTextAlign(v),
             ),
 
             const SizedBox(height: AppSpacing.xl),
@@ -320,24 +318,37 @@ class _ChipRow extends StatelessWidget {
 /// Alignment selector with a `surfaceBrandLight` tray and a sliding white
 /// pill indicator that glides to the selected option.
 class _AlignmentSelector extends StatelessWidget {
-  const _AlignmentSelector({required this.selected, required this.onSelected});
+  const _AlignmentSelector({
+    required this.selectedActiveToken,
+    required this.onSelected,
+  });
 
-  final String selected;
-  final ValueChanged<String> onSelected;
+  final TextAlign selectedActiveToken;
+  final ValueChanged<TextAlign> onSelected;
 
   static const _animDuration = Duration(milliseconds: 300);
   static const _animCurve = Curves.easeOutCubic;
 
   static const _alignmentData = [
-    {'label': 'Left', 'icon': Icons.format_align_left},
-    {'label': 'Center', 'icon': Icons.format_align_center},
-    {'label': 'Right', 'icon': Icons.format_align_right},
+    {'label': 'Left', 'icon': Icons.format_align_left, 'value': TextAlign.left},
+    {
+      'label': 'Center',
+      'icon': Icons.format_align_center,
+      'value': TextAlign.center,
+    },
+    {
+      'label': 'Right',
+      'icon': Icons.format_align_right,
+      'value': TextAlign.right,
+    },
   ];
 
   @override
   Widget build(BuildContext context) {
-    final labels = _alignmentData.map((d) => d['label'] as String).toList();
-    final selectedIndex = labels.indexOf(selected).clamp(0, labels.length - 1);
+    final values = _alignmentData.map((d) => d['value'] as TextAlign).toList();
+    final selectedIndex = values
+        .indexOf(selectedActiveToken)
+        .clamp(0, values.length - 1);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
@@ -379,14 +390,15 @@ class _AlignmentSelector extends StatelessWidget {
                       _alignmentData.map((data) {
                         final label = data['label'] as String;
                         final icon = data['icon'] as IconData;
-                        final isSelected = label == selected;
+                        final val = data['value'] as TextAlign;
+                        final isSelected = val == selectedActiveToken;
 
                         return Expanded(
                           child: MouseRegion(
                             cursor: SystemMouseCursors.click,
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onTap: () => onSelected(label),
+                              onTap: () => onSelected(val),
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [

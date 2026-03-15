@@ -34,11 +34,17 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Number of lines to display simultaneously (0 = Auto).
   int _displayLines = 0;
 
+  /// Text alignment for the lyrics.
+  TextAlign _textAlign = TextAlign.left;
+
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
 
   /// Scroll controller for smooth auto-scrolling to the active line.
   final ScrollController _scrollController = ScrollController();
+
+  /// Page controller for smoothly paginating via full pushes.
+  PageController _pageController = PageController();
 
   /// Keys for each line — used to measure position for scroll targeting.
   final Map<int, GlobalKey> _lineKeys = {};
@@ -63,6 +69,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   void dispose() {
     _channel.setMethodCallHandler(null);
     _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -79,9 +86,19 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                   .toList();
           _activeLine = 0;
           _lineKeys.clear();
+
+          if (_displayLines > 0) {
+            final oldController = _pageController;
+            _pageController = PageController(initialPage: 0);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              oldController.dispose();
+            });
+          }
         });
-        // Scroll back to the top for new lyrics.
-        _scrollToActive(0);
+
+        if (_displayLines == 0) {
+          _scrollToActive(0);
+        }
         return null;
 
       case 'updateActiveLine':
@@ -99,8 +116,31 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
       case 'updateDisplayLines':
         final newLines = call.arguments as int?;
-        if (newLines != null) {
-          setState(() => _displayLines = newLines);
+        if (newLines != null && newLines != _displayLines) {
+          setState(() {
+            _displayLines = newLines;
+            if (newLines > 0) {
+              final oldController = _pageController;
+              _pageController = PageController(
+                initialPage: _lines.isNotEmpty ? _activeLine ~/ newLines : 0,
+              );
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                oldController.dispose();
+              });
+            }
+          });
+
+          if (newLines == 0) {
+            _scrollToActive(_activeLine);
+          }
+        }
+        return null;
+
+      case 'updateTextAlign':
+        final alignIndex = call.arguments as int?;
+        if (alignIndex != null) {
+          final newAlign = TextAlign.values[alignIndex];
+          setState(() => _textAlign = newAlign);
         }
         return null;
 
@@ -114,9 +154,24 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
-  /// Smoothly scroll so the active line is roughly centred in the viewport.
+  /// Smoothly scroll or paginate so the active line is visible.
   void _scrollToActive(int activeIndex) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_displayLines > 0) {
+        // We are in pagination mode. Push the page up/down.
+        if (!_pageController.hasClients) return;
+        final targetPage = activeIndex ~/ _displayLines;
+        if (_pageController.page?.round() != targetPage) {
+          _pageController.animateToPage(
+            targetPage,
+            duration: _animDuration,
+            curve: _animCurve,
+          );
+        }
+        return;
+      }
+
+      // Continuous scrolling mode:
       if (!_scrollController.hasClients) return;
 
       final key = _lineKeys[activeIndex];
@@ -146,6 +201,37 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     });
   }
 
+  CrossAxisAlignment get _crossAxisAlignment {
+    switch (_textAlign) {
+      case TextAlign.center:
+        return CrossAxisAlignment.center;
+      case TextAlign.right:
+        return CrossAxisAlignment.end;
+      default:
+        return CrossAxisAlignment.start;
+    }
+  }
+
+  Widget _buildLyricLine(int i, {bool useGlobalKey = false}) {
+    return Padding(
+      key: useGlobalKey ? _keyFor(i) : null,
+      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+      child: AnimatedDefaultTextStyle(
+        duration: _animDuration,
+        curve: _animCurve,
+        style: AppTypography.displayMd.copyWith(
+          fontFamily: _fontFamily,
+          color: i == _activeLine ? AppColors.textBold : AppColors.textMinimal,
+          height: 1.4,
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: Text(_lines[i], textAlign: _textAlign, softWrap: true),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasLyrics = _rawLyrics != null && _lines.isNotEmpty;
@@ -153,14 +239,72 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     // Prune stale keys when line count shrinks.
     _lineKeys.removeWhere((k, _) => k >= _lines.length);
 
-    int startIdx = 0;
-    int endIdx = _lines.length;
-
+    int totalPages = 1;
     if (_displayLines > 0 && _lines.isNotEmpty) {
-      // Create pagination logic like a slide viewer.
-      startIdx = (_activeLine ~/ _displayLines) * _displayLines;
-      endIdx = startIdx + _displayLines;
-      if (endIdx > _lines.length) endIdx = _lines.length;
+      totalPages = (_lines.length / _displayLines).ceil();
+    }
+
+    Widget content;
+    if (_displayLines > 0) {
+      content = PageView.builder(
+        key: ValueKey('paginated_view_$_displayLines'),
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: totalPages,
+        itemBuilder: (context, pageIndex) {
+          int startIdx = pageIndex * _displayLines;
+          int endIdx = startIdx + _displayLines;
+          if (endIdx > _lines.length) endIdx = _lines.length;
+
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.x5l,
+                  vertical: AppSpacing.x2l,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: _crossAxisAlignment,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (int i = startIdx; i < endIdx; i++)
+                      _buildLyricLine(i, useGlobalKey: false),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    } else {
+      content = Center(
+        key: const ValueKey('continuous_view'),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.x5l,
+                vertical: AppSpacing.x2l,
+              ),
+              child: Column(
+                crossAxisAlignment: _crossAxisAlignment,
+                children: [
+                  for (int i = 0; i < _lines.length; i++)
+                    _buildLyricLine(i, useGlobalKey: true),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
     }
 
     return Scaffold(
@@ -168,62 +312,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
         child:
-            hasLyrics
-                ? Center(
-                  key: const ValueKey('lyrics'),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1200),
-                    child: ScrollConfiguration(
-                      behavior: ScrollConfiguration.of(
-                        context,
-                      ).copyWith(scrollbars: false),
-                      child: SingleChildScrollView(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.x5l,
-                          vertical: AppSpacing.x2l,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment:
-                              _displayLines > 0
-                                  ? MainAxisAlignment.center
-                                  : MainAxisAlignment.start,
-                          children: [
-                            for (int i = startIdx; i < endIdx; i++)
-                              Padding(
-                                key: _keyFor(i),
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpacing.xl,
-                                ),
-                                child: AnimatedDefaultTextStyle(
-                                  duration: _animDuration,
-                                  curve: _animCurve,
-                                  style: AppTypography.displayMd.copyWith(
-                                    fontFamily: _fontFamily,
-                                    color:
-                                        i == _activeLine
-                                            ? AppColors.textBold
-                                            : AppColors.textMinimal,
-                                    height: 1.4,
-                                  ),
-                                  child: SizedBox(
-                                    width: double.infinity,
-                                    child: Text(
-                                      _lines[i],
-                                      textAlign: TextAlign.left,
-                                      softWrap: true,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                : const SizedBox.shrink(key: ValueKey('empty')),
+            hasLyrics ? content : const SizedBox.shrink(key: ValueKey('empty')),
       ),
     );
   }

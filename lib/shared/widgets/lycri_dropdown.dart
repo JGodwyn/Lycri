@@ -416,9 +416,7 @@ class _DropdownMenuItemState extends State<_DropdownMenuItem> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           height: 48.0,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           color: _hovered ? AppColors.surface3 : AppColors.surface4,
           child: Row(
             children: [

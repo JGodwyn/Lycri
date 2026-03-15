@@ -1,4 +1,5 @@
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 
@@ -32,6 +33,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     String? lyrics,
     String fontFamily,
     int displayLines,
+    TextAlign textAlign,
   ) async {
     if (state) return; // Already live.
 
@@ -72,6 +74,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       // Send / re-sync lyrics and active line.
       await syncFontFamily(fontFamily);
       await syncDisplayLines(displayLines);
+      await syncTextAlign(textAlign);
       if (lyrics != null && lyrics.trim().isNotEmpty) {
         await syncLyrics(lyrics);
       }
@@ -111,6 +114,16 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     if (!state || _controller == null) return;
     try {
       await _channel.invokeMethod('updateDisplayLines', lines);
+    } catch (_) {
+      // Silently ignore.
+    }
+  }
+
+  /// Send updated text alignment to the presentation window.
+  Future<void> syncTextAlign(TextAlign align) async {
+    if (!state || _controller == null) return;
+    try {
+      await _channel.invokeMethod('updateTextAlign', align.index);
     } catch (_) {
       // Silently ignore.
     }
