@@ -22,7 +22,6 @@ class EditorPanel extends ConsumerStatefulWidget {
 class _EditorPanelState extends ConsumerState<EditorPanel> {
   // ── Local UI state (will move to providers when wiring functionality) ────
 
-  String _selectedLineCount = 'Auto';
   String _selectedAlignment = 'Left';
   Color _selectedFontColor = const Color(0xFF000000);
 
@@ -31,8 +30,14 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
   @override
   Widget build(BuildContext context) {
     final fontsAsync = ref.watch(systemFontsProvider);
-    final selectedFont =
-        ref.watch(lyricsStyleProvider.select((s) => s.fontFamily));
+    final selectedFont = ref.watch(
+      lyricsStyleProvider.select((s) => s.fontFamily),
+    );
+    final displayLines = ref.watch(
+      lyricsStyleProvider.select((s) => s.displayLines),
+    );
+    final selectedLineCountStr =
+        displayLines == 0 ? 'Auto' : displayLines.toString();
 
     return Container(
       decoration: BoxDecoration(
@@ -64,39 +69,43 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             _buildLabel('Font Family'),
             const SizedBox(height: AppSpacing.md),
             fontsAsync.when(
-              data: (fonts) => LycriDropdown<String>(
-                items: fonts
-                    .map(
-                      (f) => LycriDropdownItem(
-                        value: f,
-                        label: f,
-                        fontFamily: f,
-                      ),
-                    )
-                    .toList(),
-                selectedValue: selectedFont,
-                onChanged:
-                    (font) => ref
-                        .read(lyricsStyleProvider.notifier)
-                        .setFontFamily(font),
-                leadingIcon: Icons.text_format,
-              ),
-              loading: () => const SizedBox(
-                height: 48,
-                child: Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+              data:
+                  (fonts) => LycriDropdown<String>(
+                    items:
+                        fonts
+                            .map(
+                              (f) => LycriDropdownItem(
+                                value: f,
+                                label: f,
+                                fontFamily: f,
+                              ),
+                            )
+                            .toList(),
+                    selectedValue: selectedFont,
+                    onChanged:
+                        (font) => ref
+                            .read(lyricsStyleProvider.notifier)
+                            .setFontFamily(font),
+                    leadingIcon: Icons.text_format,
                   ),
-                ),
-              ),
-              error: (_, __) => Text(
-                'Failed to load fonts',
-                style: AppTypography.bodySm.copyWith(
-                  color: AppColors.textDanger,
-                ),
-              ),
+              loading:
+                  () => const SizedBox(
+                    height: 48,
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+              error:
+                  (_, __) => Text(
+                    'Failed to load fonts',
+                    style: AppTypography.bodySm.copyWith(
+                      color: AppColors.textDanger,
+                    ),
+                  ),
             ),
 
             const SizedBox(height: AppSpacing.xl),
@@ -106,8 +115,11 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             const SizedBox(height: AppSpacing.md),
             _ChipRow(
               items: _lineCounts,
-              selected: _selectedLineCount,
-              onSelected: (v) => setState(() => _selectedLineCount = v),
+              selected: selectedLineCountStr,
+              onSelected: (v) {
+                final count = v == 'Auto' ? 0 : int.parse(v);
+                ref.read(lyricsStyleProvider.notifier).setDisplayLines(count);
+              },
             ),
 
             const SizedBox(height: AppSpacing.xl),

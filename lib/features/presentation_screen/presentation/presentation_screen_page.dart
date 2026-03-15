@@ -31,6 +31,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// The font family used to render the lyrics.
   String _fontFamily = 'Libre Caslon Condensed';
 
+  /// Number of lines to display simultaneously (0 = Auto).
+  int _displayLines = 0;
+
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
 
@@ -94,6 +97,13 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         }
         return null;
 
+      case 'updateDisplayLines':
+        final newLines = call.arguments as int?;
+        if (newLines != null) {
+          setState(() => _displayLines = newLines);
+        }
+        return null;
+
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
     }
@@ -143,6 +153,16 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     // Prune stale keys when line count shrinks.
     _lineKeys.removeWhere((k, _) => k >= _lines.length);
 
+    int startIdx = 0;
+    int endIdx = _lines.length;
+
+    if (_displayLines > 0 && _lines.isNotEmpty) {
+      // Create pagination logic like a slide viewer.
+      startIdx = (_activeLine ~/ _displayLines) * _displayLines;
+      endIdx = startIdx + _displayLines;
+      if (endIdx > _lines.length) endIdx = _lines.length;
+    }
+
     return Scaffold(
       backgroundColor: AppColors.surface4,
       body: AnimatedSwitcher(
@@ -165,8 +185,12 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment:
+                              _displayLines > 0
+                                  ? MainAxisAlignment.center
+                                  : MainAxisAlignment.start,
                           children: [
-                            for (int i = 0; i < _lines.length; i++)
+                            for (int i = startIdx; i < endIdx; i++)
                               Padding(
                                 key: _keyFor(i),
                                 padding: const EdgeInsets.only(
@@ -183,10 +207,13 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                                             : AppColors.textMinimal,
                                     height: 1.4,
                                   ),
-                                  child: Text(
-                                    _lines[i],
-                                    textAlign: TextAlign.left,
-                                    softWrap: true,
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    child: Text(
+                                      _lines[i],
+                                      textAlign: TextAlign.left,
+                                      softWrap: true,
+                                    ),
                                   ),
                                 ),
                               ),

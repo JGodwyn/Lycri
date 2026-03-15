@@ -63,13 +63,19 @@ class PresenterPanel extends ConsumerWidget {
       }
     });
 
-    // Sync font family to the presentation window.
+    // Sync font family and display lines to the presentation window.
     ref.listen<LyricsStyleState>(lyricsStyleProvider, (prev, next) {
-      if (ref.read(presentationWindowProvider) &&
-          prev?.fontFamily != next.fontFamily) {
-        ref.read(presentationWindowProvider.notifier).syncFontFamily(
-          next.fontFamily,
-        );
+      if (ref.read(presentationWindowProvider)) {
+        if (prev?.fontFamily != next.fontFamily) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncFontFamily(next.fontFamily);
+        }
+        if (prev?.displayLines != next.displayLines) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncDisplayLines(next.displayLines);
+        }
       }
     });
 
@@ -172,10 +178,14 @@ class PresenterPanel extends ConsumerWidget {
                       if (isLive) {
                         ref.read(presentationWindowProvider.notifier).endLive();
                       } else {
-                        ref.read(presentationWindowProvider.notifier).goLive(
-                          lyrics,
-                          ref.read(lyricsStyleProvider).fontFamily,
-                        );
+                        final style = ref.read(lyricsStyleProvider);
+                        ref
+                            .read(presentationWindowProvider.notifier)
+                            .goLive(
+                              lyrics,
+                              style.fontFamily,
+                              style.displayLines,
+                            );
                       }
                     },
                     fillWidth: false,
