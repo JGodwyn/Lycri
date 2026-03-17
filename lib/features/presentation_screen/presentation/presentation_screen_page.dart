@@ -232,7 +232,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         style: AppTypography.displayMd.copyWith(
           fontFamily: _fontFamily,
           color:
-              i == _activeLine ? _fontColor : _fontColor.withValues(alpha: 0.4),
+              i == _activeLine ? _fontColor : _fontColor.withValues(alpha: 0.2),
           height: 1.4,
         ),
         child: SizedBox(

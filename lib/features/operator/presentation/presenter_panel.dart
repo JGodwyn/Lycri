@@ -341,7 +341,7 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
                     color:
                         isActive
                             ? styleState.fontColor
-                            : styleState.fontColor.withValues(alpha: 0.4),
+                            : styleState.fontColor.withValues(alpha: 0.2),
                   ),
                   child: SizedBox(
                     width: double.infinity,

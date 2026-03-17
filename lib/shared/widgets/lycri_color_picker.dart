@@ -158,25 +158,61 @@ class _LycriColorPickerPopup extends StatefulWidget {
 
 class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
   late HSVColor hsvColor;
+  late final TextEditingController _hexController;
+  late final FocusNode _focusNode;
 
   @override
   void initState() {
     super.initState();
     hsvColor = HSVColor.fromColor(widget.initialColor);
+    _hexController = TextEditingController(text: _getHexString());
+    _focusNode =
+        FocusNode()..addListener(() {
+          if (!_focusNode.hasFocus) {
+            _updateFromHex(_hexController.text);
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  String _getHexString() {
+    return '#${hsvColor.toColor().toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+  }
+
+  void _updateFromHex(String value) {
+    String hex = value.replaceAll('#', '').trim();
+    if (hex.length == 6) {
+      hex = 'FF$hex';
+    }
+    if (hex.length == 8) {
+      final val = int.tryParse(hex, radix: 16);
+      if (val != null) {
+        final newColor = Color(val);
+        _handleColorChanged(HSVColor.fromColor(newColor));
+        return;
+      }
+    }
+    _hexController.text = _getHexString();
   }
 
   void _handleColorChanged(HSVColor newHsv) {
     setState(() {
       hsvColor = newHsv;
+      if (!_focusNode.hasFocus) {
+        _hexController.text = _getHexString();
+      }
     });
     widget.onColorChanged(newHsv.toColor());
   }
 
   @override
   Widget build(BuildContext context) {
-    final hex =
-        '#${hsvColor.toColor().toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
-
     return Container(
       width: 260,
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -226,11 +262,21 @@ class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    hex,
+                  child: TextField(
+                    controller: _hexController,
+                    focusNode: _focusNode,
+                    decoration: const InputDecoration(
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
                     style: AppTypography.bodyMd.copyWith(
                       color: AppColors.textBold,
                     ),
+                    onSubmitted: _updateFromHex,
                   ),
                 ),
                 Container(
