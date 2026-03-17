@@ -34,6 +34,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     String fontFamily,
     int displayLines,
     TextAlign textAlign,
+    Color fontColor,
   ) async {
     if (state) return; // Already live.
 
@@ -75,6 +76,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       await syncFontFamily(fontFamily);
       await syncDisplayLines(displayLines);
       await syncTextAlign(textAlign);
+      await syncFontColor(fontColor);
       if (lyrics != null && lyrics.trim().isNotEmpty) {
         await syncLyrics(lyrics);
       }
@@ -124,6 +126,16 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     if (!state || _controller == null) return;
     try {
       await _channel.invokeMethod('updateTextAlign', align.index);
+    } catch (_) {
+      // Silently ignore.
+    }
+  }
+
+  /// Send updated font color to the presentation window.
+  Future<void> syncFontColor(Color color) async {
+    if (!state || _controller == null) return;
+    try {
+      await _channel.invokeMethod('updateFontColor', color.value);
     } catch (_) {
       // Silently ignore.
     }

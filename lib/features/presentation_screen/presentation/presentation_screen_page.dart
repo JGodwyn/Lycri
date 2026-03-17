@@ -37,6 +37,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Text alignment for the lyrics.
   TextAlign _textAlign = TextAlign.left;
 
+  /// Font color for the lyrics.
+  Color _fontColor = const Color(0xFF000000);
+
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
 
@@ -144,6 +147,13 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         }
         return null;
 
+      case 'updateFontColor':
+        final colorValue = call.arguments as int?;
+        if (colorValue != null) {
+          setState(() => _fontColor = Color(colorValue));
+        }
+        return null;
+
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
     }
@@ -221,7 +231,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         curve: _animCurve,
         style: AppTypography.displayMd.copyWith(
           fontFamily: _fontFamily,
-          color: i == _activeLine ? AppColors.textBold : AppColors.textMinimal,
+          color: i == _activeLine 
+              ? _fontColor 
+              : _fontColor.withValues(alpha: 0.4),
           height: 1.4,
         ),
         child: SizedBox(

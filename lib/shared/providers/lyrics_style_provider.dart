@@ -7,6 +7,7 @@ class LyricsStyleState {
     this.fontFamily = 'Libre Caslon Condensed',
     this.displayLines = 0, // 0 = Auto
     this.textAlign = TextAlign.left,
+    this.fontColor = const Color(0xFF000000), // Default to purely black
   });
 
   /// The selected font family name.
@@ -18,15 +19,20 @@ class LyricsStyleState {
   /// The text alignment.
   final TextAlign textAlign;
 
+  /// The font color.
+  final Color fontColor;
+
   LyricsStyleState copyWith({
     String? fontFamily,
     int? displayLines,
     TextAlign? textAlign,
+    Color? fontColor,
   }) {
     return LyricsStyleState(
       fontFamily: fontFamily ?? this.fontFamily,
       displayLines: displayLines ?? this.displayLines,
       textAlign: textAlign ?? this.textAlign,
+      fontColor: fontColor ?? this.fontColor,
     );
   }
 }
@@ -56,5 +62,11 @@ class LyricsStyleNotifier extends StateNotifier<LyricsStyleState> {
   void setTextAlign(TextAlign align) {
     if (state.textAlign == align) return;
     state = state.copyWith(textAlign: align);
+  }
+
+  /// Updates the font color.
+  void setFontColor(Color color) {
+    if (state.fontColor == color) return;
+    state = state.copyWith(fontColor: color);
   }
 }

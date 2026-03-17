@@ -81,6 +81,11 @@ class PresenterPanel extends ConsumerWidget {
               .read(presentationWindowProvider.notifier)
               .syncTextAlign(next.textAlign);
         }
+        if (prev?.fontColor != next.fontColor) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncFontColor(next.fontColor);
+        }
       }
     });
 
@@ -191,6 +196,7 @@ class PresenterPanel extends ConsumerWidget {
                               style.fontFamily,
                               style.displayLines,
                               style.textAlign,
+                              style.fontColor,
                             );
                       }
                     },
@@ -333,7 +339,9 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
                   style: AppTypography.headingMd.copyWith(
                     fontFamily: styleState.fontFamily,
                     color:
-                        isActive ? AppColors.textBold : AppColors.textMinimal,
+                        isActive
+                            ? styleState.fontColor
+                            : styleState.fontColor.withValues(alpha: 0.4),
                   ),
                   child: SizedBox(
                     width: double.infinity,
