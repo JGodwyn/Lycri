@@ -231,9 +231,8 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         curve: _animCurve,
         style: AppTypography.displayMd.copyWith(
           fontFamily: _fontFamily,
-          color: i == _activeLine 
-              ? _fontColor 
-              : _fontColor.withValues(alpha: 0.4),
+          color:
+              i == _activeLine ? _fontColor : _fontColor.withValues(alpha: 0.4),
           height: 1.4,
         ),
         child: SizedBox(

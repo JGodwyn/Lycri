@@ -1,4 +1,4 @@
-import 'package:flex_color_picker/flex_color_picker.dart';
+import '../../../shared/widgets/lycri_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
@@ -134,7 +134,7 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             // ── Font color ─────────────────────────────────────────────────
             _buildLabel('Font color'),
             const SizedBox(height: AppSpacing.md),
-            _ColorRow(
+            LycriColorField(
               color: ref.watch(lyricsStyleProvider).fontColor,
               onColorChanged:
                   (c) => ref.read(lyricsStyleProvider.notifier).setFontColor(c),
@@ -440,109 +440,6 @@ class _AlignmentSelector extends StatelessWidget {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-// ─── Color row ──────────────────────────────────────────────────────────────
-
-/// Displays a color swatch, its hex code, and a picker icon.
-/// Non-functional for now — serves as UI placeholder.
-class _ColorRow extends StatelessWidget {
-  const _ColorRow({required this.color, required this.onColorChanged});
-
-  final Color color;
-  final ValueChanged<Color> onColorChanged;
-
-  Future<void> _showColorPicker(BuildContext context) async {
-    final Color newColor = await showColorPickerDialog(
-      context,
-      color,
-      title: Text(
-        'Font color',
-        style: AppTypography.titleMd.copyWith(color: AppColors.textBold),
-      ),
-      width: 40,
-      height: 40,
-      spacing: 0,
-      runSpacing: 0,
-      borderRadius: 4,
-      wheelDiameter: 165,
-      enableOpacity: false,
-      showColorCode: true,
-      colorCodeHasColor: true,
-      pickersEnabled: const <ColorPickerType, bool>{
-        ColorPickerType.both: false,
-        ColorPickerType.primary: true,
-        ColorPickerType.accent: false,
-        ColorPickerType.bw: false,
-        ColorPickerType.custom: false,
-        ColorPickerType.wheel: true,
-      },
-      actionButtons: const ColorPickerActionButtons(
-        okButton: true,
-        closeButton: true,
-        dialogActionButtons: false,
-      ),
-    );
-    onColorChanged(newColor);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Convert the colour to a 6-digit hex string.
-    final hex =
-        '#${color.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () => _showColorPicker(context),
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: AppColors.surface3,
-            borderRadius: BorderRadius.circular(AppRadius.full),
-            border: Border.all(
-              color: AppColors.borderSubtle,
-              width: AppStroke.md,
-            ),
-          ),
-          child: Row(
-            children: [
-              // Color swatch
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                  border: Border.all(
-                    color: AppColors.borderSubtle,
-                    width: AppStroke.sm,
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: AppSpacing.md),
-
-              // Hex code
-              Expanded(
-                child: Text(
-                  hex,
-                  style: AppTypography.bodyMd.copyWith(
-                    color: AppColors.textBold,
-                  ),
-                ),
-              ),
-
-              // Picker icon
-              Icon(Icons.palette, size: 18, color: AppColors.iconSubtle),
-            ],
-          ),
-        ),
       ),
     );
   }
