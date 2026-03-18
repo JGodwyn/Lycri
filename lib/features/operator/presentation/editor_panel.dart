@@ -1,6 +1,7 @@
 import '../../../shared/widgets/lycri_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -156,6 +157,8 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                   (type) => ref
                       .read(lyricsStyleProvider.notifier)
                       .setBackgroundType(type),
+              backgroundColor: ref.watch(lyricsStyleProvider).backgroundColor,
+              gradientColors: ref.watch(lyricsStyleProvider).gradientColors,
             ),
 
             const SizedBox(height: AppSpacing.xl),
@@ -531,45 +534,101 @@ class _AlignmentSelector extends StatelessWidget {
 
 /// A `surfaceBrandLight` tray with icon + label items and a sliding
 /// white pill indicator — matches the alignment selector pattern.
+/// Uses dynamic color/gradient swatches and SVG icons for Image/Video.
 class _BackgroundTypeSelector extends StatelessWidget {
   const _BackgroundTypeSelector({
     required this.selected,
     required this.onSelected,
+    required this.backgroundColor,
+    required this.gradientColors,
   });
 
   final BackgroundType selected;
   final ValueChanged<BackgroundType> onSelected;
 
+  /// Current solid background color — used for the Color swatch.
+  final Color backgroundColor;
+
+  /// Current gradient colors — used for the Gradient swatch.
+  final List<Color> gradientColors;
+
   static const _animDuration = Duration(milliseconds: 300);
   static const _animCurve = Curves.easeOutCubic;
 
-  static const _items = [
-    {
-      'label': 'Color',
-      'icon': Icons.square_rounded,
-      'value': BackgroundType.solidColor,
-    },
-    {
-      'label': 'Gradient',
-      'icon': Icons.gradient,
-      'value': BackgroundType.gradient,
-    },
-    {
-      'label': 'Image',
-      'icon': Icons.image_outlined,
-      'value': BackgroundType.image,
-    },
-    {
-      'label': 'Video',
-      'icon': Icons.videocam_rounded,
-      'value': BackgroundType.video,
-    },
+  static const _labels = ['Color', 'Gradient', 'Image', 'Video'];
+  static const _values = [
+    BackgroundType.solidColor,
+    BackgroundType.gradient,
+    BackgroundType.image,
+    BackgroundType.video,
   ];
+
+  /// Builds the visual icon/swatch for each background type.
+  Widget _buildIcon(int index, bool isSelected) {
+    switch (_values[index]) {
+      case BackgroundType.solidColor:
+        return Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            border: Border.all(
+              color:
+                  isSelected ? AppColors.borderBrand : AppColors.borderSubtle,
+              width: AppStroke.sm,
+            ),
+          ),
+        );
+      case BackgroundType.gradient:
+        return Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            gradient: LinearGradient(
+              colors:
+                  gradientColors.length >= 2
+                      ? gradientColors
+                      : [Colors.white, Colors.black],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(
+              color:
+                  isSelected ? AppColors.borderBrand : AppColors.borderSubtle,
+              width: AppStroke.sm,
+            ),
+          ),
+        );
+      case BackgroundType.image:
+        return SvgPicture.asset(
+          'assets/vectors/ImageVector.svg',
+          width: 22,
+          height: 22,
+          colorFilter: ColorFilter.mode(
+            isSelected ? AppColors.iconBrand : AppColors.iconSubtle,
+            BlendMode.srcIn,
+          ),
+        );
+      case BackgroundType.video:
+        return SvgPicture.asset(
+          'assets/vectors/videoVector.svg',
+          width: 22,
+          height: 22,
+          colorFilter: ColorFilter.mode(
+            isSelected ? AppColors.iconBrand : AppColors.iconSubtle,
+            BlendMode.srcIn,
+          ),
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final values = _items.map((d) => d['value'] as BackgroundType).toList();
-    final selectedIndex = values.indexOf(selected).clamp(0, values.length - 1);
+    final selectedIndex = _values
+        .indexOf(selected)
+        .clamp(0, _values.length - 1);
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
@@ -579,7 +638,7 @@ class _BackgroundTypeSelector extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth / _items.length;
+          final itemWidth = constraints.maxWidth / _values.length;
 
           return SizedBox(
             height: 64,
@@ -607,52 +666,43 @@ class _BackgroundTypeSelector extends StatelessWidget {
 
                 // ── Icon + label cells ─────────────────────────────────────
                 Row(
-                  children:
-                      _items.map((data) {
-                        final label = data['label'] as String;
-                        final icon = data['icon'] as IconData;
-                        final val = data['value'] as BackgroundType;
-                        final isSelected = val == selected;
+                  children: List.generate(_values.length, (i) {
+                    final isSelected = _values[i] == selected;
 
-                        return Expanded(
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => onSelected(val),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  AnimatedSwitcher(
-                                    duration: _animDuration,
-                                    child: Icon(
-                                      icon,
-                                      key: ValueKey('${label}_$isSelected'),
-                                      size: 22,
-                                      color:
-                                          isSelected
-                                              ? AppColors.iconBrand
-                                              : AppColors.iconSubtle,
-                                    ),
-                                  ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  AnimatedDefaultTextStyle(
-                                    duration: _animDuration,
-                                    curve: _animCurve,
-                                    style: AppTypography.bodySm.copyWith(
-                                      color:
-                                          isSelected
-                                              ? AppColors.textBold
-                                              : AppColors.textSubtle,
-                                    ),
-                                    child: Text(label),
-                                  ),
-                                ],
+                    return Expanded(
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => onSelected(_values[i]),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: _animDuration,
+                                child: KeyedSubtree(
+                                  key: ValueKey('${_labels[i]}_$isSelected'),
+                                  child: _buildIcon(i, isSelected),
+                                ),
                               ),
-                            ),
+                              const SizedBox(height: AppSpacing.sm),
+                              AnimatedDefaultTextStyle(
+                                duration: _animDuration,
+                                curve: _animCurve,
+                                style: AppTypography.bodySm.copyWith(
+                                  color:
+                                      isSelected
+                                          ? AppColors.textBold
+                                          : AppColors.textSubtle,
+                                ),
+                                child: Text(_labels[i]),
+                              ),
+                            ],
                           ),
-                        );
-                      }).toList(),
+                        ),
+                      ),
+                    );
+                  }),
                 ),
               ],
             ),
