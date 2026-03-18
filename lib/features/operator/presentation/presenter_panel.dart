@@ -86,6 +86,11 @@ class PresenterPanel extends ConsumerWidget {
               .read(presentationWindowProvider.notifier)
               .syncFontColor(next.fontColor);
         }
+        if (prev?.backgroundColor != next.backgroundColor) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncBackgroundColor(next.backgroundColor);
+        }
       }
     });
 
@@ -197,6 +202,7 @@ class PresenterPanel extends ConsumerWidget {
                               style.displayLines,
                               style.textAlign,
                               style.fontColor,
+                              style.backgroundColor,
                             );
                       }
                     },
@@ -216,7 +222,7 @@ class PresenterPanel extends ConsumerWidget {
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.surface4,
+              color: ref.watch(lyricsStyleProvider).backgroundColor,
               borderRadius: BorderRadius.circular(AppRadius.lg),
               border: Border.all(
                 color: AppColors.borderMinimal,

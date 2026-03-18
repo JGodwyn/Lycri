@@ -142,10 +142,29 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
 
             const SizedBox(height: AppSpacing.x3l),
 
-            // ── Background section (placeholder) ──────────────────────────
+            // ── Background section ──────────────────────────────────────
             const _SectionHeader(label: 'Background'),
 
-            // Background controls will be added in a future iteration.
+            const SizedBox(height: AppSpacing.lg),
+
+            // ── Background type ───────────────────────────────────────────
+            _buildLabel('Background type'),
+            const SizedBox(height: AppSpacing.md),
+            _BackgroundTypeSelector(
+              selected: ref.watch(lyricsStyleProvider).backgroundType,
+              onSelected:
+                  (type) => ref
+                      .read(lyricsStyleProvider.notifier)
+                      .setBackgroundType(type),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+
+            // ── Conditional sub-controls ──────────────────────────────────
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: _buildBackgroundSubControls(ref),
+            ),
           ],
         ),
       ),
@@ -158,6 +177,70 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
       text,
       style: AppTypography.bodyMd.copyWith(color: AppColors.textSubtle),
     );
+  }
+
+  /// Builds the sub-controls shown below the background type selector,
+  /// dependent on the currently selected [BackgroundType].
+  Widget _buildBackgroundSubControls(WidgetRef ref) {
+    final style = ref.watch(lyricsStyleProvider);
+
+    switch (style.backgroundType) {
+      case BackgroundType.solidColor:
+        return Column(
+          key: const ValueKey('bg_solid'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLabel('Choose color'),
+            const SizedBox(height: AppSpacing.md),
+            LycriColorField(
+              color: style.backgroundColor,
+              onColorChanged:
+                  (c) => ref
+                      .read(lyricsStyleProvider.notifier)
+                      .setBackgroundColor(c),
+            ),
+          ],
+        );
+      case BackgroundType.gradient:
+        return Column(
+          key: const ValueKey('bg_gradient'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLabel('Gradient'),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Gradient controls coming soon',
+              style: AppTypography.bodySm.copyWith(color: AppColors.textSubtle),
+            ),
+          ],
+        );
+      case BackgroundType.image:
+        return Column(
+          key: const ValueKey('bg_image'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLabel('Image'),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Image controls coming soon',
+              style: AppTypography.bodySm.copyWith(color: AppColors.textSubtle),
+            ),
+          ],
+        );
+      case BackgroundType.video:
+        return Column(
+          key: const ValueKey('bg_video'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildLabel('Video'),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Video controls coming soon',
+              style: AppTypography.bodySm.copyWith(color: AppColors.textSubtle),
+            ),
+          ],
+        );
+    }
   }
 }
 
@@ -414,6 +497,141 @@ class _AlignmentSelector extends StatelessWidget {
                                       color:
                                           isSelected
                                               ? AppColors.iconBold
+                                              : AppColors.iconSubtle,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  AnimatedDefaultTextStyle(
+                                    duration: _animDuration,
+                                    curve: _animCurve,
+                                    style: AppTypography.bodySm.copyWith(
+                                      color:
+                                          isSelected
+                                              ? AppColors.textBold
+                                              : AppColors.textSubtle,
+                                    ),
+                                    child: Text(label),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+// ─── Background type selector ───────────────────────────────────────────────
+
+/// A `surfaceBrandLight` tray with icon + label items and a sliding
+/// white pill indicator — matches the alignment selector pattern.
+class _BackgroundTypeSelector extends StatelessWidget {
+  const _BackgroundTypeSelector({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final BackgroundType selected;
+  final ValueChanged<BackgroundType> onSelected;
+
+  static const _animDuration = Duration(milliseconds: 300);
+  static const _animCurve = Curves.easeOutCubic;
+
+  static const _items = [
+    {
+      'label': 'Color',
+      'icon': Icons.square_rounded,
+      'value': BackgroundType.solidColor,
+    },
+    {
+      'label': 'Gradient',
+      'icon': Icons.gradient,
+      'value': BackgroundType.gradient,
+    },
+    {
+      'label': 'Image',
+      'icon': Icons.image_outlined,
+      'value': BackgroundType.image,
+    },
+    {
+      'label': 'Video',
+      'icon': Icons.videocam_rounded,
+      'value': BackgroundType.video,
+    },
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final values = _items.map((d) => d['value'] as BackgroundType).toList();
+    final selectedIndex = values.indexOf(selected).clamp(0, values.length - 1);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBrandLight,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth / _items.length;
+
+          return SizedBox(
+            height: 64,
+            child: Stack(
+              children: [
+                // ── Sliding indicator pill ─────────────────────────────────
+                AnimatedPositioned(
+                  duration: _animDuration,
+                  curve: _animCurve,
+                  left: selectedIndex * itemWidth,
+                  top: 0,
+                  bottom: 0,
+                  width: itemWidth,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface4,
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      border: Border.all(
+                        color: AppColors.borderBrand,
+                        width: AppStroke.lg,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ── Icon + label cells ─────────────────────────────────────
+                Row(
+                  children:
+                      _items.map((data) {
+                        final label = data['label'] as String;
+                        final icon = data['icon'] as IconData;
+                        final val = data['value'] as BackgroundType;
+                        final isSelected = val == selected;
+
+                        return Expanded(
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => onSelected(val),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  AnimatedSwitcher(
+                                    duration: _animDuration,
+                                    child: Icon(
+                                      icon,
+                                      key: ValueKey('${label}_$isSelected'),
+                                      size: 22,
+                                      color:
+                                          isSelected
+                                              ? AppColors.iconBrand
                                               : AppColors.iconSubtle,
                                     ),
                                   ),

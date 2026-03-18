@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 
@@ -39,6 +38,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
   /// Font color for the lyrics.
   Color _fontColor = const Color(0xFF000000);
+
+  /// Background color for the presentation.
+  Color _backgroundColor = const Color(0xFFFFFFFF);
 
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
@@ -151,6 +153,13 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         final colorValue = call.arguments as int?;
         if (colorValue != null) {
           setState(() => _fontColor = Color(colorValue));
+        }
+        return null;
+
+      case 'updateBackgroundColor':
+        final colorValue = call.arguments as int?;
+        if (colorValue != null) {
+          setState(() => _backgroundColor = Color(colorValue));
         }
         return null;
 
@@ -319,7 +328,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.surface4,
+      backgroundColor: _backgroundColor,
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
         child:

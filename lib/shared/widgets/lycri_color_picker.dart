@@ -36,10 +36,52 @@ class _LycriColorFieldState extends State<LycriColorField> {
 
   void _showOverlay() {
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final size = renderBox.size;
+    // Verify the render box is valid before building the overlay.
+    if (!renderBox.hasSize) return;
 
     _overlayEntry = OverlayEntry(
-      builder: (context) {
+      builder: (overlayContext) {
+        // Measure the field's position on screen.
+        final RenderBox fieldBox = context.findRenderObject() as RenderBox;
+        final fieldGlobal = fieldBox.localToGlobal(Offset.zero);
+        final fieldSize = fieldBox.size;
+
+        // Get screen / overlay bounds.
+        final screenSize = MediaQuery.of(overlayContext).size;
+
+        const popupWidth = 260.0;
+        // Estimate popup height (SV area + hue slider + hex row + padding).
+        const popupHeight = 270.0;
+        const gap = AppSpacing.sm;
+
+        // ── Vertical: prefer below, flip above if clipped ──────────────
+        final spaceBelow =
+            screenSize.height - (fieldGlobal.dy + fieldSize.height + gap);
+        final spaceAbove = fieldGlobal.dy - gap;
+
+        final bool showAbove =
+            spaceBelow < popupHeight && spaceAbove > spaceBelow;
+
+        final double dy =
+            showAbove
+                ? -(popupHeight + gap) // above the field
+                : fieldSize.height + gap; // below the field
+
+        // ── Horizontal: right-align to field, but clamp to screen ──────
+        double dx = fieldSize.width - popupWidth; // right-aligned default
+
+        final double popupLeft = fieldGlobal.dx + dx;
+        final double popupRight = popupLeft + popupWidth;
+
+        if (popupRight > screenSize.width - gap) {
+          // Overflows right edge — shift left.
+          dx -= (popupRight - screenSize.width + gap);
+        }
+        if (fieldGlobal.dx + dx < gap) {
+          // Overflows left edge — clamp.
+          dx = -fieldGlobal.dx + gap;
+        }
+
         return Stack(
           children: [
             // Full screen dismiss barrier
@@ -52,8 +94,7 @@ class _LycriColorFieldState extends State<LycriColorField> {
             CompositedTransformFollower(
               link: _layerLink,
               showWhenUnlinked: false,
-              // Align the right edge of the popup with the right edge of the field
-              offset: Offset(size.width - 260, size.height + AppSpacing.sm),
+              offset: Offset(dx, dy),
               child: Material(
                 color: Colors.transparent,
                 child: _LycriColorPickerPopup(
@@ -111,7 +152,7 @@ class _LycriColorFieldState extends State<LycriColorField> {
                   height: 24,
                   decoration: BoxDecoration(
                     color: widget.color,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    borderRadius: BorderRadius.circular(AppRadius.full),
                     border: Border.all(
                       color: AppColors.borderSubtle,
                       width: AppStroke.sm,
