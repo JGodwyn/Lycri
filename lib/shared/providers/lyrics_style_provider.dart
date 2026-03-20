@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// The type of background used for the presentation.
 enum BackgroundType { solidColor, gradient, image, video }
 
+/// The type of gradient to apply.
+enum GradientType { linear, radial }
+
+
 /// Holds the visual styling state for the lyrics presentation.
 class LyricsStyleState {
   const LyricsStyleState({
@@ -12,8 +16,10 @@ class LyricsStyleState {
     this.textAlign = TextAlign.left,
     this.fontColor = const Color(0xFF000000), // Default to purely black
     this.backgroundType = BackgroundType.solidColor,
+    this.gradientType = GradientType.linear,
     this.backgroundColor = const Color(0xFFFFFFFF),
     this.gradientColors = const [Color(0xFFFFFFFF), Color(0xFF000000)],
+
     this.backgroundImagePath,
     this.backgroundVideoPath,
   });
@@ -33,6 +39,10 @@ class LyricsStyleState {
   /// The background type (solid color, gradient, image, or video).
   final BackgroundType backgroundType;
 
+  /// The type of gradient (linear or radial).
+  final GradientType gradientType;
+
+
   /// Solid background color.
   final Color backgroundColor;
 
@@ -51,8 +61,10 @@ class LyricsStyleState {
     TextAlign? textAlign,
     Color? fontColor,
     BackgroundType? backgroundType,
+    GradientType? gradientType,
     Color? backgroundColor,
     List<Color>? gradientColors,
+
     String? backgroundImagePath,
     String? backgroundVideoPath,
   }) {
@@ -62,8 +74,10 @@ class LyricsStyleState {
       textAlign: textAlign ?? this.textAlign,
       fontColor: fontColor ?? this.fontColor,
       backgroundType: backgroundType ?? this.backgroundType,
+      gradientType: gradientType ?? this.gradientType,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       gradientColors: gradientColors ?? this.gradientColors,
+
       backgroundImagePath: backgroundImagePath ?? this.backgroundImagePath,
       backgroundVideoPath: backgroundVideoPath ?? this.backgroundVideoPath,
     );
@@ -108,6 +122,13 @@ class LyricsStyleNotifier extends StateNotifier<LyricsStyleState> {
     if (state.backgroundType == type) return;
     state = state.copyWith(backgroundType: type);
   }
+
+  /// Updates the gradient type.
+  void setGradientType(GradientType type) {
+    if (state.gradientType == type) return;
+    state = state.copyWith(gradientType: type);
+  }
+
 
   /// Updates the solid background color.
   void setBackgroundColor(Color color) {

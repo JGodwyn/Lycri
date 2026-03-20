@@ -91,6 +91,22 @@ class PresenterPanel extends ConsumerWidget {
               .read(presentationWindowProvider.notifier)
               .syncBackgroundColor(next.backgroundColor);
         }
+        if (prev?.backgroundType != next.backgroundType) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncBackgroundType(next.backgroundType);
+        }
+        if (prev?.gradientColors != next.gradientColors) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncGradientColors(next.gradientColors);
+        }
+        if (prev?.gradientType != next.gradientType) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncGradientType(next.gradientType);
+        }
+
       }
     });
 
@@ -203,7 +219,11 @@ class PresenterPanel extends ConsumerWidget {
                               style.textAlign,
                               style.fontColor,
                               style.backgroundColor,
+                              style.backgroundType,
+                              style.gradientType,
+                              style.gradientColors,
                             );
+
                       }
                     },
                     fillWidth: false,
@@ -220,22 +240,53 @@ class PresenterPanel extends ConsumerWidget {
 
         // ── Preview area ────────────────────────────────────────────────────
         Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: ref.watch(lyricsStyleProvider).backgroundColor,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(
-                color: AppColors.borderMinimal,
-                width: AppStroke.md,
-              ),
-            ),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child:
-                  lyrics != null
-                      ? const _LyricsPreview(key: ValueKey('lyrics'))
-                      : const _EmptyPresenterState(key: ValueKey('empty')),
-            ),
+          child: Builder(
+            builder: (context) {
+              final style = ref.watch(lyricsStyleProvider);
+              return Container(
+                decoration: BoxDecoration(
+                  color:
+                      style.backgroundType == BackgroundType.solidColor
+                          ? style.backgroundColor
+                          : null,
+                  gradient:
+                      style.backgroundType == BackgroundType.gradient
+                          ? (style.gradientType == GradientType.linear
+                              ? LinearGradient(
+                                colors:
+                                    style.gradientColors.length >= 2
+                                        ? style.gradientColors
+                                        : [Colors.white, Colors.black],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                stops: const [0.0, 1.0],
+                              )
+                              : RadialGradient(
+                                colors:
+                                    style.gradientColors.length >= 2
+                                        ? style.gradientColors
+                                        : [Colors.white, Colors.black],
+                                center: Alignment.center,
+                                radius: 0.8,
+                                stops: const [0.0, 1.0],
+                              ))
+                          : null,
+
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  border: Border.all(
+                    color: AppColors.borderMinimal,
+                    width: AppStroke.md,
+                  ),
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child:
+                      lyrics != null
+                          ? const _LyricsPreview(key: ValueKey('lyrics'))
+                          : const _EmptyPresenterState(key: ValueKey('empty')),
+                ),
+              );
+            },
           ),
         ),
       ],

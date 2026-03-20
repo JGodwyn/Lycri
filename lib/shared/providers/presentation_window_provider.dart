@@ -2,6 +2,7 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
+import 'lyrics_style_provider.dart';
 
 /// Tracks whether the presentation window is live and manages its lifecycle.
 ///
@@ -36,7 +37,11 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     TextAlign textAlign,
     Color fontColor,
     Color backgroundColor,
+    BackgroundType backgroundType,
+    GradientType gradientType,
+    List<Color> gradientColors,
   ) async {
+
     if (state) return; // Already live.
 
     try {
@@ -79,6 +84,10 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       await syncTextAlign(textAlign);
       await syncFontColor(fontColor);
       await syncBackgroundColor(backgroundColor);
+      await syncBackgroundType(backgroundType);
+      await syncGradientType(gradientType);
+      await syncGradientColors(gradientColors);
+
       if (lyrics != null && lyrics.trim().isNotEmpty) {
         await syncLyrics(lyrics);
       }
@@ -148,6 +157,38 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     if (!state || _controller == null) return;
     try {
       await _channel.invokeMethod('updateBackgroundColor', color.toARGB32());
+    } catch (_) {
+      // Silently ignore.
+    }
+  }
+
+  /// Send updated background type to the presentation window.
+  Future<void> syncBackgroundType(BackgroundType type) async {
+    if (!state || _controller == null) return;
+    try {
+      await _channel.invokeMethod('updateBackgroundType', type.index);
+    } catch (_) {
+      // Silently ignore.
+    }
+  }
+
+  /// Send updated gradient type to the presentation window.
+  Future<void> syncGradientType(GradientType type) async {
+    if (!state || _controller == null) return;
+    try {
+      await _channel.invokeMethod('updateGradientType', type.index);
+    } catch (_) {
+      // Silently ignore.
+    }
+  }
+
+
+  /// Send updated gradient colors to the presentation window.
+  Future<void> syncGradientColors(List<Color> colors) async {
+    if (!state || _controller == null) return;
+    try {
+      final colorValues = colors.map((c) => c.toARGB32()).toList();
+      await _channel.invokeMethod('updateGradientColors', colorValues);
     } catch (_) {
       // Silently ignore.
     }

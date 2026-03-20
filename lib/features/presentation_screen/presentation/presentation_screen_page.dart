@@ -42,6 +42,16 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Background color for the presentation.
   Color _backgroundColor = const Color(0xFFFFFFFF);
 
+  /// Background type for the presentation.
+  int _backgroundType = 0; // 0 = solidColor
+
+  /// Gradient colors for gradient background.
+  List<Color> _gradientColors = const [Color(0xFFFFFFFF), Color(0xFF000000)];
+
+  /// Gradient type for gradient background.
+  int _gradientType = 0; // 0 = linear
+
+
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
 
@@ -160,6 +170,31 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         final colorValue = call.arguments as int?;
         if (colorValue != null) {
           setState(() => _backgroundColor = Color(colorValue));
+        }
+        return null;
+
+      case 'updateBackgroundType':
+        final typeIndex = call.arguments as int?;
+        if (typeIndex != null) {
+          setState(() => _backgroundType = typeIndex);
+        }
+        return null;
+
+      case 'updateGradientType':
+        final typeIndex = call.arguments as int?;
+        if (typeIndex != null) {
+          setState(() => _gradientType = typeIndex);
+        }
+        return null;
+
+      case 'updateGradientColors':
+
+        final rawColors = call.arguments as List?;
+        if (rawColors != null) {
+          setState(() {
+            _gradientColors =
+                rawColors.cast<int>().map((v) => Color(v)).toList();
+          });
         }
         return null;
 
@@ -327,12 +362,45 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       );
     }
 
+    // Determine background decoration based on background type.
+    final bool isGradient = _backgroundType == 1; // 1 = gradient
+    final decoration =
+        isGradient
+            ? BoxDecoration(
+              gradient:
+                  _gradientType == 0 // linear
+                      ? LinearGradient(
+                        colors:
+                            _gradientColors.length >= 2
+                                ? _gradientColors
+                                : [Colors.white, Colors.black],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0.0, 1.0],
+                      )
+                      : RadialGradient(
+                        colors:
+                            _gradientColors.length >= 2
+                                ? _gradientColors
+                                : [Colors.white, Colors.black],
+                        center: Alignment.center,
+                        radius: 1.0,
+                        stops: const [0.0, 1.0],
+                      ),
+            )
+            : BoxDecoration(color: _backgroundColor);
+
+
     return Scaffold(
-      backgroundColor: _backgroundColor,
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child:
-            hasLyrics ? content : const SizedBox.shrink(key: ValueKey('empty')),
+      body: Container(
+        decoration: decoration,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child:
+              hasLyrics
+                  ? content
+                  : const SizedBox.shrink(key: ValueKey('empty')),
+        ),
       ),
     );
   }

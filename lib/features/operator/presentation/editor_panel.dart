@@ -209,11 +209,54 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
           key: const ValueKey('bg_gradient'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLabel('Gradient'),
+            _buildLabel('Gradient type'),
             const SizedBox(height: AppSpacing.md),
-            Text(
-              'Gradient controls coming soon',
-              style: AppTypography.bodySm.copyWith(color: AppColors.textSubtle),
+            _GradientTypeSelector(
+              selected: style.gradientType,
+              onSelected:
+                  (type) => ref
+                      .read(lyricsStyleProvider.notifier)
+                      .setGradientType(type),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            _buildLabel('Choose first color'),
+            const SizedBox(height: AppSpacing.md),
+            LycriColorField(
+              color:
+                  style.gradientColors.isNotEmpty
+                      ? style.gradientColors[0]
+                      : Colors.white,
+              onColorChanged: (c) {
+                final colors = List<Color>.from(style.gradientColors);
+                if (colors.isEmpty) {
+                  colors.addAll([c, Colors.black]);
+                } else {
+                  colors[0] = c;
+                }
+                ref
+                    .read(lyricsStyleProvider.notifier)
+                    .setGradientColors(colors);
+              },
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            _buildLabel('Choose second color'),
+            const SizedBox(height: AppSpacing.md),
+            LycriColorField(
+              color:
+                  style.gradientColors.length >= 2
+                      ? style.gradientColors[1]
+                      : Colors.black,
+              onColorChanged: (c) {
+                final colors = List<Color>.from(style.gradientColors);
+                if (colors.length < 2) {
+                  colors.addAll([Colors.white, c]);
+                } else {
+                  colors[1] = c;
+                }
+                ref
+                    .read(lyricsStyleProvider.notifier)
+                    .setGradientColors(colors);
+              },
             ),
           ],
         );
@@ -685,6 +728,106 @@ class _BackgroundTypeSelector extends StatelessWidget {
                                   child: _buildIcon(i, isSelected),
                                 ),
                               ),
+                              const SizedBox(height: AppSpacing.sm),
+                              AnimatedDefaultTextStyle(
+                                duration: _animDuration,
+                                curve: _animCurve,
+                                style: AppTypography.bodySm.copyWith(
+                                  color:
+                                      isSelected
+                                          ? AppColors.textBold
+                                          : AppColors.textSubtle,
+                                ),
+                                child: Text(_labels[i]),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ─── Gradient type selector ───────────────────────────────────────────────
+
+/// Matches the segmented bar pattern used for alignment and background type.
+class _GradientTypeSelector extends StatelessWidget {
+  const _GradientTypeSelector({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final GradientType selected;
+  final ValueChanged<GradientType> onSelected;
+
+  static const _animDuration = Duration(milliseconds: 300);
+  static const _animCurve = Curves.easeOutCubic;
+
+  static const _labels = ['Linear', 'Radial'];
+  static const _values = [GradientType.linear, GradientType.radial];
+  static const _icons = [Icons.linear_scale, Icons.vignette];
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedIndex = _values
+        .indexOf(selected)
+        .clamp(0, _values.length - 1);
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceBrandLight,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth / _values.length;
+
+          return SizedBox(
+            height: 32,
+            child: Stack(
+              children: [
+                // ── Sliding indicator pill ─────────────────────────────────
+                AnimatedPositioned(
+                  duration: _animDuration,
+                  curve: _animCurve,
+                  left: selectedIndex * itemWidth,
+                  top: 0,
+                  bottom: 0,
+                  width: itemWidth,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface4,
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      border: Border.all(
+                        color: AppColors.borderBrand,
+                        width: AppStroke.lg,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ── Label cells ────────────────────────────────────────────
+                Row(
+                  children: List.generate(_values.length, (i) {
+                    final isSelected = _values[i] == selected;
+                    return Expanded(
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => onSelected(_values[i]),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
                               const SizedBox(height: AppSpacing.sm),
                               AnimatedDefaultTextStyle(
                                 duration: _animDuration,
