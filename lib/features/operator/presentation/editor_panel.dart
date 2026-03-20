@@ -1,4 +1,7 @@
+import 'dart:io';
 import '../../../shared/widgets/lycri_color_picker.dart';
+import 'package:file_picker/file_picker.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -346,14 +349,31 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
           key: const ValueKey('bg_image'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLabel('Image'),
+            _buildLabel('Select background image'),
             const SizedBox(height: AppSpacing.md),
-            Text(
-              'Image controls coming soon',
-              style: AppTypography.bodySm.copyWith(color: AppColors.textSubtle),
+            _ImageBackgroundSelector(
+              imagePath: style.backgroundImagePath,
+              onSelect: () async {
+                final result = await FilePicker.platform.pickFiles(
+                  type: FileType.image,
+                  allowMultiple: false,
+                );
+                if (result != null && result.files.single.path != null) {
+                  ref
+                      .read(lyricsStyleProvider.notifier)
+                      .setBackgroundImagePath(result.files.single.path);
+                }
+              },
+              onRemove: () {
+                ref
+                    .read(lyricsStyleProvider.notifier)
+                    .setBackgroundImagePath(null);
+              },
             ),
+
           ],
         );
+
       case BackgroundType.video:
         return Column(
           key: const ValueKey('bg_video'),
@@ -932,6 +952,109 @@ class _GradientTypeSelector extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ─── Image background selector ──────────────────────────────────────────
+
+/// UI for selecting or removing a background image.
+class _ImageBackgroundSelector extends StatelessWidget {
+  const _ImageBackgroundSelector({
+    required this.imagePath,
+    required this.onSelect,
+    required this.onRemove,
+  });
+
+  final String? imagePath;
+  final VoidCallback onSelect;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    bool hasImage = imagePath != null && imagePath!.isNotEmpty;
+
+    return GestureDetector(
+      onTap: onSelect,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: AppColors.surface3,
+            borderRadius: BorderRadius.circular(AppRadius.full),
+            border: Border.all(color: AppColors.borderSubtle, width: AppStroke.md),
+          ),
+          child: Row(
+            children: [
+              if (hasImage) ...[
+                // Thumbnail
+                Container(
+                  width: 32,
+                  height: 24,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    color: AppColors.surface2,
+                  ),
+                  child: Image.file(
+                    File(imagePath!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: AppColors.surface0,
+                        child: const Icon(Icons.broken_image, size: 16),
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(width: AppSpacing.md),
+                // Filename
+                Expanded(
+                  child: Text(
+                    imagePath!.split('/').last,
+                    style: AppTypography.bodyMd.copyWith(color: AppColors.textBold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  onPressed: onRemove,
+                  icon: SvgPicture.asset(
+                    'assets/vectors/delete-trash.svg',
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.textDanger,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+              ] else ...[
+                // Empty state
+                Expanded(
+                  child: Text(
+                    'Tap to select an image',
+                    style: AppTypography.bodyMd.copyWith(
+                      color: AppColors.textSubtle,
+                    ),
+                  ),
+                ),
+                SvgPicture.asset(
+                  'assets/vectors/image-plus.svg',
+                  width: 24,
+                  height: 24,
+                  colorFilter: const ColorFilter.mode(
+                    AppColors.iconSubtle,
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
