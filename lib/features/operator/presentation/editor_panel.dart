@@ -24,6 +24,10 @@ class EditorPanel extends ConsumerStatefulWidget {
 class _EditorPanelState extends ConsumerState<EditorPanel> {
   static const List<String> _lineCounts = ['Auto', '1', '2', '3', '4', '5'];
 
+  /// Track previous background type to determine push direction.
+  BackgroundType? _prevBackgroundType;
+
+
   @override
   Widget build(BuildContext context) {
     final fontsAsync = ref.watch(systemFontsProvider);
@@ -35,6 +39,31 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
     );
     final selectedLineCountStr =
         displayLines == 0 ? 'Auto' : displayLines.toString();
+
+    final currentBackgroundType = ref.watch(
+      lyricsStyleProvider.select((s) => s.backgroundType),
+    );
+
+    // Determine direction for push transition.
+    final bool isForward =
+        _prevBackgroundType == null ||
+        currentBackgroundType.index >= _prevBackgroundType!.index;
+
+    // Use a post frame callback to avoid updating state during build when
+    // initial value is set, but since we are just tracking for the NEXT build,
+    // we can update it at the end of build or in a listener.
+    // ref.listen is cleaner.
+    ref.listen<BackgroundType>(
+      lyricsStyleProvider.select((s) => s.backgroundType),
+      (prev, next) {
+        if (prev != next) {
+          setState(() {
+            _prevBackgroundType = prev;
+          });
+        }
+      },
+    );
+
 
     return Container(
       decoration: BoxDecoration(
@@ -164,18 +193,70 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             const SizedBox(height: AppSpacing.xl),
 
             // ── Conditional sub-controls ──────────────────────────────────
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: _buildBackgroundSubControls(ref),
+            ClipRect(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 350),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+                  return Stack(
+                    alignment: Alignment.topLeft,
+                    children: <Widget>[
+                      ...previousChildren,
+                      if (currentChild != null) currentChild,
+                    ],
+                  );
+                },
+                transitionBuilder: (child, animation) {
+                  // If it's the child that's coming in (it matches currentBackgroundType)
+                  final bool isIncoming =
+                      (child.key as ValueKey<String>?)?.value ==
+                      _getBackgroundKey(currentBackgroundType);
+
+                  // Offset based on direction.
+                  // Forward: In from (1,0), Out to (-1,0)
+                  // Backward: In from (-1,0), Out to (1,0)
+                  final Offset beginOffset =
+                      isIncoming
+                          ? (isForward ? const Offset(1, 0) : const Offset(-1, 0))
+                          : (isForward ? const Offset(-1, 0) : const Offset(1, 0));
+
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: beginOffset,
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: FadeTransition(opacity: animation, child: child),
+                  );
+                },
+                child: _buildBackgroundSubControls(ref),
+              ),
             ),
+
+
           ],
         ),
       ),
     );
   }
 
+  /// Map background type to ValueKey string used in _buildBackgroundSubControls.
+  String _getBackgroundKey(BackgroundType type) {
+    switch (type) {
+      case BackgroundType.solidColor:
+        return 'bg_solid';
+      case BackgroundType.gradient:
+        return 'bg_gradient';
+      case BackgroundType.image:
+        return 'bg_image';
+      case BackgroundType.video:
+        return 'bg_video';
+    }
+  }
+
   /// Builds a small label above each control group.
   Widget _buildLabel(String text) {
+
     return Text(
       text,
       style: AppTypography.bodyMd.copyWith(color: AppColors.textSubtle),
