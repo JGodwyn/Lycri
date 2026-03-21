@@ -30,6 +30,13 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
   /// Track previous background type to determine push direction.
   BackgroundType? _prevBackgroundType;
 
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,18 +74,21 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
       },
     );
 
-
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface4,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.borderMinimal, width: AppStroke.md),
       ),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: Scrollbar(
+        controller: _scrollController,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
             // ── Title ──────────────────────────────────────────────────────
             Text(
               'Editor',
@@ -201,7 +211,10 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                 duration: const Duration(milliseconds: 350),
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
-                layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+                layoutBuilder: (
+                  Widget? currentChild,
+                  List<Widget> previousChildren,
+                ) {
                   return Stack(
                     alignment: Alignment.topLeft,
                     children: <Widget>[
@@ -221,8 +234,12 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                   // Backward: In from (-1,0), Out to (1,0)
                   final Offset beginOffset =
                       isIncoming
-                          ? (isForward ? const Offset(1, 0) : const Offset(-1, 0))
-                          : (isForward ? const Offset(-1, 0) : const Offset(1, 0));
+                          ? (isForward
+                              ? const Offset(1, 0)
+                              : const Offset(-1, 0))
+                          : (isForward
+                              ? const Offset(-1, 0)
+                              : const Offset(1, 0));
 
                   return SlideTransition(
                     position: Tween<Offset>(
@@ -235,13 +252,12 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                 child: _buildBackgroundSubControls(ref),
               ),
             ),
-
-
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   /// Map background type to ValueKey string used in _buildBackgroundSubControls.
   String _getBackgroundKey(BackgroundType type) {
@@ -259,10 +275,9 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
 
   /// Builds a small label above each control group.
   Widget _buildLabel(String text) {
-
     return Text(
       text,
-      style: AppTypography.bodyMd.copyWith(color: AppColors.textSubtle),
+      style: AppTypography.bodyLg.copyWith(color: AppColors.textSubtle),
     );
   }
 
@@ -370,7 +385,6 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                     .setBackgroundImagePath(null);
               },
             ),
-
           ],
         );
 
@@ -475,7 +489,7 @@ class _ChipRow extends StatelessWidget {
     final selectedIndex = items.indexOf(selected).clamp(0, items.length - 1);
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surfaceBrandLight,
         borderRadius: BorderRadius.circular(AppRadius.full),
@@ -563,15 +577,19 @@ class _AlignmentSelector extends StatelessWidget {
   static const _animCurve = Curves.easeOutCubic;
 
   static const _alignmentData = [
-    {'label': 'Left', 'icon': Icons.format_align_left, 'value': TextAlign.left},
+    {
+      'label': 'Left',
+      'icon': 'assets/vectors/format-align-left.svg',
+      'value': TextAlign.left,
+    },
     {
       'label': 'Center',
-      'icon': Icons.format_align_center,
+      'icon': 'assets/vectors/format-align-center.svg',
       'value': TextAlign.center,
     },
     {
       'label': 'Right',
-      'icon': Icons.format_align_right,
+      'icon': 'assets/vectors/format-align-right.svg',
       'value': TextAlign.right,
     },
   ];
@@ -584,7 +602,7 @@ class _AlignmentSelector extends StatelessWidget {
         .clamp(0, values.length - 1);
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surfaceBrandLight,
         borderRadius: BorderRadius.circular(AppRadius.full),
@@ -622,8 +640,9 @@ class _AlignmentSelector extends StatelessWidget {
                   children:
                       _alignmentData.map((data) {
                         final label = data['label'] as String;
-                        final icon = data['icon'] as IconData;
+                        final icon = data['icon'] as String;
                         final val = data['value'] as TextAlign;
+
                         final isSelected = val == selectedActiveToken;
 
                         return Expanded(
@@ -637,21 +656,25 @@ class _AlignmentSelector extends StatelessWidget {
                                 children: [
                                   AnimatedSwitcher(
                                     duration: _animDuration,
-                                    child: Icon(
+                                    child: SvgPicture.asset(
                                       icon,
                                       key: ValueKey('${label}_$isSelected'),
-                                      size: 24,
-                                      color:
-                                          isSelected
-                                              ? AppColors.iconBold
-                                              : AppColors.iconSubtle,
+                                      width: 24,
+                                      height: 24,
+                                      colorFilter: ColorFilter.mode(
+                                        isSelected
+                                            ? AppColors.iconBold
+                                            : AppColors.iconSubtle,
+                                        BlendMode.srcIn,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(height: AppSpacing.sm),
+
+                                  const SizedBox(height: AppSpacing.xs),
                                   AnimatedDefaultTextStyle(
                                     duration: _animDuration,
                                     curve: _animCurve,
-                                    style: AppTypography.bodySm.copyWith(
+                                    style: AppTypography.bodyMd.copyWith(
                                       color:
                                           isSelected
                                               ? AppColors.textBold
@@ -699,7 +722,7 @@ class _BackgroundTypeSelector extends StatelessWidget {
   static const _animDuration = Duration(milliseconds: 300);
   static const _animCurve = Curves.easeOutCubic;
 
-  static const _labels = ['Color', 'Gradient', 'Image', 'Video'];
+  static const _labels = ['Solid', 'Flow', 'Image', 'Video'];
   static const _values = [
     BackgroundType.solidColor,
     BackgroundType.gradient,
@@ -712,8 +735,8 @@ class _BackgroundTypeSelector extends StatelessWidget {
     switch (_values[index]) {
       case BackgroundType.solidColor:
         return Container(
-          width: 22,
-          height: 22,
+          width: 20,
+          height: 20,
           decoration: BoxDecoration(
             color: backgroundColor,
             borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -726,8 +749,8 @@ class _BackgroundTypeSelector extends StatelessWidget {
         );
       case BackgroundType.gradient:
         return Container(
-          width: 22,
-          height: 22,
+          width: 20,
+          height: 20,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.sm),
             gradient: LinearGradient(
@@ -748,8 +771,8 @@ class _BackgroundTypeSelector extends StatelessWidget {
       case BackgroundType.image:
         return SvgPicture.asset(
           'assets/vectors/ImageVector.svg',
-          width: 22,
-          height: 22,
+          width: 20,
+          height: 20,
           colorFilter: ColorFilter.mode(
             isSelected ? AppColors.iconBrand : AppColors.iconSubtle,
             BlendMode.srcIn,
@@ -758,8 +781,8 @@ class _BackgroundTypeSelector extends StatelessWidget {
       case BackgroundType.video:
         return SvgPicture.asset(
           'assets/vectors/videoVector.svg',
-          width: 22,
-          height: 22,
+          width: 20,
+          height: 20,
           colorFilter: ColorFilter.mode(
             isSelected ? AppColors.iconBrand : AppColors.iconSubtle,
             BlendMode.srcIn,
@@ -775,7 +798,7 @@ class _BackgroundTypeSelector extends StatelessWidget {
         .clamp(0, _values.length - 1);
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surfaceBrandLight,
         borderRadius: BorderRadius.circular(AppRadius.full),
@@ -829,14 +852,14 @@ class _BackgroundTypeSelector extends StatelessWidget {
                                   child: _buildIcon(i, isSelected),
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.sm),
+                              const SizedBox(height: AppSpacing.xs),
                               AnimatedDefaultTextStyle(
                                 duration: _animDuration,
                                 curve: _animCurve,
-                                style: AppTypography.bodySm.copyWith(
+                                style: AppTypography.bodyMd.copyWith(
                                   color:
                                       isSelected
-                                          ? AppColors.textBold
+                                          ? AppColors.textSubtle
                                           : AppColors.textSubtle,
                                 ),
                                 child: Text(_labels[i]),
@@ -883,7 +906,7 @@ class _GradientTypeSelector extends StatelessWidget {
         .clamp(0, _values.length - 1);
 
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surfaceBrandLight,
         borderRadius: BorderRadius.circular(AppRadius.full),
@@ -893,7 +916,7 @@ class _GradientTypeSelector extends StatelessWidget {
           final itemWidth = constraints.maxWidth / _values.length;
 
           return SizedBox(
-            height: 32,
+            height: 40,
             child: Stack(
               children: [
                 // ── Sliding indicator pill ─────────────────────────────────
@@ -910,7 +933,7 @@ class _GradientTypeSelector extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.full),
                       border: Border.all(
                         color: AppColors.borderBrand,
-                        width: AppStroke.lg,
+                        width: AppStroke.sm,
                       ),
                     ),
                   ),
@@ -929,11 +952,11 @@ class _GradientTypeSelector extends StatelessWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const SizedBox(height: AppSpacing.sm),
+                              // const SizedBox(height: AppSpacing.sm),
                               AnimatedDefaultTextStyle(
                                 duration: _animDuration,
                                 curve: _animCurve,
-                                style: AppTypography.bodySm.copyWith(
+                                style: AppTypography.bodyMd.copyWith(
                                   color:
                                       isSelected
                                           ? AppColors.textBold
@@ -975,86 +998,109 @@ class _ImageBackgroundSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     bool hasImage = imagePath != null && imagePath!.isNotEmpty;
 
-    return GestureDetector(
-      onTap: onSelect,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: AppColors.surface3,
-            borderRadius: BorderRadius.circular(AppRadius.full),
-            border: Border.all(color: AppColors.borderSubtle, width: AppStroke.md),
-          ),
-          child: Row(
-            children: [
-              if (hasImage) ...[
-                // Thumbnail
-                Container(
-                  width: 32,
-                  height: 24,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    color: AppColors.surface2,
-                  ),
-                  child: Image.file(
-                    File(imagePath!),
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppColors.surface0,
-                        child: const Icon(Icons.broken_image, size: 16),
-                      );
-                    },
-                  ),
-                ),
-
-                const SizedBox(width: AppSpacing.md),
-                // Filename
-                Expanded(
-                  child: Text(
-                    imagePath!.split('/').last,
-                    style: AppTypography.bodyMd.copyWith(color: AppColors.textBold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  onPressed: onRemove,
-                  icon: SvgPicture.asset(
-                    'assets/vectors/delete-trash.svg',
-                    width: 20,
-                    height: 20,
-                    colorFilter: const ColorFilter.mode(
-                      AppColors.textDanger,
-                      BlendMode.srcIn,
-                    ),
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface3,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        border: Border.all(color: AppColors.borderSubtle, width: AppStroke.md),
+      ),
+      child: Row(
+        children: [
+          if (hasImage) ...[
+            // Thumbnail & Name clickable area
+            Expanded(
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onSelect,
+                  child: Row(
+                    children: [
+                      // Thumbnail
+                      Container(
+                        width: 32,
+                        height: 24,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          color: AppColors.surface2,
+                        ),
+                        child: Image.file(
+                          File(imagePath!),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppColors.surface0,
+                              child: const Icon(Icons.broken_image, size: 16),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      // Filename
+                      Expanded(
+                        child: Text(
+                          imagePath!.split('/').last,
+                          style: AppTypography.bodyMd.copyWith(
+                            color: AppColors.textBold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ] else ...[
-                // Empty state
-                Expanded(
-                  child: Text(
-                    'Tap to select an image',
-                    style: AppTypography.bodyMd.copyWith(
-                      color: AppColors.textSubtle,
-                    ),
+              ),
+            ),
+            // Separate Delete button (unwrapped from global gesture)
+            IconButton(
+              onPressed: onRemove,
+              icon: SvgPicture.asset(
+                'assets/vectors/delete-trash.svg',
+                width: 20,
+                height: 20,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.textDanger,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ] else ...[
+            // Empty state clickable area
+            Expanded(
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onSelect,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Tap to select an image',
+                          style: AppTypography.bodyMd.copyWith(
+                            color: AppColors.textSubtle,
+                          ),
+                        ),
+                      ),
+                      SvgPicture.asset(
+                        'assets/vectors/image-plus.svg',
+                        width: 24,
+                        height: 24,
+                        colorFilter: const ColorFilter.mode(
+                          AppColors.iconSubtle,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SvgPicture.asset(
-                  'assets/vectors/image-plus.svg',
-                  width: 24,
-                  height: 24,
-                  colorFilter: const ColorFilter.mode(
-                    AppColors.iconSubtle,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/theme/app_colors.dart';
@@ -106,6 +108,12 @@ class PresenterPanel extends ConsumerWidget {
               .read(presentationWindowProvider.notifier)
               .syncGradientType(next.gradientType);
         }
+        if (prev?.backgroundImagePath != next.backgroundImagePath) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncBackgroundImagePath(next.backgroundImagePath);
+        }
+
 
       }
     });
@@ -219,10 +227,12 @@ class PresenterPanel extends ConsumerWidget {
                               style.textAlign,
                               style.fontColor,
                               style.backgroundColor,
-                              style.backgroundType,
-                              style.gradientType,
-                              style.gradientColors,
-                            );
+                                style.backgroundType,
+                                style.gradientType,
+                                style.gradientColors,
+                                style.backgroundImagePath,
+                              );
+
 
                       }
                     },
@@ -271,6 +281,15 @@ class PresenterPanel extends ConsumerWidget {
                                 stops: const [0.0, 1.0],
                               ))
                           : null,
+                  image:
+                      style.backgroundType == BackgroundType.image &&
+                              style.backgroundImagePath != null
+                          ? DecorationImage(
+                            image: FileImage(File(style.backgroundImagePath!)),
+                            fit: BoxFit.cover,
+                          )
+                          : null,
+
 
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                   border: Border.all(

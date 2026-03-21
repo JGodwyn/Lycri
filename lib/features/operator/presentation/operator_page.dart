@@ -30,7 +30,7 @@ class OperatorPage extends StatelessWidget {
             const SizedBox(width: AppSpacing.md),
 
             // ── Right: style editor ──────────────────────────────────────
-            SizedBox(width: 320, child: const EditorPanel()),
+            SizedBox(width: 368, child: const EditorPanel()),
           ],
         ),
       ),

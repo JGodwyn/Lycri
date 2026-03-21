@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -50,6 +52,10 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
   /// Gradient type for gradient background.
   int _gradientType = 0; // 0 = linear
+
+  /// Background image path.
+  String? _backgroundImagePath;
+
 
 
   /// Index of the currently active (highlighted) line.
@@ -197,6 +203,11 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
           });
         }
         return null;
+      case 'updateBackgroundImagePath':
+        final newPath = call.arguments as String?;
+        setState(() => _backgroundImagePath = newPath);
+        return null;
+
 
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
@@ -383,12 +394,18 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                             _gradientColors.length >= 2
                                 ? _gradientColors
                                 : [Colors.white, Colors.black],
-                        center: Alignment.center,
-                        radius: 1.0,
                         stops: const [0.0, 1.0],
                       ),
             )
-            : BoxDecoration(color: _backgroundColor);
+            : _backgroundType == 2 && _backgroundImagePath != null // 2 = image
+                ? BoxDecoration(
+                  image: DecorationImage(
+                    image: FileImage(File(_backgroundImagePath!)),
+                    fit: BoxFit.cover,
+                  ),
+                )
+                : BoxDecoration(color: _backgroundColor);
+
 
 
     return Scaffold(

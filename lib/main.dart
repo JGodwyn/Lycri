@@ -38,7 +38,7 @@ Future<void> main(List<String> args) async {
   await windowManager.ensureInitialized();
 
   const WindowOptions windowOptions = WindowOptions(
-    size: Size(1280, 800),
+    size: Size(1400, 1100),
     minimumSize: Size(960, 600),
     center: true,
     title: 'Lycri',

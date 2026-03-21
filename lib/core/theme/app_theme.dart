@@ -118,6 +118,24 @@ class AppTheme {
           ),
         ),
       ),
+
+      // ─── Scrollbar ─────────────────────────────────────────────────────────
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.dragged)) {
+            return AppColors.gray400;
+          }
+          return AppColors.gray200.withValues(alpha: 0.5);
+        }),
+        thickness: WidgetStateProperty.all(4.0),
+        radius: const Radius.circular(AppRadius.full),
+        thumbVisibility: WidgetStateProperty.all(false),
+        crossAxisMargin: 2.0,
+        mainAxisMargin: 2.0,
+        minThumbLength: 48.0,
+      ),
     );
   }
 }
+
