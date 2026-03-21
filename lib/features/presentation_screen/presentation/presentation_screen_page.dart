@@ -56,8 +56,6 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Background image path.
   String? _backgroundImagePath;
 
-
-
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
 
@@ -194,7 +192,6 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         return null;
 
       case 'updateGradientColors':
-
         final rawColors = call.arguments as List?;
         if (rawColors != null) {
           setState(() {
@@ -207,7 +204,6 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         final newPath = call.arguments as String?;
         setState(() => _backgroundImagePath = newPath);
         return null;
-
 
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
@@ -379,7 +375,8 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         isGradient
             ? BoxDecoration(
               gradient:
-                  _gradientType == 0 // linear
+                  _gradientType ==
+                          0 // linear
                       ? LinearGradient(
                         colors:
                             _gradientColors.length >= 2
@@ -397,16 +394,16 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                         stops: const [0.0, 1.0],
                       ),
             )
-            : _backgroundType == 2 && _backgroundImagePath != null // 2 = image
-                ? BoxDecoration(
-                  image: DecorationImage(
-                    image: FileImage(File(_backgroundImagePath!)),
-                    fit: BoxFit.cover,
-                  ),
-                )
-                : BoxDecoration(color: _backgroundColor);
-
-
+            : _backgroundType == 2 &&
+                _backgroundImagePath !=
+                    null // 2 = image
+            ? BoxDecoration(
+              image: DecorationImage(
+                image: FileImage(File(_backgroundImagePath!)),
+                fit: BoxFit.cover,
+              ),
+            )
+            : BoxDecoration(color: _backgroundColor);
 
     return Scaffold(
       body: Container(

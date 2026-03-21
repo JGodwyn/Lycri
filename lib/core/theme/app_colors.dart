@@ -40,7 +40,7 @@ class AppColors {
   // ─── Semantic Text Tokens ─────────────────────────────────────────────────
 
   static const Color textBold = gray1000;
-  static const Color textSubtle = gray500;
+  static const Color textSubtle = gray400;
   static const Color textMinimal = gray200;
   static const Color textInverse = gray0;
   static const Color textSuccess = Color(0xFF00A600);

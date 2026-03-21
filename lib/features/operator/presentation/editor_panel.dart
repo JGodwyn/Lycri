@@ -88,176 +88,177 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-            // ── Title ──────────────────────────────────────────────────────
-            Text(
-              'Editor',
-              style: AppTypography.headingSm.copyWith(
-                color: AppColors.textSubtle,
+              // ── Title ──────────────────────────────────────────────────────
+              Text(
+                'Editor',
+                style: AppTypography.headingSm.copyWith(
+                  color: AppColors.textSubtle,
+                ),
               ),
-            ),
 
-            const SizedBox(height: AppSpacing.xl),
+              const SizedBox(height: AppSpacing.xl),
 
-            // ── Text section ───────────────────────────────────────────────
-            const _SectionHeader(label: 'Text'),
+              // ── Text section ───────────────────────────────────────────────
+              const _SectionHeader(label: 'Text'),
 
-            const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: AppSpacing.lg),
 
-            // ── Font Family ────────────────────────────────────────────────
-            _buildLabel('Font Family'),
-            const SizedBox(height: AppSpacing.md),
-            fontsAsync.when(
-              data:
-                  (fonts) => LycriDropdown<String>(
-                    items:
-                        fonts
-                            .map(
-                              (f) => LycriDropdownItem(
-                                value: f,
-                                label: f,
-                                fontFamily: f,
-                              ),
-                            )
-                            .toList(),
-                    selectedValue: selectedFont,
-                    onChanged:
-                        (font) => ref
-                            .read(lyricsStyleProvider.notifier)
-                            .setFontFamily(font),
-                    leadingIcon: Icons.text_format,
-                  ),
-              loading:
-                  () => const SizedBox(
-                    height: 48,
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+              // ── Font Family ────────────────────────────────────────────────
+              _buildLabel('Font Family'),
+              const SizedBox(height: AppSpacing.sm),
+              fontsAsync.when(
+                data:
+                    (fonts) => LycriDropdown<String>(
+                      items:
+                          fonts
+                              .map(
+                                (f) => LycriDropdownItem(
+                                  value: f,
+                                  label: f,
+                                  fontFamily: f,
+                                ),
+                              )
+                              .toList(),
+                      selectedValue: selectedFont,
+                      onChanged:
+                          (font) => ref
+                              .read(lyricsStyleProvider.notifier)
+                              .setFontFamily(font),
+                      leadingIcon: Icons.text_format,
+                    ),
+                loading:
+                    () => const SizedBox(
+                      height: 48,
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       ),
                     ),
-                  ),
-              error:
-                  (_, __) => Text(
-                    'Failed to load fonts',
-                    style: AppTypography.bodySm.copyWith(
-                      color: AppColors.textDanger,
+                error:
+                    (_, __) => Text(
+                      'Failed to load fonts',
+                      style: AppTypography.bodySm.copyWith(
+                        color: AppColors.textDanger,
+                      ),
                     ),
-                  ),
-            ),
-
-            const SizedBox(height: AppSpacing.xl),
-
-            // ── Lyrics to display at a time ────────────────────────────────
-            _buildLabel('Lyrics to display at a time'),
-            const SizedBox(height: AppSpacing.md),
-            _ChipRow(
-              items: _lineCounts,
-              selected: selectedLineCountStr,
-              onSelected: (v) {
-                final count = v == 'Auto' ? 0 : int.parse(v);
-                ref.read(lyricsStyleProvider.notifier).setDisplayLines(count);
-              },
-            ),
-
-            const SizedBox(height: AppSpacing.xl),
-
-            // ── Alignment ──────────────────────────────────────────────────
-            _buildLabel('Alignment'),
-            const SizedBox(height: AppSpacing.md),
-            _AlignmentSelector(
-              selectedActiveToken: ref.watch(lyricsStyleProvider).textAlign,
-              onSelected:
-                  (v) => ref.read(lyricsStyleProvider.notifier).setTextAlign(v),
-            ),
-
-            const SizedBox(height: AppSpacing.xl),
-
-            // ── Font color ─────────────────────────────────────────────────
-            _buildLabel('Font color'),
-            const SizedBox(height: AppSpacing.md),
-            LycriColorField(
-              color: ref.watch(lyricsStyleProvider).fontColor,
-              onColorChanged:
-                  (c) => ref.read(lyricsStyleProvider.notifier).setFontColor(c),
-            ),
-
-            const SizedBox(height: AppSpacing.x3l),
-
-            // ── Background section ──────────────────────────────────────
-            const _SectionHeader(label: 'Background'),
-
-            const SizedBox(height: AppSpacing.lg),
-
-            // ── Background type ───────────────────────────────────────────
-            _buildLabel('Background type'),
-            const SizedBox(height: AppSpacing.md),
-            _BackgroundTypeSelector(
-              selected: ref.watch(lyricsStyleProvider).backgroundType,
-              onSelected:
-                  (type) => ref
-                      .read(lyricsStyleProvider.notifier)
-                      .setBackgroundType(type),
-              backgroundColor: ref.watch(lyricsStyleProvider).backgroundColor,
-              gradientColors: ref.watch(lyricsStyleProvider).gradientColors,
-            ),
-
-            const SizedBox(height: AppSpacing.xl),
-
-            // ── Conditional sub-controls ──────────────────────────────────
-            ClipRect(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 350),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                layoutBuilder: (
-                  Widget? currentChild,
-                  List<Widget> previousChildren,
-                ) {
-                  return Stack(
-                    alignment: Alignment.topLeft,
-                    children: <Widget>[
-                      ...previousChildren,
-                      if (currentChild != null) currentChild,
-                    ],
-                  );
-                },
-                transitionBuilder: (child, animation) {
-                  // If it's the child that's coming in (it matches currentBackgroundType)
-                  final bool isIncoming =
-                      (child.key as ValueKey<String>?)?.value ==
-                      _getBackgroundKey(currentBackgroundType);
-
-                  // Offset based on direction.
-                  // Forward: In from (1,0), Out to (-1,0)
-                  // Backward: In from (-1,0), Out to (1,0)
-                  final Offset beginOffset =
-                      isIncoming
-                          ? (isForward
-                              ? const Offset(1, 0)
-                              : const Offset(-1, 0))
-                          : (isForward
-                              ? const Offset(-1, 0)
-                              : const Offset(1, 0));
-
-                  return SlideTransition(
-                    position: Tween<Offset>(
-                      begin: beginOffset,
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: FadeTransition(opacity: animation, child: child),
-                  );
-                },
-                child: _buildBackgroundSubControls(ref),
               ),
-            ),
-          ],
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // ── Lyrics to display at a time ────────────────────────────────
+              _buildLabel('Lyrics to display at a time'),
+              const SizedBox(height: AppSpacing.sm),
+              _ChipRow(
+                items: _lineCounts,
+                selected: selectedLineCountStr,
+                onSelected: (v) {
+                  final count = v == 'Auto' ? 0 : int.parse(v);
+                  ref.read(lyricsStyleProvider.notifier).setDisplayLines(count);
+                },
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // ── Alignment ──────────────────────────────────────────────────
+              _buildLabel('Alignment'),
+              const SizedBox(height: AppSpacing.sm),
+              _AlignmentSelector(
+                selectedActiveToken: ref.watch(lyricsStyleProvider).textAlign,
+                onSelected:
+                    (v) =>
+                        ref.read(lyricsStyleProvider.notifier).setTextAlign(v),
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // ── Font color ─────────────────────────────────────────────────
+              _buildLabel('Font color'),
+              const SizedBox(height: AppSpacing.sm),
+              LycriColorField(
+                color: ref.watch(lyricsStyleProvider).fontColor,
+                onColorChanged:
+                    (c) =>
+                        ref.read(lyricsStyleProvider.notifier).setFontColor(c),
+              ),
+
+              const SizedBox(height: AppSpacing.x3l),
+
+              // ── Background section ──────────────────────────────────────
+              const _SectionHeader(label: 'Background'),
+
+              const SizedBox(height: AppSpacing.lg),
+
+              // ── Background type ───────────────────────────────────────────
+              _buildLabel('Background type'),
+              const SizedBox(height: AppSpacing.sm),
+              _BackgroundTypeSelector(
+                selected: ref.watch(lyricsStyleProvider).backgroundType,
+                onSelected:
+                    (type) => ref
+                        .read(lyricsStyleProvider.notifier)
+                        .setBackgroundType(type),
+                backgroundColor: ref.watch(lyricsStyleProvider).backgroundColor,
+                gradientColors: ref.watch(lyricsStyleProvider).gradientColors,
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // ── Conditional sub-controls ──────────────────────────────────
+              ClipRect(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 350),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  layoutBuilder: (
+                    Widget? currentChild,
+                    List<Widget> previousChildren,
+                  ) {
+                    return Stack(
+                      alignment: Alignment.topLeft,
+                      children: <Widget>[
+                        ...previousChildren,
+                        if (currentChild != null) currentChild,
+                      ],
+                    );
+                  },
+                  transitionBuilder: (child, animation) {
+                    // If it's the child that's coming in (it matches currentBackgroundType)
+                    final bool isIncoming =
+                        (child.key as ValueKey<String>?)?.value ==
+                        _getBackgroundKey(currentBackgroundType);
+
+                    // Offset based on direction.
+                    // Forward: In from (1,0), Out to (-1,0)
+                    // Backward: In from (-1,0), Out to (1,0)
+                    final Offset beginOffset =
+                        isIncoming
+                            ? (isForward
+                                ? const Offset(1, 0)
+                                : const Offset(-1, 0))
+                            : (isForward
+                                ? const Offset(-1, 0)
+                                : const Offset(1, 0));
+
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: beginOffset,
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    );
+                  },
+                  child: _buildBackgroundSubControls(ref),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   /// Map background type to ValueKey string used in _buildBackgroundSubControls.
   String _getBackgroundKey(BackgroundType type) {
@@ -364,7 +365,7 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
           key: const ValueKey('bg_image'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildLabel('Select background image'),
+            _buildLabel('Background image'),
             const SizedBox(height: AppSpacing.md),
             _ImageBackgroundSelector(
               imagePath: style.backgroundImagePath,
@@ -1004,7 +1005,7 @@ class _ImageBackgroundSelector extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface3,
         borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(color: AppColors.borderSubtle, width: AppStroke.md),
+        border: Border.all(color: AppColors.borderMinimal, width: AppStroke.md),
       ),
       child: Row(
         children: [
@@ -1044,7 +1045,7 @@ class _ImageBackgroundSelector extends StatelessWidget {
                         child: Text(
                           imagePath!.split('/').last,
                           style: AppTypography.bodyMd.copyWith(
-                            color: AppColors.textBold,
+                            color: AppColors.textSubtle,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
