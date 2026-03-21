@@ -32,6 +32,7 @@ dependencies:
   flutter_svg: ^2.2.3
   desktop_multi_window: ^0.3.0
   flex_color_picker: ^3.8.0
+  video_player: ^2.11.1
 
 dev_dependencies:
   flutter_test:

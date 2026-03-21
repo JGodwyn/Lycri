@@ -41,7 +41,9 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     GradientType gradientType,
     List<Color> gradientColors,
     String? backgroundImagePath,
+    String? backgroundVideoPath,
   ) async {
+
 
 
     if (state) return; // Already live.
@@ -90,6 +92,8 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       await syncGradientType(gradientType);
       await syncGradientColors(gradientColors);
       await syncBackgroundImagePath(backgroundImagePath);
+      await syncBackgroundVideoPath(backgroundVideoPath);
+
 
 
       if (lyrics != null && lyrics.trim().isNotEmpty) {
@@ -207,6 +211,17 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       // Silently ignore.
     }
   }
+
+  /// Send updated background video path to the presentation window.
+  Future<void> syncBackgroundVideoPath(String? path) async {
+    if (!state || _controller == null) return;
+    try {
+      await _channel.invokeMethod('updateBackgroundVideoPath', path);
+    } catch (_) {
+      // Silently ignore.
+    }
+  }
+
 
   /// Send updated lyrics text to the presentation window.
 

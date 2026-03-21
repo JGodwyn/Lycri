@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter/services.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
+import 'package:video_player/video_player.dart';
+
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 
@@ -55,6 +57,10 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
   /// Background image path.
   String? _backgroundImagePath;
+
+  /// Background video path.
+  String? _backgroundVideoPath;
+
 
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
@@ -204,6 +210,11 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         final newPath = call.arguments as String?;
         setState(() => _backgroundImagePath = newPath);
         return null;
+      case 'updateBackgroundVideoPath':
+        final newPath = call.arguments as String?;
+        setState(() => _backgroundVideoPath = newPath);
+        return null;
+
 
       default:
         throw MissingPluginException('Not implemented: ${call.method}');
@@ -403,17 +414,100 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                 fit: BoxFit.cover,
               ),
             )
-            : BoxDecoration(color: _backgroundColor);
+            : _backgroundType == 3 && _backgroundVideoPath != null // 3 = video
+                ? const BoxDecoration(color: Colors.black)
+                : BoxDecoration(color: _backgroundColor);
+
 
     return Scaffold(
       body: Container(
         decoration: decoration,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
-          child:
-              hasLyrics
-                  ? content
-                  : const SizedBox.shrink(key: ValueKey('empty')),
+        child: Stack(
+          children: [
+            if (_backgroundType == 3 && _backgroundVideoPath != null)
+              _StaticVideoBackground(path: _backgroundVideoPath!),
+            Positioned.fill(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child:
+                    hasLyrics
+                        ? content
+                        : const SizedBox.shrink(key: ValueKey('empty')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A simple looping video player for backgrounds.
+/// Trims playback to 15 seconds if longer.
+class _StaticVideoBackground extends StatefulWidget {
+  final String path;
+  const _StaticVideoBackground({required this.path});
+
+  @override
+  State<_StaticVideoBackground> createState() => _StaticVideoBackgroundState();
+}
+
+class _StaticVideoBackgroundState extends State<_StaticVideoBackground> {
+  VideoPlayerController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _initController();
+  }
+
+  @override
+  void didUpdateWidget(_StaticVideoBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path) {
+      _initController();
+    }
+  }
+
+  void _initController() {
+    _controller?.dispose();
+    _controller = VideoPlayerController.file(File(widget.path))
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() {});
+        _controller!.setLooping(true);
+        _controller!.setVolume(0); // Mute background
+        _controller!.play();
+        _controller!.addListener(_loopListener);
+      });
+  }
+
+  void _loopListener() {
+    if (_controller != null &&
+        _controller!.value.position >= const Duration(seconds: 15)) {
+      _controller!.seekTo(Duration.zero);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_loopListener);
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return Container(color: Colors.black);
+    }
+    return SizedBox.expand(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: _controller!.value.size.width,
+          height: _controller!.value.size.height,
+          child: VideoPlayer(_controller!),
         ),
       ),
     );

@@ -396,10 +396,26 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
           children: [
             _buildLabel('Video'),
             const SizedBox(height: AppSpacing.md),
-            Text(
-              'Video controls coming soon',
-              style: AppTypography.bodySm.copyWith(color: AppColors.textSubtle),
+            _VideoBackgroundSelector(
+              videoPath: style.backgroundVideoPath,
+              onSelect: () async {
+                final result = await FilePicker.platform.pickFiles(
+                  type: FileType.video,
+                  allowMultiple: false,
+                );
+                if (result != null && result.files.single.path != null) {
+                  ref
+                      .read(lyricsStyleProvider.notifier)
+                      .setBackgroundVideoPath(result.files.single.path);
+                }
+              },
+              onRemove: () {
+                ref
+                    .read(lyricsStyleProvider.notifier)
+                    .setBackgroundVideoPath(null);
+              },
             ),
+
           ],
         );
     }
@@ -1088,6 +1104,130 @@ class _ImageBackgroundSelector extends StatelessWidget {
                       ),
                       SvgPicture.asset(
                         'assets/vectors/image-plus.svg',
+                        width: 20,
+                        height: 20,
+                        colorFilter: const ColorFilter.mode(
+                          AppColors.iconMinimal,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+// ─── Video Background Selector ────────────────────────────────────────────────
+
+class _VideoBackgroundSelector extends StatelessWidget {
+  const _VideoBackgroundSelector({
+    required this.videoPath,
+    required this.onSelect,
+    required this.onRemove,
+  });
+
+  final String? videoPath;
+  final VoidCallback onSelect;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    bool hasVideo = videoPath != null && videoPath!.isNotEmpty;
+
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface3,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        border: Border.all(color: AppColors.borderMinimal, width: AppStroke.md),
+      ),
+      child: Row(
+        children: [
+          if (hasVideo) ...[
+            // Clickable area for changing the video
+            Expanded(
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onSelect,
+                  child: Row(
+                    children: [
+                      // Video icon circle
+                      Container(
+                        width: 32,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.full),
+                          color: AppColors.surface2,
+                        ),
+                        child: Center(
+                          child: SvgPicture.asset(
+                            'assets/vectors/videoVector.svg',
+                            width: 14,
+                            height: 14,
+                            colorFilter: const ColorFilter.mode(
+                              AppColors.iconSubtle,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      // Filename
+                      Expanded(
+                        child: Text(
+                          videoPath!.split('/').last,
+                          style: AppTypography.bodyMd.copyWith(
+                            color: AppColors.textSubtle,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Delete button
+            IconButton(
+              onPressed: onRemove,
+              icon: SvgPicture.asset(
+                'assets/vectors/delete-trash.svg',
+                width: 20,
+                height: 20,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.textDanger,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ] else ...[
+            // Empty state
+            Expanded(
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onSelect,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Tap to select a video',
+                          style: AppTypography.bodyLg.copyWith(
+                            color: AppColors.textSubtle,
+                          ),
+                        ),
+                      ),
+                      SvgPicture.asset(
+                        'assets/vectors/videoVector.svg',
                         width: 20,
                         height: 20,
                         colorFilter: const ColorFilter.mode(

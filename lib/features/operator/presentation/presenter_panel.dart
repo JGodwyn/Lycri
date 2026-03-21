@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:video_player/video_player.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -113,6 +115,12 @@ class PresenterPanel extends ConsumerWidget {
               .read(presentationWindowProvider.notifier)
               .syncBackgroundImagePath(next.backgroundImagePath);
         }
+        if (prev?.backgroundVideoPath != next.backgroundVideoPath) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncBackgroundVideoPath(next.backgroundVideoPath);
+        }
+
 
 
       }
@@ -227,11 +235,13 @@ class PresenterPanel extends ConsumerWidget {
                               style.textAlign,
                               style.fontColor,
                               style.backgroundColor,
-                                style.backgroundType,
-                                style.gradientType,
-                                style.gradientColors,
-                                style.backgroundImagePath,
-                              );
+                              style.backgroundType,
+                              style.gradientType,
+                              style.gradientColors,
+                              style.backgroundImagePath,
+                              style.backgroundVideoPath,
+                            );
+
 
 
                       }
@@ -254,57 +264,83 @@ class PresenterPanel extends ConsumerWidget {
             builder: (context) {
               final style = ref.watch(lyricsStyleProvider);
               return Container(
+                clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color:
-                      style.backgroundType == BackgroundType.solidColor
-                          ? style.backgroundColor
-                          : null,
-                  gradient:
-                      style.backgroundType == BackgroundType.gradient
-                          ? (style.gradientType == GradientType.linear
-                              ? LinearGradient(
-                                colors:
-                                    style.gradientColors.length >= 2
-                                        ? style.gradientColors
-                                        : [Colors.white, Colors.black],
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                stops: const [0.0, 1.0],
-                              )
-                              : RadialGradient(
-                                colors:
-                                    style.gradientColors.length >= 2
-                                        ? style.gradientColors
-                                        : [Colors.white, Colors.black],
-                                center: Alignment.center,
-                                radius: 0.8,
-                                stops: const [0.0, 1.0],
-                              ))
-                          : null,
-                  image:
-                      style.backgroundType == BackgroundType.image &&
-                              style.backgroundImagePath != null
-                          ? DecorationImage(
-                            image: FileImage(File(style.backgroundImagePath!)),
-                            fit: BoxFit.cover,
-                          )
-                          : null,
-
-
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                   border: Border.all(
                     color: AppColors.borderMinimal,
                     width: AppStroke.md,
                   ),
                 ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child:
-                      lyrics != null
-                          ? const _LyricsPreview(key: ValueKey('lyrics'))
-                          : const _EmptyPresenterState(key: ValueKey('empty')),
+                child: Stack(
+                  children: [
+                    // Background layer (Color/Gradient/Image/Video)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color:
+                              style.backgroundType == BackgroundType.solidColor
+                                  ? style.backgroundColor
+                                  : null,
+                          gradient:
+                              style.backgroundType == BackgroundType.gradient
+                                  ? (style.gradientType == GradientType.linear
+                                      ? LinearGradient(
+                                        colors:
+                                            style.gradientColors.length >= 2
+                                                ? style.gradientColors
+                                                : [Colors.white, Colors.black],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        stops: const [0.0, 1.0],
+                                      )
+                                      : RadialGradient(
+                                        colors:
+                                            style.gradientColors.length >= 2
+                                                ? style.gradientColors
+                                                : [Colors.white, Colors.black],
+                                        center: Alignment.center,
+                                        radius: 0.8,
+                                        stops: const [0.0, 1.0],
+                                      ))
+                                  : null,
+                          image:
+                              style.backgroundType == BackgroundType.image &&
+                                      style.backgroundImagePath != null
+                                  ? DecorationImage(
+                                    image: FileImage(
+                                      File(style.backgroundImagePath!),
+                                    ),
+                                    fit: BoxFit.cover,
+                                  )
+                                  : null,
+                        ),
+                      ),
+                    ),
+                    // Video Layer (if applicable)
+                    if (style.backgroundType == BackgroundType.video &&
+                        style.backgroundVideoPath != null)
+                      Positioned.fill(
+                        child: _StaticVideoBackground(
+                          path: style.backgroundVideoPath!,
+                        ),
+                      ),
+                    // Lyrics/Content switcher
+                    Positioned.fill(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        child:
+                            lyrics != null
+                                ? const _LyricsPreview(key: ValueKey('lyrics'))
+                                : const _EmptyPresenterState(
+                                  key: ValueKey('empty'),
+                                ),
+                      ),
+                    ),
+                  ],
                 ),
               );
+
             },
           ),
         ),
@@ -555,6 +591,78 @@ class _ArrowButtonState extends State<_ArrowButton> {
                     ),
                   )
                   : Icon(widget.icon, size: 18, color: fg),
+        ),
+      ),
+    );
+  }
+}
+
+/// A simple looping video player for backgrounds.
+/// Trims playback to 15 seconds if longer.
+class _StaticVideoBackground extends StatefulWidget {
+  final String path;
+  const _StaticVideoBackground({required this.path});
+
+  @override
+  State<_StaticVideoBackground> createState() => _StaticVideoBackgroundState();
+}
+
+class _StaticVideoBackgroundState extends State<_StaticVideoBackground> {
+  VideoPlayerController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _initController();
+  }
+
+  @override
+  void didUpdateWidget(_StaticVideoBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.path != widget.path) {
+      _initController();
+    }
+  }
+
+  void _initController() {
+    _controller?.dispose();
+    _controller = VideoPlayerController.file(File(widget.path))
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() {});
+        _controller!.setLooping(true);
+        _controller!.setVolume(0); // Mute background
+        _controller!.play();
+        _controller!.addListener(_loopListener);
+      });
+  }
+
+  void _loopListener() {
+    if (_controller != null &&
+        _controller!.value.position >= const Duration(seconds: 15)) {
+      _controller!.seekTo(Duration.zero);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_loopListener);
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return Container(color: Colors.black);
+    }
+    return SizedBox.expand(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: _controller!.value.size.width,
+          height: _controller!.value.size.height,
+          child: VideoPlayer(_controller!),
         ),
       ),
     );
