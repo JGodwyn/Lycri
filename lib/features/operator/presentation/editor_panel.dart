@@ -1025,7 +1025,7 @@ class _ImageBackgroundSelector extends StatelessWidget {
                         height: 24,
                         clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          borderRadius: BorderRadius.circular(AppRadius.full),
                           color: AppColors.surface2,
                         ),
                         child: Image.file(
@@ -1081,17 +1081,17 @@ class _ImageBackgroundSelector extends StatelessWidget {
                       Expanded(
                         child: Text(
                           'Tap to select an image',
-                          style: AppTypography.bodyMd.copyWith(
+                          style: AppTypography.bodyLg.copyWith(
                             color: AppColors.textSubtle,
                           ),
                         ),
                       ),
                       SvgPicture.asset(
                         'assets/vectors/image-plus.svg',
-                        width: 24,
-                        height: 24,
+                        width: 20,
+                        height: 20,
                         colorFilter: const ColorFilter.mode(
-                          AppColors.iconSubtle,
+                          AppColors.iconMinimal,
                           BlendMode.srcIn,
                         ),
                       ),

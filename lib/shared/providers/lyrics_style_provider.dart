@@ -64,9 +64,10 @@ class LyricsStyleState {
     GradientType? gradientType,
     Color? backgroundColor,
     List<Color>? gradientColors,
-
     String? backgroundImagePath,
+    bool clearBackgroundImage = false,
     String? backgroundVideoPath,
+    bool clearBackgroundVideo = false,
   }) {
     return LyricsStyleState(
       fontFamily: fontFamily ?? this.fontFamily,
@@ -77,12 +78,18 @@ class LyricsStyleState {
       gradientType: gradientType ?? this.gradientType,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       gradientColors: gradientColors ?? this.gradientColors,
-
-      backgroundImagePath: backgroundImagePath ?? this.backgroundImagePath,
-      backgroundVideoPath: backgroundVideoPath ?? this.backgroundVideoPath,
+      backgroundImagePath:
+          clearBackgroundImage
+              ? null
+              : (backgroundImagePath ?? this.backgroundImagePath),
+      backgroundVideoPath:
+          clearBackgroundVideo
+              ? null
+              : (backgroundVideoPath ?? this.backgroundVideoPath),
     );
   }
 }
+
 
 /// Provider for managing the [LyricsStyleState].
 final lyricsStyleProvider =
@@ -143,11 +150,19 @@ class LyricsStyleNotifier extends StateNotifier<LyricsStyleState> {
 
   /// Updates the background image path.
   void setBackgroundImagePath(String? path) {
-    state = state.copyWith(backgroundImagePath: path);
+    state = state.copyWith(
+      backgroundImagePath: path,
+      clearBackgroundImage: path == null,
+    );
   }
+
 
   /// Updates the background video path.
   void setBackgroundVideoPath(String? path) {
-    state = state.copyWith(backgroundVideoPath: path);
+    state = state.copyWith(
+      backgroundVideoPath: path,
+      clearBackgroundVideo: path == null,
+    );
   }
+
 }
