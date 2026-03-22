@@ -11,12 +11,18 @@ import '../../core/theme/app_typography.dart';
 class LycriColorField extends StatefulWidget {
   final Color color;
   final ValueChanged<Color> onColorChanged;
+  final ValueChanged<Color>? onColorFinal;
+  final ValueChanged<Color>? onPickerDismissed;
 
   const LycriColorField({
     super.key,
     required this.color,
     required this.onColorChanged,
+    this.onColorFinal,
+    this.onPickerDismissed,
   });
+
+
 
   @override
   State<LycriColorField> createState() => _LycriColorFieldState();
@@ -100,7 +106,9 @@ class _LycriColorFieldState extends State<LycriColorField> {
                 child: _LycriColorPickerPopup(
                   initialColor: widget.color,
                   onColorChanged: widget.onColorChanged,
+                  onColorFinal: widget.onColorFinal,
                 ),
+
               ),
             ),
           ],
@@ -112,9 +120,13 @@ class _LycriColorFieldState extends State<LycriColorField> {
   }
 
   void _closeOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    if (_overlayEntry != null) {
+      widget.onPickerDismissed?.call(widget.color);
+      _overlayEntry?.remove();
+      _overlayEntry = null;
+    }
   }
+
 
   @override
   void dispose() {
@@ -187,11 +199,14 @@ class _LycriColorFieldState extends State<LycriColorField> {
 class _LycriColorPickerPopup extends StatefulWidget {
   final Color initialColor;
   final ValueChanged<Color> onColorChanged;
+  final ValueChanged<Color>? onColorFinal;
 
   const _LycriColorPickerPopup({
     required this.initialColor,
     required this.onColorChanged,
+    this.onColorFinal,
   });
+
 
   @override
   State<_LycriColorPickerPopup> createState() => _LycriColorPickerPopupState();
@@ -252,6 +267,11 @@ class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
     widget.onColorChanged(newHsv.toColor());
   }
 
+  void _handleInteractionEnd() {
+    widget.onColorFinal?.call(hsvColor.toColor());
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -279,6 +299,7 @@ class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
             child: _SVArea(
               hsvColor: hsvColor,
               onColorChanged: _handleColorChanged,
+              onInteractionEnd: _handleInteractionEnd,
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -289,8 +310,10 @@ class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
             child: _HueSlider(
               hsvColor: hsvColor,
               onColorChanged: _handleColorChanged,
+              onInteractionEnd: _handleInteractionEnd,
             ),
           ),
+
           const SizedBox(height: AppSpacing.lg),
           // Hex & Swatch Output
           Container(
@@ -344,8 +367,14 @@ class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
 class _SVArea extends StatelessWidget {
   final HSVColor hsvColor;
   final ValueChanged<HSVColor> onColorChanged;
+  final VoidCallback onInteractionEnd;
 
-  const _SVArea({required this.hsvColor, required this.onColorChanged});
+  const _SVArea({
+    required this.hsvColor,
+    required this.onColorChanged,
+    required this.onInteractionEnd,
+  });
+
 
   @override
   Widget build(BuildContext context) {
@@ -370,7 +399,10 @@ class _SVArea extends StatelessWidget {
         return GestureDetector(
           onPanDown: (details) => handlePan(details.localPosition),
           onPanUpdate: (details) => handlePan(details.localPosition),
+          onPanEnd: (_) => onInteractionEnd(),
+          onPanCancel: () => onInteractionEnd(),
           child: Stack(
+
             clipBehavior: Clip.none,
             children: [
               // Gradients clipped nicely
@@ -442,8 +474,14 @@ class _SVArea extends StatelessWidget {
 class _HueSlider extends StatelessWidget {
   final HSVColor hsvColor;
   final ValueChanged<HSVColor> onColorChanged;
+  final VoidCallback onInteractionEnd;
 
-  const _HueSlider({required this.hsvColor, required this.onColorChanged});
+  const _HueSlider({
+    required this.hsvColor,
+    required this.onColorChanged,
+    required this.onInteractionEnd,
+  });
+
 
   @override
   Widget build(BuildContext context) {
@@ -462,7 +500,10 @@ class _HueSlider extends StatelessWidget {
         return GestureDetector(
           onPanDown: (details) => handlePan(details.localPosition),
           onPanUpdate: (details) => handlePan(details.localPosition),
+          onPanEnd: (_) => onInteractionEnd(),
+          onPanCancel: () => onInteractionEnd(),
           child: Stack(
+
             clipBehavior: Clip.none,
             alignment: Alignment.centerLeft,
             children: [

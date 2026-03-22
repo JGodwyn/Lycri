@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   desktop_multi_window
+  fc_native_video_thumbnail
   screen_retriever
   sqlite3_flutter_libs
   url_launcher_windows

@@ -10,13 +10,12 @@ class LycriApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProviderScope(
-      child: MaterialApp(
-        title: 'Lycri',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        home: const OperatorPage(),
-      ),
+    return MaterialApp(
+      title: 'Lycri',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      home: const OperatorPage(),
     );
   }
+
 }

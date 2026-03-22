@@ -1,18 +1,23 @@
 import 'dart:io';
-import '../../../shared/widgets/lycri_color_picker.dart';
 import 'package:file_picker/file_picker.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
+import '../../../shared/providers/recent_backgrounds_provider.dart';
 import '../../../shared/providers/system_fonts_provider.dart';
+
+import '../../../shared/widgets/lycri_color_picker.dart';
 import '../../../shared/widgets/lycri_dropdown.dart';
+import '../../../shared/widgets/video_thumbnail_widget.dart';
+
+
 
 /// Right panel of the operator window.
 /// Hosts the lyric style editor — currently the Text section controls.
@@ -297,10 +302,29 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             const SizedBox(height: AppSpacing.md),
             LycriColorField(
               color: style.backgroundColor,
-              onColorChanged:
+              onColorChanged: (c) {
+                ref.read(lyricsStyleProvider.notifier).setBackgroundColor(c);
+              },
+              onPickerDismissed:
+                  (c) =>
+                      ref.read(recentBackgroundsProvider.notifier).addColor(c),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+            _RecentlyUsedSection<Color>(
+              title: 'Recently used',
+              items: ref.watch(recentBackgroundsProvider).colors,
+              onScale:
                   (c) => ref
                       .read(lyricsStyleProvider.notifier)
                       .setBackgroundColor(c),
+              itemBuilder:
+                  (c) => Container(
+                    decoration: BoxDecoration(
+                      color: c,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
+                  ),
             ),
           ],
         );
@@ -337,7 +361,14 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                     .read(lyricsStyleProvider.notifier)
                     .setGradientColors(colors);
               },
+              onPickerDismissed: (_) {
+                final colors = ref.read(lyricsStyleProvider).gradientColors;
+                ref
+                    .read(recentBackgroundsProvider.notifier)
+                    .addGradient(style.gradientType, colors);
+              },
             ),
+
             const SizedBox(height: AppSpacing.xl),
             _buildLabel('Choose second color'),
             const SizedBox(height: AppSpacing.md),
@@ -357,9 +388,46 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                     .read(lyricsStyleProvider.notifier)
                     .setGradientColors(colors);
               },
+              onPickerDismissed: (_) {
+                final colors = ref.read(lyricsStyleProvider).gradientColors;
+                ref
+                    .read(recentBackgroundsProvider.notifier)
+                    .addGradient(style.gradientType, colors);
+              },
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+            _RecentlyUsedSection<RecentGradient>(
+              title: 'Recently used',
+              items: ref.watch(recentBackgroundsProvider).gradients,
+              onScale: (g) {
+                ref.read(lyricsStyleProvider.notifier).setGradientType(g.type);
+                ref
+                    .read(lyricsStyleProvider.notifier)
+                    .setGradientColors(g.colors);
+              },
+              itemBuilder:
+                  (g) => Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                      border: Border.all(
+                        color: AppColors.borderSubtle,
+                        width: 1,
+                      ),
+                      gradient:
+                          g.type == GradientType.linear
+                              ? LinearGradient(
+                                colors: g.colors,
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              )
+                              : RadialGradient(colors: g.colors),
+                    ),
+                  ),
             ),
           ],
         );
+
       case BackgroundType.image:
         return Column(
           key: const ValueKey('bg_image'),
@@ -375,9 +443,13 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                   allowMultiple: false,
                 );
                 if (result != null && result.files.single.path != null) {
+                  final path = result.files.single.path!;
                   ref
                       .read(lyricsStyleProvider.notifier)
-                      .setBackgroundImagePath(result.files.single.path);
+                      .setBackgroundImagePath(path);
+                  ref
+                      .read(recentBackgroundsProvider.notifier)
+                      .addImagePath(path);
                 }
               },
               onRemove: () {
@@ -385,6 +457,33 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                     .read(lyricsStyleProvider.notifier)
                     .setBackgroundImagePath(null);
               },
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            _RecentlyUsedSection<String>(
+              title: 'Recently used',
+              items: ref.watch(recentBackgroundsProvider).imagePaths,
+              onScale:
+                  (path) => ref
+                      .read(lyricsStyleProvider.notifier)
+                      .setBackgroundImagePath(path),
+              itemBuilder:
+                  (path) => ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    child: Image.file(
+                      File(path),
+                      fit: BoxFit.fill,
+                      cacheWidth: 60,
+                      cacheHeight: 60,
+                      errorBuilder:
+                          (_, __, ___) => Container(
+                            color: AppColors.surface3,
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 12,
+                            ),
+                          ),
+                    ),
+                  ),
             ),
           ],
         );
@@ -407,6 +506,9 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                   ref
                       .read(lyricsStyleProvider.notifier)
                       .setBackgroundVideoPath(result.files.single.path);
+                  ref
+                      .read(recentBackgroundsProvider.notifier)
+                      .addVideoPath(result.files.single.path!);
                 }
               },
               onRemove: () {
@@ -415,10 +517,78 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                     .setBackgroundVideoPath(null);
               },
             ),
+            const SizedBox(height: AppSpacing.xl),
+            _RecentlyUsedSection<String>(
+              title: 'Recently used',
+              items: ref.watch(recentBackgroundsProvider).videoPaths,
+              onScale:
+                  (path) => ref
+                      .read(lyricsStyleProvider.notifier)
+                      .setBackgroundVideoPath(path),
+              itemBuilder:
+                  (path) => VideoThumbnailWidget(
+                    videoPath: path,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
 
+            ),
           ],
         );
     }
+  }
+}
+
+// ─── Recently Used Widgets ──────────────────────────────────────────────────
+
+class _RecentlyUsedSection<T> extends StatelessWidget {
+  final String title;
+  final List<T> items;
+  final Widget Function(T) itemBuilder;
+  final ValueChanged<T> onScale;
+
+  const _RecentlyUsedSection({
+    required this.title,
+    required this.items,
+    required this.itemBuilder,
+    required this.onScale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTypography.bodyLg.copyWith(color: AppColors.textSubtle),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        SizedBox(
+          height: 32,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => onScale(item),
+                  child: SizedBox(
+                    width: 48,
+                    height: 40,
+                    child: itemBuilder(item),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1160,25 +1330,13 @@ class _VideoBackgroundSelector extends StatelessWidget {
                   child: Row(
                     children: [
                       // Video icon circle
-                      Container(
+                      VideoThumbnailWidget(
+                        videoPath: videoPath!,
                         width: 32,
                         height: 24,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(AppRadius.full),
-                          color: AppColors.surface2,
-                        ),
-                        child: Center(
-                          child: SvgPicture.asset(
-                            'assets/vectors/videoVector.svg',
-                            width: 14,
-                            height: 14,
-                            colorFilter: const ColorFilter.mode(
-                              AppColors.iconSubtle,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.full),
                       ),
+
                       const SizedBox(width: AppSpacing.md),
                       // Filename
                       Expanded(
