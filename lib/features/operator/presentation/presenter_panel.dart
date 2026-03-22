@@ -238,6 +238,7 @@ class PresenterPanel extends ConsumerWidget {
                             .read(presentationWindowProvider.notifier)
                             .goLive(
                               lyrics,
+                              ref.read(activeLineProvider),
                               style.fontFamily,
                               style.displayLines,
                               style.textAlign,
@@ -249,6 +250,7 @@ class PresenterPanel extends ConsumerWidget {
                               style.backgroundImagePath,
                               style.backgroundVideoPath,
                             );
+
                       }
                     },
                     fillWidth: false,

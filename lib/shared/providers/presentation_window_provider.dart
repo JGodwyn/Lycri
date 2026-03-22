@@ -32,6 +32,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
   /// If the window was previously hidden (End Live), it is re-shown.
   Future<void> goLive(
     String? lyrics,
+    int activeLine,
     String fontFamily,
     int displayLines,
     TextAlign textAlign,
@@ -43,6 +44,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     String? backgroundImagePath,
     String? backgroundVideoPath,
   ) async {
+
 
 
 
@@ -97,9 +99,12 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
 
       if (lyrics != null && lyrics.trim().isNotEmpty) {
-        await syncLyrics(lyrics);
+        await syncLyrics(lyrics, activeLine: activeLine);
+      } else {
+        await syncActiveLine(activeLine);
       }
-      await syncActiveLine(0);
+
+
     } catch (e) {
       state = false;
       _controller = null;
@@ -225,14 +230,18 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
   /// Send updated lyrics text to the presentation window.
 
-  Future<void> syncLyrics(String? text) async {
+  Future<void> syncLyrics(String? text, {int? activeLine}) async {
     if (!state || _controller == null) return;
     try {
-      await _channel.invokeMethod('updateLyrics', text);
+      await _channel.invokeMethod('updateLyrics', {
+        'text': text,
+        if (activeLine != null) 'activeLine': activeLine,
+      });
     } catch (_) {
       // Silently ignore if the presentation window is not ready yet.
     }
   }
+
 
   /// Send the active line index to the presentation window.
   Future<void> syncActiveLine(int index) async {

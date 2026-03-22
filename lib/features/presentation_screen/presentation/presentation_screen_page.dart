@@ -100,7 +100,17 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   Future<dynamic> _handleMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'updateLyrics':
-        final text = call.arguments as String?;
+        final dynamic args = call.arguments;
+        String? text;
+        int activeLine = 0;
+
+        if (args is Map) {
+          text = args['text'] as String?;
+          activeLine = (args['activeLine'] as int?) ?? 0;
+        } else {
+          text = args as String?;
+        }
+
         setState(() {
           _rawLyrics = text;
           _lines =
@@ -108,12 +118,14 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                   .split('\n')
                   .where((l) => l.trim().isNotEmpty)
                   .toList();
-          _activeLine = 0;
+          _activeLine = activeLine;
           _lineKeys.clear();
 
           if (_displayLines > 0) {
             final oldController = _pageController;
-            _pageController = PageController(initialPage: 0);
+            _pageController = PageController(
+              initialPage: _lines.isNotEmpty ? _activeLine ~/ _displayLines : 0,
+            );
             WidgetsBinding.instance.addPostFrameCallback((_) {
               oldController.dispose();
             });
@@ -121,9 +133,10 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         });
 
         if (_displayLines == 0) {
-          _scrollToActive(0);
+          _scrollToActive(activeLine);
         }
         return null;
+
 
       case 'updateActiveLine':
         final newIndex = (call.arguments as int?) ?? 0;
