@@ -9,6 +9,11 @@ final activeLineProvider = StateNotifierProvider<ActiveLineNotifier, int>(
   (ref) => ActiveLineNotifier(),
 );
 
+/// A simple counter used to force the lyrics view to scroll the active line into view.
+/// Triggered by UI actions like pressing the arrow buttons.
+final scrollToActiveTriggerProvider = StateProvider<int>((ref) => 0);
+
+
 class ActiveLineNotifier extends StateNotifier<int> {
   ActiveLineNotifier() : super(0);
 

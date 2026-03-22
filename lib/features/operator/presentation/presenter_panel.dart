@@ -194,11 +194,16 @@ class PresenterPanel extends ConsumerWidget {
                     onPressed:
                         lines.isEmpty
                             ? null
-                            : () =>
-                                ref
-                                    .read(activeLineProvider.notifier)
-                                    .previous(),
+                            : () {
+                              ref
+                                  .read(activeLineProvider.notifier)
+                                  .previous();
+                              ref
+                                  .read(scrollToActiveTriggerProvider.notifier)
+                                  .state++;
+                            },
                   ),
+
 
                   const SizedBox(width: AppSpacing.sm),
 
@@ -208,10 +213,16 @@ class PresenterPanel extends ConsumerWidget {
                     onPressed:
                         lines.isEmpty
                             ? null
-                            : () => ref
-                                .read(activeLineProvider.notifier)
-                                .next(lines.length - 1),
+                            : () {
+                              ref
+                                  .read(activeLineProvider.notifier)
+                                  .next(lines.length - 1);
+                              ref
+                                  .read(scrollToActiveTriggerProvider.notifier)
+                                  .state++;
+                            },
                   ),
+
 
                   const SizedBox(width: AppSpacing.lg),
 
@@ -366,6 +377,16 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
   static const _animCurve = Curves.easeOutCubic;
 
   @override
+  void initState() {
+    super.initState();
+    // Scroll to starting active line if any.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToActive(ref.read(activeLineProvider));
+    });
+  }
+
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -415,9 +436,13 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
     final activeIndex = ref.watch(activeLineProvider);
     final styleState = ref.watch(lyricsStyleProvider);
 
-    // Trigger scroll animation whenever the active line changes.
+    // Trigger scroll animation whenever the active line changes OR the trigger increments.
     ref.listen<int>(activeLineProvider, (prev, next) {
       _scrollToActive(next);
+    });
+
+    ref.listen<int>(scrollToActiveTriggerProvider, (prev, next) {
+      _scrollToActive(ref.read(activeLineProvider));
     });
 
     // Prune stale keys when the line count shrinks.
@@ -425,42 +450,71 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
 
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: ListView.builder(
+      child: SingleChildScrollView(
         controller: _scrollController,
         padding: const EdgeInsets.all(AppSpacing.xl),
-        itemCount: lines.length,
-        itemBuilder: (_, i) {
-          final isActive = i == activeIndex;
-          return MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: () => ref.read(activeLineProvider.notifier).jumpTo(i),
-              child: Padding(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (int i = 0; i < lines.length; i++)
+              _LyricLine(
                 key: _keyFor(i),
-                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                child: AnimatedDefaultTextStyle(
-                  duration: _animDuration,
-                  curve: _animCurve,
-                  style: AppTypography.headingMd.copyWith(
-                    fontFamily: styleState.fontFamily,
-                    color:
-                        isActive
-                            ? styleState.fontColor
-                            : styleState.fontColor.withValues(alpha: 0.2),
-                  ),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Text(lines[i], textAlign: styleState.textAlign),
-                  ),
-                ),
+                text: lines[i],
+                isActive: i == activeIndex,
+                styleState: styleState,
+                onTap: () => ref.read(activeLineProvider.notifier).jumpTo(i),
               ),
+          ],
+        ),
+      ),
+    );
+
+  }
+}
+
+class _LyricLine extends StatelessWidget {
+  final String text;
+  final bool isActive;
+  final LyricsStyleState styleState;
+  final VoidCallback onTap;
+
+  const _LyricLine({
+    super.key,
+    required this.text,
+    required this.isActive,
+    required this.styleState,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+          child: AnimatedDefaultTextStyle(
+            duration: _LyricsPreviewState._animDuration,
+            curve: _LyricsPreviewState._animCurve,
+            style: AppTypography.headingMd.copyWith(
+              fontFamily: styleState.fontFamily,
+              color:
+                  isActive
+                      ? styleState.fontColor
+                      : styleState.fontColor.withValues(alpha: 0.2),
             ),
-          );
-        },
+            child: SizedBox(
+              width: double.infinity,
+              child: Text(text, textAlign: styleState.textAlign),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
+
 
 // ─── Empty state ────────────────────────────────────────────────────────────
 
