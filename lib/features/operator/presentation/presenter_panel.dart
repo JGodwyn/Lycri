@@ -238,9 +238,7 @@ class PresenterPanel extends ConsumerWidget {
                         if (mode == DisplayOutputMode.ndi) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'NDI output is not yet supported.',
-                              ),
+                              content: Text('NDI output is not yet supported.'),
                               duration: Duration(seconds: 3),
                             ),
                           );
@@ -290,11 +288,7 @@ class PresenterPanel extends ConsumerWidget {
                     return Container(
                       clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                        border: Border.all(
-                          color: AppColors.borderMinimal,
-                          width: AppStroke.md,
-                        ),
+                        borderRadius: BorderRadius.circular(AppRadius.xl),
                       ),
                       child: Stack(
                         children: [
@@ -303,33 +297,45 @@ class PresenterPanel extends ConsumerWidget {
                             child: Container(
                               decoration: BoxDecoration(
                                 color:
-                                    style.backgroundType == BackgroundType.solidColor
+                                    style.backgroundType ==
+                                            BackgroundType.solidColor
                                         ? style.backgroundColor
                                         : null,
                                 gradient:
-                                    style.backgroundType == BackgroundType.gradient
-                                        ? (style.gradientType == GradientType.linear
+                                    style.backgroundType ==
+                                            BackgroundType.gradient
+                                        ? (style.gradientType ==
+                                                GradientType.linear
                                             ? LinearGradient(
                                               colors:
-                                                  style.gradientColors.length >= 2
+                                                  style.gradientColors.length >=
+                                                          2
                                                       ? style.gradientColors
-                                                      : [Colors.white, Colors.black],
+                                                      : [
+                                                        Colors.white,
+                                                        Colors.black,
+                                                      ],
                                               begin: Alignment.topCenter,
                                               end: Alignment.bottomCenter,
                                               stops: const [0.0, 1.0],
                                             )
                                             : RadialGradient(
                                               colors:
-                                                  style.gradientColors.length >= 2
+                                                  style.gradientColors.length >=
+                                                          2
                                                       ? style.gradientColors
-                                                      : [Colors.white, Colors.black],
+                                                      : [
+                                                        Colors.white,
+                                                        Colors.black,
+                                                      ],
                                               center: Alignment.center,
                                               radius: 0.8,
                                               stops: const [0.0, 1.0],
                                             ))
                                         : null,
                                 image:
-                                    style.backgroundType == BackgroundType.image &&
+                                    style.backgroundType ==
+                                                BackgroundType.image &&
                                             style.backgroundImagePath != null
                                         ? DecorationImage(
                                           image: FileImage(
@@ -355,7 +361,9 @@ class PresenterPanel extends ConsumerWidget {
                               duration: const Duration(milliseconds: 250),
                               child:
                                   lyrics != null
-                                      ? const _LyricsPreview(key: ValueKey('lyrics'))
+                                      ? const _LyricsPreview(
+                                        key: ValueKey('lyrics'),
+                                      )
                                       : const _EmptyPresenterState(
                                         key: ValueKey('empty'),
                                       ),
@@ -381,7 +389,6 @@ class PresenterPanel extends ConsumerWidget {
     );
   }
 }
-
 
 // ─── Visibility toggle ───────────────────────────────────────────────────────
 
@@ -417,29 +424,32 @@ class _VisibilityToggleState extends ConsumerState<_VisibilityToggle> {
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
           width: 48,
-          height: 48,
+          height: 32,
           decoration: BoxDecoration(
-            color: _lyricsVisible
-                ? AppColors.surfaceBrand       // orange when active
-                : AppColors.surface4,          // neutral when inactive
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            boxShadow: _lyricsVisible
-                ? [
-                    // Brand glow matching the image
-                    BoxShadow(
-                      color: AppColors.surfaceBrand.withValues(alpha: 0.55),
-                      blurRadius: 20,
-                      spreadRadius: 2,
-                      offset: Offset.zero,
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.10),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+            color:
+                _lyricsVisible
+                    ? AppColors
+                        .surfaceBrand // orange when active
+                    : AppColors.surface4, // neutral when inactive
+            borderRadius: BorderRadius.circular(AppRadius.full),
+            boxShadow:
+                _lyricsVisible
+                    ? [
+                      // Brand glow matching the image
+                      BoxShadow(
+                        color: AppColors.surfaceBrand.withValues(alpha: 0.55),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                        offset: Offset.zero,
+                      ),
+                    ]
+                    : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.10),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
           ),
           child: Center(
             child: SvgPicture.asset(
@@ -825,8 +835,11 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                           children:
                               _DisplayMode.values.map((mode) {
                                 // Map shared provider state back to the private UI enum for selection highlight.
-                                final currentMode = ref.watch(displayModeProvider);
-                                final isSelected = currentMode.index == mode.index;
+                                final currentMode = ref.watch(
+                                  displayModeProvider,
+                                );
+                                final isSelected =
+                                    currentMode.index == mode.index;
                                 return Expanded(
                                   child: Padding(
                                     padding: EdgeInsets.only(
@@ -883,41 +896,43 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                 width: AppStroke.sm,
               ),
             ),
-            child: Builder(builder: (context) {
-              // Read the shared provider to keep the trigger label in sync.
-              final currentMode = ref.watch(displayModeProvider);
-              final uiMode = _DisplayMode.values[currentMode.index];
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SvgPicture.asset(
-                    uiMode.svgAsset,
-                    width: 20,
-                    height: 20,
-                    colorFilter: const ColorFilter.mode(
-                      AppColors.textSubtle,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 40),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder:
-                        (child, animation) =>
-                            FadeTransition(opacity: animation, child: child),
-                    child: Text(
-                      uiMode.label,
-                      key: ValueKey(uiMode),
-                      style: AppTypography.titleMd.copyWith(
-                        color: AppColors.textSubtle,
+            child: Builder(
+              builder: (context) {
+                // Read the shared provider to keep the trigger label in sync.
+                final currentMode = ref.watch(displayModeProvider);
+                final uiMode = _DisplayMode.values[currentMode.index];
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset(
+                      uiMode.svgAsset,
+                      width: 20,
+                      height: 20,
+                      colorFilter: const ColorFilter.mode(
+                        AppColors.textSubtle,
+                        BlendMode.srcIn,
                       ),
                     ),
-                  ),
-                ],
-              );
-            }),
+                    const SizedBox(width: AppSpacing.md),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 40),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder:
+                          (child, animation) =>
+                              FadeTransition(opacity: animation, child: child),
+                      child: Text(
+                        uiMode.label,
+                        key: ValueKey(uiMode),
+                        style: AppTypography.titleMd.copyWith(
+                          color: AppColors.textSubtle,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
