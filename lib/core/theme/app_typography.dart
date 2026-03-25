@@ -83,7 +83,7 @@ class AppTypography {
   static const TextStyle titleMd = TextStyle(
     fontFamily: fontDisplay,
     fontSize: 17,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w400,
     letterSpacing: -0.51,
     height: 24 / 17,
   );

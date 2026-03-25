@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
+import 'display_mode_provider.dart';
 import 'lyrics_style_provider.dart';
+import 'presentation_settings_provider.dart';
 
 /// Tracks whether the presentation window is live and manages its lifecycle.
 ///
@@ -11,12 +14,13 @@ import 'lyrics_style_provider.dart';
 /// on the 'lycri/presentation' channel.
 final presentationWindowProvider =
     StateNotifierProvider<PresentationWindowNotifier, bool>(
-      (ref) => PresentationWindowNotifier(),
+      (ref) => PresentationWindowNotifier(ref),
     );
 
 class PresentationWindowNotifier extends StateNotifier<bool> {
-  PresentationWindowNotifier() : super(false);
+  PresentationWindowNotifier(this.ref) : super(false);
 
+  final Ref ref;
   WindowController? _controller;
 
   /// Channel name matches the one in [PresentationScreenPage].
@@ -27,9 +31,14 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
   /// Open the presentation window.
   ///
-  /// If a secondary display is connected, the window is positioned full-screen
-  /// on it. Otherwise it opens centered on the primary display.
-  /// If the window was previously hidden (End Live), it is re-shown.
+  /// Behaviour depends on the currently selected [DisplayOutputMode]:
+  ///
+  /// - [DisplayOutputMode.thisDisplay] → opens a windowed (non-fullscreen)
+  ///   overlay on the **primary** display. Useful for debugging/preview.
+  /// - [DisplayOutputMode.extend] → positions the window fullscreen on the
+  ///   **secondary** display (like EasyWorship / ProPresenter).
+  /// - [DisplayOutputMode.ndi] → does **not** open a window; the caller is
+  ///   expected to show a notice to the user (NDI output is not yet built).
   Future<void> goLive(
     String? lyrics,
     int activeLine,
@@ -44,11 +53,12 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     String? backgroundImagePath,
     String? backgroundVideoPath,
   ) async {
-
-
-
-
     if (state) return; // Already live.
+
+    final displayMode = ref.read(displayModeProvider);
+
+    // NDI is not yet implemented — caller shows the notice; we do nothing here.
+    if (displayMode == DisplayOutputMode.ndi) return;
 
     try {
       if (_controller != null) {
@@ -61,30 +71,59 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
         }
       }
 
+      // ── Determine which display to use ──────────────────────────────────
+      final displays = await ScreenRetriever.instance.getAllDisplays();
+
+      Display targetDisplay;
+      bool goFullScreen;
+
+      if (displayMode == DisplayOutputMode.extend) {
+        // Prefer a secondary display; fall back to primary if none attached.
+        final settings = ref.read(presentationSettingsProvider);
+        if (settings.targetDisplayId != null) {
+          targetDisplay =
+              displays
+                  .where((d) => d.id == settings.targetDisplayId)
+                  .firstOrNull ??
+              (displays.length > 1 ? displays[1] : displays[0]);
+        } else {
+          targetDisplay = displays.length > 1 ? displays[1] : displays[0];
+        }
+        goFullScreen = true;
+      } else {
+        // thisDisplay — always primary. Opens as a non-fullscreen debug preview.
+        targetDisplay = displays[0];
+        goFullScreen = false;
+      }
+
+      // ── Build window arguments (parsed by main.dart + PresentationScreenPage) ──
+      final Map<String, dynamic> windowArguments = {
+        // Identifies this sub-window as the presentation engine — MUST be present.
+        'type': 'presentation',
+        'displayMode': displayMode.index,
+        'goFullScreen': goFullScreen,
+        'targetDisplay': {
+          'x': targetDisplay.visiblePosition?.dx ?? 0.0,
+          'y': targetDisplay.visiblePosition?.dy ?? 0.0,
+          'width': targetDisplay.size.width,
+          'height': targetDisplay.size.height,
+        },
+      };
+
       if (_controller == null) {
-        // Create a fresh sub-window.
         _controller = await WindowController.create(
-          const WindowConfiguration(
-            arguments: 'presentation',
-            hiddenAtLaunch: true,
+          WindowConfiguration(
+            arguments: jsonEncode(windowArguments),
+            hiddenAtLaunch: true, // Show manually after positioning
           ),
         );
-
-        // Detect displays via screen_retriever.
-        final displays = await ScreenRetriever.instance.getAllDisplays();
-        final secondary = displays.length > 1 ? displays[1] : null;
-
-        if (secondary != null) {
-          // TODO: Position window on secondary display. Will be refined
-          // once window_manager control in sub-windows is set up.
-        }
-
-        await _controller!.show();
       }
+
+      await _controller!.show();
 
       state = true;
 
-      // Send / re-sync lyrics and active line.
+      // Send / re-sync all style state to the fresh window.
       await syncFontFamily(fontFamily);
       await syncDisplayLines(displayLines);
       await syncTextAlign(textAlign);
@@ -96,15 +135,11 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       await syncBackgroundImagePath(backgroundImagePath);
       await syncBackgroundVideoPath(backgroundVideoPath);
 
-
-
       if (lyrics != null && lyrics.trim().isNotEmpty) {
         await syncLyrics(lyrics, activeLine: activeLine);
       } else {
         await syncActiveLine(activeLine);
       }
-
-
     } catch (e) {
       state = false;
       _controller = null;
@@ -195,7 +230,6 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     }
   }
 
-
   /// Send updated gradient colors to the presentation window.
   Future<void> syncGradientColors(List<Color> colors) async {
     if (!state || _controller == null) return;
@@ -227,9 +261,20 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     }
   }
 
+  /// Toggle lyrics opacity on the presentation window.
+  ///
+  /// When [visible] is false the presentation window fades lyrics out
+  /// (reduced opacity) so the operator can edit without the audience seeing.
+  Future<void> syncLyricsVisibility(bool visible) async {
+    if (!state || _controller == null) return;
+    try {
+      await _channel.invokeMethod('updateLyricsVisibility', visible);
+    } catch (_) {
+      // Silently ignore.
+    }
+  }
 
   /// Send updated lyrics text to the presentation window.
-
   Future<void> syncLyrics(String? text, {int? activeLine}) async {
     if (!state || _controller == null) return;
     try {
@@ -241,7 +286,6 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       // Silently ignore if the presentation window is not ready yet.
     }
   }
-
 
   /// Send the active line index to the presentation window.
   Future<void> syncActiveLine(int index) async {

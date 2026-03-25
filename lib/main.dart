@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -13,11 +14,21 @@ import 'shared/providers/recent_backgrounds_provider.dart';
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ── Sub-window check ────────────────────────────────────────────────────
+  // ── Sub-window check ─────────────────────────────────────────────────────
+  // The presentation window passes JSON args that include 'type': 'presentation'.
+  // We parse the JSON here so the check works correctly.
   final windowController = await WindowController.fromCurrentEngine();
-  if (windowController.arguments == 'presentation') {
-    runApp(const PresentationScreenApp());
-    return;
+  final rawArgs = windowController.arguments;
+  if (rawArgs.isNotEmpty) {
+    try {
+      final decoded = jsonDecode(rawArgs) as Map<String, dynamic>;
+      if (decoded['type'] == 'presentation') {
+        runApp(const PresentationScreenApp());
+        return;
+      }
+    } catch (_) {
+      // Not valid JSON — not a sub-window we own; fall through to main app.
+    }
   }
 
   // ── Main window init (operator) ────────────────────────────────────────

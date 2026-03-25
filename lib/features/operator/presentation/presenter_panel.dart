@@ -11,6 +11,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/providers/active_line_provider.dart';
+import '../../../shared/providers/display_mode_provider.dart';
 import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
 import '../../../shared/providers/presentation_window_provider.dart';
@@ -151,6 +152,9 @@ class PresenterPanel extends ConsumerWidget {
                   color: AppColors.textSubtle,
                 ),
               ),
+              const Spacer(),
+              const _ScreenSelector(),
+              const SizedBox(width: AppSpacing.lg),
 
               Row(
                 children: [
@@ -195,15 +199,12 @@ class PresenterPanel extends ConsumerWidget {
                         lines.isEmpty
                             ? null
                             : () {
-                              ref
-                                  .read(activeLineProvider.notifier)
-                                  .previous();
+                              ref.read(activeLineProvider.notifier).previous();
                               ref
                                   .read(scrollToActiveTriggerProvider.notifier)
                                   .state++;
                             },
                   ),
-
 
                   const SizedBox(width: AppSpacing.sm),
 
@@ -223,7 +224,6 @@ class PresenterPanel extends ConsumerWidget {
                             },
                   ),
 
-
                   const SizedBox(width: AppSpacing.lg),
 
                   // ── Go Live / End Live button ──────────────────────────
@@ -233,6 +233,20 @@ class PresenterPanel extends ConsumerWidget {
                       if (isLive) {
                         ref.read(presentationWindowProvider.notifier).endLive();
                       } else {
+                        // NDI is not yet implemented — show a notice and bail.
+                        final mode = ref.read(displayModeProvider);
+                        if (mode == DisplayOutputMode.ndi) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'NDI output is not yet supported.',
+                              ),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                          return;
+                        }
+
                         final style = ref.read(lyricsStyleProvider);
                         ref
                             .read(presentationWindowProvider.notifier)
@@ -250,7 +264,6 @@ class PresenterPanel extends ConsumerWidget {
                               style.backgroundImagePath,
                               style.backgroundVideoPath,
                             );
-
                       }
                     },
                     fillWidth: false,
@@ -267,90 +280,180 @@ class PresenterPanel extends ConsumerWidget {
 
         // ── Preview area ────────────────────────────────────────────────────
         Expanded(
-          child: Builder(
-            builder: (context) {
-              final style = ref.watch(lyricsStyleProvider);
-              return Container(
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  border: Border.all(
-                    color: AppColors.borderMinimal,
-                    width: AppStroke.md,
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    // Background layer (Color/Gradient/Image/Video)
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color:
-                              style.backgroundType == BackgroundType.solidColor
-                                  ? style.backgroundColor
-                                  : null,
-                          gradient:
-                              style.backgroundType == BackgroundType.gradient
-                                  ? (style.gradientType == GradientType.linear
-                                      ? LinearGradient(
-                                        colors:
-                                            style.gradientColors.length >= 2
-                                                ? style.gradientColors
-                                                : [Colors.white, Colors.black],
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        stops: const [0.0, 1.0],
-                                      )
-                                      : RadialGradient(
-                                        colors:
-                                            style.gradientColors.length >= 2
-                                                ? style.gradientColors
-                                                : [Colors.white, Colors.black],
-                                        center: Alignment.center,
-                                        radius: 0.8,
-                                        stops: const [0.0, 1.0],
-                                      ))
-                                  : null,
-                          image:
-                              style.backgroundType == BackgroundType.image &&
-                                      style.backgroundImagePath != null
-                                  ? DecorationImage(
-                                    image: FileImage(
-                                      File(style.backgroundImagePath!),
-                                    ),
-                                    fit: BoxFit.cover,
-                                  )
-                                  : null,
+          child: Stack(
+            children: [
+              // The preview container fills the whole Stack.
+              Positioned.fill(
+                child: Builder(
+                  builder: (context) {
+                    final style = ref.watch(lyricsStyleProvider);
+                    return Container(
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                        border: Border.all(
+                          color: AppColors.borderMinimal,
+                          width: AppStroke.md,
                         ),
                       ),
-                    ),
-                    // Video Layer (if applicable)
-                    if (style.backgroundType == BackgroundType.video &&
-                        style.backgroundVideoPath != null)
-                      Positioned.fill(
-                        child: _StaticVideoBackground(
-                          path: style.backgroundVideoPath!,
-                        ),
+                      child: Stack(
+                        children: [
+                          // Background layer (Color/Gradient/Image/Video)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color:
+                                    style.backgroundType == BackgroundType.solidColor
+                                        ? style.backgroundColor
+                                        : null,
+                                gradient:
+                                    style.backgroundType == BackgroundType.gradient
+                                        ? (style.gradientType == GradientType.linear
+                                            ? LinearGradient(
+                                              colors:
+                                                  style.gradientColors.length >= 2
+                                                      ? style.gradientColors
+                                                      : [Colors.white, Colors.black],
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              stops: const [0.0, 1.0],
+                                            )
+                                            : RadialGradient(
+                                              colors:
+                                                  style.gradientColors.length >= 2
+                                                      ? style.gradientColors
+                                                      : [Colors.white, Colors.black],
+                                              center: Alignment.center,
+                                              radius: 0.8,
+                                              stops: const [0.0, 1.0],
+                                            ))
+                                        : null,
+                                image:
+                                    style.backgroundType == BackgroundType.image &&
+                                            style.backgroundImagePath != null
+                                        ? DecorationImage(
+                                          image: FileImage(
+                                            File(style.backgroundImagePath!),
+                                          ),
+                                          fit: BoxFit.cover,
+                                        )
+                                        : null,
+                              ),
+                            ),
+                          ),
+                          // Video Layer (if applicable)
+                          if (style.backgroundType == BackgroundType.video &&
+                              style.backgroundVideoPath != null)
+                            Positioned.fill(
+                              child: _StaticVideoBackground(
+                                path: style.backgroundVideoPath!,
+                              ),
+                            ),
+                          // Lyrics/Content switcher
+                          Positioned.fill(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              child:
+                                  lyrics != null
+                                      ? const _LyricsPreview(key: ValueKey('lyrics'))
+                                      : const _EmptyPresenterState(
+                                        key: ValueKey('empty'),
+                                      ),
+                            ),
+                          ),
+                        ],
                       ),
-                    // Lyrics/Content switcher
-                    Positioned.fill(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child:
-                            lyrics != null
-                                ? const _LyricsPreview(key: ValueKey('lyrics'))
-                                : const _EmptyPresenterState(
-                                  key: ValueKey('empty'),
-                                ),
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              );
-            },
+              ),
+
+              // ── Visibility toggle — floats over top-right of the preview ──
+              Positioned(
+                top: AppSpacing.md,
+                right: AppSpacing.md,
+                child: _VisibilityToggle(),
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+
+// ─── Visibility toggle ───────────────────────────────────────────────────────
+
+/// Floating eye-button overlaid on the top-right of the presenter preview.
+///
+/// Active (eye visible): lyrics shown on the live screen — bright orange with glow.
+/// Inactive: lyrics faded out on the live screen — neutral surface.
+class _VisibilityToggle extends ConsumerStatefulWidget {
+  const _VisibilityToggle();
+
+  @override
+  ConsumerState<_VisibilityToggle> createState() => _VisibilityToggleState();
+}
+
+class _VisibilityToggleState extends ConsumerState<_VisibilityToggle> {
+  // Starts visible.
+  bool _lyricsVisible = true;
+
+  void _toggle() {
+    final next = !_lyricsVisible;
+    setState(() => _lyricsVisible = next);
+    // Fire-and-forget: only sends if the window is live.
+    ref.read(presentationWindowProvider.notifier).syncLyricsVisibility(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _toggle,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: _lyricsVisible
+                ? AppColors.surfaceBrand       // orange when active
+                : AppColors.surface4,          // neutral when inactive
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            boxShadow: _lyricsVisible
+                ? [
+                    // Brand glow matching the image
+                    BoxShadow(
+                      color: AppColors.surfaceBrand.withValues(alpha: 0.55),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                      offset: Offset.zero,
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.10),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+          ),
+          child: Center(
+            child: SvgPicture.asset(
+              'assets/vectors/eye.svg',
+              width: 22,
+              height: 22,
+              colorFilter: ColorFilter.mode(
+                _lyricsVisible ? AppColors.textInverse : AppColors.iconSubtle,
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -386,7 +489,6 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
       _scrollToActive(ref.read(activeLineProvider));
     });
   }
-
 
   @override
   void dispose() {
@@ -470,7 +572,6 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
         ),
       ),
     );
-
   }
 }
 
@@ -517,7 +618,6 @@ class _LyricLine extends StatelessWidget {
   }
 }
 
-
 // ─── Empty state ────────────────────────────────────────────────────────────
 
 /// Empty state shown in the presenter area before any lyrics are loaded.
@@ -559,9 +659,378 @@ class _EmptyPresenterState extends StatelessWidget {
   }
 }
 
-// ─── Arrow / icon button ────────────────────────────────────────────────────
+// ─── Screen selector ────────────────────────────────────────────────────────
 
-/// Compact circular button. Accepts either an [IconData] or an SVG asset path.
+/// Enum for the three display modes shown in the panel.
+enum _DisplayMode { thisDisplay, extend, ndi }
+
+extension _DisplayModeX on _DisplayMode {
+  String get label {
+    switch (this) {
+      case _DisplayMode.thisDisplay:
+        return 'This display';
+      case _DisplayMode.extend:
+        return 'Extend';
+      case _DisplayMode.ndi:
+        return 'NDI';
+    }
+  }
+
+  String get svgAsset {
+    switch (this) {
+      case _DisplayMode.thisDisplay:
+        return 'assets/vectors/monitor.svg';
+      case _DisplayMode.extend:
+        return 'assets/vectors/monitorOutline.svg';
+      case _DisplayMode.ndi:
+        return 'assets/vectors/monitorStack.svg';
+    }
+  }
+}
+
+class _ScreenSelector extends ConsumerStatefulWidget {
+  const _ScreenSelector();
+
+  @override
+  ConsumerState<_ScreenSelector> createState() => _ScreenSelectorState();
+}
+
+class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
+    with SingleTickerProviderStateMixin {
+  final LayerLink _layerLink = LayerLink();
+  final GlobalKey _triggerKey = GlobalKey();
+  OverlayEntry? _overlayEntry;
+  bool _isOpen = false;
+
+  late final AnimationController _animController;
+  late final Animation<double> _scaleAnim;
+  late final Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    final curved = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    );
+    _scaleAnim = Tween(begin: 0.92, end: 1.0).animate(curved);
+    _fadeAnim = Tween(begin: 0.0, end: 1.0).animate(curved);
+  }
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _animController.dispose();
+    super.dispose();
+  }
+
+  // ── Overlay management ──────────────────────────────────────────────────
+
+  void _toggle() {
+    if (_isOpen) {
+      _closeOverlay();
+    } else {
+      _openOverlay();
+    }
+  }
+
+  void _openOverlay() {
+    _overlayEntry = OverlayEntry(builder: (_) => _buildOverlay());
+    Overlay.of(context).insert(_overlayEntry!);
+    _animController.forward(from: 0);
+    setState(() => _isOpen = true);
+  }
+
+  void _closeOverlay({_DisplayMode? pendingSelection}) {
+    _animController.reverse().then((_) {
+      _overlayEntry?.remove();
+      _overlayEntry = null;
+      // Apply the selection only after the panel is fully gone,
+      // so the trigger button never resizes while the overlay is visible.
+      if (pendingSelection != null && mounted) {
+        // Map the private UI enum to the shared provider enum and update state.
+        ref.read(displayModeProvider.notifier).state =
+            DisplayOutputMode.values[pendingSelection.index];
+      }
+    });
+    setState(() => _isOpen = false);
+  }
+
+  void _selectMode(_DisplayMode mode) {
+    _closeOverlay(pendingSelection: mode);
+  }
+
+  // ── Overlay content ─────────────────────────────────────────────────────
+
+  Widget _buildOverlay() {
+    return Stack(
+      children: [
+        // Tap-away barrier
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _closeOverlay,
+            child: const SizedBox.expand(),
+          ),
+        ),
+        // Floating panel anchored below the trigger
+        CompositedTransformFollower(
+          link: _layerLink,
+          showWhenUnlinked: false,
+          offset: const Offset(0, 40),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: FadeTransition(
+              opacity: _fadeAnim,
+              child: ScaleTransition(
+                scale: _scaleAnim,
+                alignment: Alignment.topLeft,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Container(
+                    width: 480,
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface4,
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      border: Border.all(
+                        color: AppColors.borderSubtle,
+                        width: AppStroke.sm,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 32,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'How do you want to display?',
+                          style: AppTypography.titleLg.copyWith(
+                            color: AppColors.textSubtle,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xmd),
+                        Row(
+                          children:
+                              _DisplayMode.values.map((mode) {
+                                // Map shared provider state back to the private UI enum for selection highlight.
+                                final currentMode = ref.watch(displayModeProvider);
+                                final isSelected = currentMode.index == mode.index;
+                                return Expanded(
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      right:
+                                          mode != _DisplayMode.ndi
+                                              ? AppSpacing.md
+                                              : 0,
+                                    ),
+                                    child: _DisplayCard(
+                                      mode: mode,
+                                      isSelected: isSelected,
+                                      onTap: () => _selectMode(mode),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Trigger button ──────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          key: _triggerKey,
+          onTap: _toggle,
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.only(
+              left: AppSpacing.xmd,
+              right: AppSpacing.xmd,
+              top: AppSpacing.sm,
+              bottom: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface3,
+              borderRadius: BorderRadius.circular(AppRadius.full),
+              border: Border.all(
+                color: AppColors.borderMinimal,
+                width: AppStroke.sm,
+              ),
+            ),
+            child: Builder(builder: (context) {
+              // Read the shared provider to keep the trigger label in sync.
+              final currentMode = ref.watch(displayModeProvider);
+              final uiMode = _DisplayMode.values[currentMode.index];
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SvgPicture.asset(
+                    uiMode.svgAsset,
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.textSubtle,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 40),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder:
+                        (child, animation) =>
+                            FadeTransition(opacity: animation, child: child),
+                    child: Text(
+                      uiMode.label,
+                      key: ValueKey(uiMode),
+                      style: AppTypography.titleMd.copyWith(
+                        color: AppColors.textSubtle,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Individual display option card ─────────────────────────────────────────
+
+class _DisplayCard extends StatefulWidget {
+  const _DisplayCard({
+    required this.mode,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final _DisplayMode mode;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  State<_DisplayCard> createState() => _DisplayCardState();
+}
+
+class _DisplayCardState extends State<_DisplayCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg =
+        widget.isSelected
+            ? AppColors.surfaceBrandLight
+            : _hovered
+            ? AppColors.surface3
+            : AppColors.surface3;
+
+    final Color borderColor =
+        widget.isSelected ? AppColors.borderBrand : Colors.transparent;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: borderColor, width: AppStroke.xl),
+          ),
+          child: Stack(
+            children: [
+              // Card content
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset(
+                      widget.mode.svgAsset,
+                      width: 24,
+                      height: 24,
+                      colorFilter: ColorFilter.mode(
+                        widget.isSelected
+                            ? AppColors.textBold
+                            : AppColors.textSubtle,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      widget.mode.label,
+                      style: AppTypography.bodyLg.copyWith(
+                        color:
+                            widget.isSelected
+                                ? AppColors.textBold
+                                : AppColors.textSubtle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Orange checkmark badge (selected only)
+              if (widget.isSelected)
+                Positioned(
+                  top: AppSpacing.md,
+                  right: AppSpacing.md,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: const BoxDecoration(
+                      color: AppColors.surfaceBrand,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 14,
+                      color: AppColors.textInverse,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ArrowButton extends StatefulWidget {
   const _ArrowButton({this.icon, this.svgAsset, this.onPressed})
     : assert(icon != null || svgAsset != null);

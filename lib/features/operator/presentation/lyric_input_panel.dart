@@ -113,21 +113,21 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   borderSide: BorderSide(
                     color: AppColors.borderSubtle,
-                    width: AppStroke.md,
+                    width: AppStroke.sm,
                   ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                   borderSide: BorderSide(
                     color: AppColors.borderSubtle,
-                    width: AppStroke.md,
+                    width: AppStroke.sm,
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                   borderSide: BorderSide(
                     color: AppColors.borderSubtle,
-                    width: AppStroke.lg,
+                    width: AppStroke.sm,
                   ),
                 ),
               ),

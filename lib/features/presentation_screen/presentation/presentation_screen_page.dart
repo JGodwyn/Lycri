@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 
@@ -64,6 +65,10 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Index of the currently active (highlighted) line.
   int _activeLine = 0;
 
+  /// Whether lyrics are visible on the presentation screen.
+  /// When false, lyrics are faded out so the operator can edit unseen.
+  bool _lyricsVisible = true;
+
   /// Scroll controller for smooth auto-scrolling to the active line.
   final ScrollController _scrollController = ScrollController();
 
@@ -87,6 +92,54 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   void initState() {
     super.initState();
     _channel.setMethodCallHandler(_handleMethodCall);
+    _setupWindow();
+  }
+
+  Future<void> _setupWindow() async {
+    // NOTE: We do NOT use the window_manager package here. Its Swift plugin
+    // force-unwraps NSApp.mainWindow which is nil inside a sub-window context,
+    // causing a fatal crash (WindowManager.swift:60). Instead, we use the
+    // 'lycri/window_setup' native channel registered in MainFlutterWindow.swift
+    // which holds a direct, safe reference to this sub-window's NSWindow.
+    const setupChannel = MethodChannel('lycri/window_setup');
+
+    try {
+      final controller = await WindowController.fromCurrentEngine();
+      if (controller.arguments.isEmpty) return;
+
+      final Map<String, dynamic> args = jsonDecode(controller.arguments);
+      final targetDisplay = args['targetDisplay'];
+      final bool goFullScreen = args['goFullScreen'] as bool? ?? true;
+
+      if (targetDisplay == null) return;
+
+      final double x = (targetDisplay['x'] as num).toDouble();
+      final double y = (targetDisplay['y'] as num).toDouble();
+      final double w = (targetDisplay['width'] as num).toDouble();
+      final double h = (targetDisplay['height'] as num).toDouble();
+
+      if (goFullScreen) {
+        // Extend mode — position window at the target display origin first so
+        // macOS knows which screen to fullscreen on, then go fullscreen.
+        await setupChannel.invokeMethod('setFrame', {
+          'x': x, 'y': y, 'width': w, 'height': h,
+        });
+        await setupChannel.invokeMethod('setFullScreen', {'fullScreen': true});
+      } else {
+        // This Display mode — a centered 1280×720 windowed overlay on the
+        // primary screen. No fullscreen so operator can see both windows.
+        const double overlayW = 1280;
+        const double overlayH = 720;
+        await setupChannel.invokeMethod('setFrame', {
+          'x': x + (w - overlayW) / 2,
+          'y': y + (h - overlayH) / 2,
+          'width': overlayW,
+          'height': overlayH,
+        });
+      }
+    } catch (e) {
+      debugPrint('lycri/window_setup error: $e');
+    }
   }
 
   @override
@@ -225,6 +278,11 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       case 'updateBackgroundVideoPath':
         final newPath = call.arguments as String?;
         setState(() => _backgroundVideoPath = newPath);
+        return null;
+
+      case 'updateLyricsVisibility':
+        final visible = call.arguments as bool? ?? true;
+        setState(() => _lyricsVisible = visible);
         return null;
 
       default:
@@ -390,6 +448,14 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         ),
       );
     }
+
+    // Wrap content in AnimatedOpacity for the visibility toggle.
+    content = AnimatedOpacity(
+      opacity: _lyricsVisible ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOut,
+      child: content,
+    );
 
     // Determine background decoration based on background type.
     final bool isGradient = _backgroundType == 1; // 1 = gradient
