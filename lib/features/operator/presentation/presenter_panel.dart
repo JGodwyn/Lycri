@@ -234,11 +234,13 @@ class PresenterPanel extends ConsumerWidget {
                         ref.read(presentationWindowProvider.notifier).endLive();
                       } else {
                         // NDI is not yet implemented — show a notice and bail.
-                        final mode = ref.read(displayModeProvider);
-                        if (mode == DisplayOutputMode.ndi) {
+                        final output = ref.read(displayModeProvider);
+                        if (output.type == DisplayType.ndi) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('NDI output is not yet supported.'),
+                              content: Text(
+                                'NDI output is not yet supported.',
+                              ),
                               duration: Duration(seconds: 3),
                             ),
                           );
@@ -671,33 +673,6 @@ class _EmptyPresenterState extends StatelessWidget {
 
 // ─── Screen selector ────────────────────────────────────────────────────────
 
-/// Enum for the three display modes shown in the panel.
-enum _DisplayMode { thisDisplay, extend, ndi }
-
-extension _DisplayModeX on _DisplayMode {
-  String get label {
-    switch (this) {
-      case _DisplayMode.thisDisplay:
-        return 'This display';
-      case _DisplayMode.extend:
-        return 'Extend';
-      case _DisplayMode.ndi:
-        return 'NDI';
-    }
-  }
-
-  String get svgAsset {
-    switch (this) {
-      case _DisplayMode.thisDisplay:
-        return 'assets/vectors/monitor.svg';
-      case _DisplayMode.extend:
-        return 'assets/vectors/monitorOutline.svg';
-      case _DisplayMode.ndi:
-        return 'assets/vectors/monitorStack.svg';
-    }
-  }
-}
-
 class _ScreenSelector extends ConsumerStatefulWidget {
   const _ScreenSelector();
 
@@ -756,23 +731,21 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
     setState(() => _isOpen = true);
   }
 
-  void _closeOverlay({_DisplayMode? pendingSelection}) {
+  void _closeOverlay({DisplayOutput? pendingSelection}) {
     _animController.reverse().then((_) {
       _overlayEntry?.remove();
       _overlayEntry = null;
       // Apply the selection only after the panel is fully gone,
       // so the trigger button never resizes while the overlay is visible.
       if (pendingSelection != null && mounted) {
-        // Map the private UI enum to the shared provider enum and update state.
-        ref.read(displayModeProvider.notifier).state =
-            DisplayOutputMode.values[pendingSelection.index];
+        ref.read(displayModeProvider.notifier).state = pendingSelection;
       }
     });
     setState(() => _isOpen = false);
   }
 
-  void _selectMode(_DisplayMode mode) {
-    _closeOverlay(pendingSelection: mode);
+  void _selectMode(DisplayOutput output) {
+    _closeOverlay(pendingSelection: output);
   }
 
   // ── Overlay content ─────────────────────────────────────────────────────
@@ -831,32 +804,54 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                           ),
                         ),
                         const SizedBox(height: AppSpacing.xmd),
-                        Row(
-                          children:
-                              _DisplayMode.values.map((mode) {
-                                // Map shared provider state back to the private UI enum for selection highlight.
-                                final currentMode = ref.watch(
-                                  displayModeProvider,
+                        ref.watch(displaysProvider).when(
+                              data: (displays) {
+                                // 1. Custom list of outputs: primary display, secondary displays, then NDI.
+                                final List<DisplayOutput> options = [
+                                  DisplayOutput.thisDisplay(),
+                                  ...displays
+                                      .where((d) => d.id != displays[0].id)
+                                      .map((d) => DisplayOutput.external(d)),
+                                  DisplayOutput.ndi(),
+                                ];
+
+                                return Row(
+                                  children:
+                                      options.map((output) {
+                                        final currentOutput = ref.watch(
+                                          displayModeProvider,
+                                        );
+                                        final isSelected =
+                                            currentOutput == output;
+
+                                        return Expanded(
+                                          child: Padding(
+                                            padding: EdgeInsets.only(
+                                              right:
+                                                  output != options.last
+                                                      ? AppSpacing.md
+                                                      : 0,
+                                            ),
+                                            child: _DisplayCard(
+                                              output: output,
+                                              isSelected: isSelected,
+                                              onTap: () => _selectMode(output),
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
                                 );
-                                final isSelected =
-                                    currentMode.index == mode.index;
-                                return Expanded(
-                                  child: Padding(
-                                    padding: EdgeInsets.only(
-                                      right:
-                                          mode != _DisplayMode.ndi
-                                              ? AppSpacing.md
-                                              : 0,
-                                    ),
-                                    child: _DisplayCard(
-                                      mode: mode,
-                                      isSelected: isSelected,
-                                      onTap: () => _selectMode(mode),
-                                    ),
+                              },
+                              loading:
+                                  () => const Center(
+                                    child: CircularProgressIndicator(),
                                   ),
-                                );
-                              }).toList(),
-                        ),
+                              error:
+                                  (e, _) => Text(
+                                    'Error loading displays: $e',
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
+                            ),
                       ],
                     ),
                   ),
@@ -873,6 +868,9 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
 
   @override
   Widget build(BuildContext context) {
+    // Warm up the displays provider so it's ready when the overlay opens.
+    ref.watch(displaysProvider);
+
     return CompositedTransformTarget(
       link: _layerLink,
       child: MouseRegion(
@@ -899,13 +897,19 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
             child: Builder(
               builder: (context) {
                 // Read the shared provider to keep the trigger label in sync.
-                final currentMode = ref.watch(displayModeProvider);
-                final uiMode = _DisplayMode.values[currentMode.index];
+                final currentOutput = ref.watch(displayModeProvider);
+                final svgAsset =
+                    currentOutput.type == DisplayType.thisDisplay
+                        ? 'assets/vectors/monitor.svg'
+                        : currentOutput.type == DisplayType.ndi
+                        ? 'assets/vectors/monitorStack.svg'
+                        : 'assets/vectors/monitorOutline.svg';
+
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SvgPicture.asset(
-                      uiMode.svgAsset,
+                      svgAsset,
                       width: 20,
                       height: 20,
                       colorFilter: const ColorFilter.mode(
@@ -922,8 +926,8 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                           (child, animation) =>
                               FadeTransition(opacity: animation, child: child),
                       child: Text(
-                        uiMode.label,
-                        key: ValueKey(uiMode),
+                        currentOutput.label,
+                        key: ValueKey(currentOutput),
                         style: AppTypography.titleMd.copyWith(
                           color: AppColors.textSubtle,
                         ),
@@ -944,12 +948,12 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
 
 class _DisplayCard extends StatefulWidget {
   const _DisplayCard({
-    required this.mode,
+    required this.output,
     required this.isSelected,
     required this.onTap,
   });
 
-  final _DisplayMode mode;
+  final DisplayOutput output;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -996,7 +1000,11 @@ class _DisplayCardState extends State<_DisplayCard> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SvgPicture.asset(
-                      widget.mode.svgAsset,
+                      widget.output.type == DisplayType.thisDisplay
+                          ? 'assets/vectors/monitor.svg'
+                          : widget.output.type == DisplayType.ndi
+                          ? 'assets/vectors/monitorStack.svg'
+                          : 'assets/vectors/monitorOutline.svg',
                       width: 24,
                       height: 24,
                       colorFilter: ColorFilter.mode(
@@ -1008,12 +1016,15 @@ class _DisplayCardState extends State<_DisplayCard> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     Text(
-                      widget.mode.label,
-                      style: AppTypography.bodyLg.copyWith(
+                      widget.output.label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.titleMd.copyWith(
                         color:
                             widget.isSelected
-                                ? AppColors.textBold
+                                ? AppColors.textBrand
                                 : AppColors.textSubtle,
+                        height: 1.2,
                       ),
                     ),
                   ],

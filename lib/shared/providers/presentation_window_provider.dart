@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'display_mode_provider.dart';
 import 'lyrics_style_provider.dart';
-import 'presentation_settings_provider.dart';
 
 /// Tracks whether the presentation window is live and manages its lifecycle.
 ///
@@ -55,10 +54,10 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
   ) async {
     if (state) return; // Already live.
 
-    final displayMode = ref.read(displayModeProvider);
+    final displayOutput = ref.read(displayModeProvider);
 
     // NDI is not yet implemented — caller shows the notice; we do nothing here.
-    if (displayMode == DisplayOutputMode.ndi) return;
+    if (displayOutput.type == DisplayType.ndi) return;
 
     try {
       if (_controller != null) {
@@ -77,18 +76,11 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       Display targetDisplay;
       bool goFullScreen;
 
-      if (displayMode == DisplayOutputMode.extend) {
-        // Prefer a secondary display; fall back to primary if none attached.
-        final settings = ref.read(presentationSettingsProvider);
-        if (settings.targetDisplayId != null) {
-          targetDisplay =
-              displays
-                  .where((d) => d.id == settings.targetDisplayId)
-                  .firstOrNull ??
-              (displays.length > 1 ? displays[1] : displays[0]);
-        } else {
-          targetDisplay = displays.length > 1 ? displays[1] : displays[0];
-        }
+      if (displayOutput.type == DisplayType.external) {
+        // Use the specific display selected by the user.
+        targetDisplay =
+            displayOutput.display ??
+            (displays.length > 1 ? displays[1] : displays[0]);
         goFullScreen = true;
       } else {
         // thisDisplay — always primary. Opens as a non-fullscreen debug preview.
@@ -100,7 +92,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
       final Map<String, dynamic> windowArguments = {
         // Identifies this sub-window as the presentation engine — MUST be present.
         'type': 'presentation',
-        'displayMode': displayMode.index,
+        'displayMode': displayOutput.type.index,
         'goFullScreen': goFullScreen,
         'targetDisplay': {
           'x': targetDisplay.visiblePosition?.dx ?? 0.0,
