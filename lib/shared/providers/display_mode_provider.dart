@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 
@@ -41,11 +42,46 @@ class DisplayOutput {
 }
 
 /// Provider that holds the currently-selected [DisplayOutput].
-final displayModeProvider = StateProvider<DisplayOutput>(
-  (ref) => DisplayOutput.thisDisplay(),
-);
+/// Automatically falls back to 'thisDisplay' if a selected external display is disconnected.
+final StateProvider<DisplayOutput> displayModeProvider =
+    StateProvider<DisplayOutput>((ref) {
+  // Listen to common monitor changes to ensure selection remains valid.
+  ref.listen(displaysProvider, (prev, next) {
+    next.whenData((displays) {
+      final current = ref.read(displayModeProvider.notifier).state;
+      if (current.type == DisplayType.external && current.display != null) {
+        // Check if the selected display is still in the list.
+        final exists = displays.any((d) => d.id == current.display!.id);
+        if (!exists) {
+          // Fall back gracefully.
+          ref.read(displayModeProvider.notifier).state =
+              DisplayOutput.thisDisplay();
+        }
+      }
+    });
+  });
 
-/// Provider that fetches all available displays.
+  return DisplayOutput.thisDisplay();
+});
+
+/// Provider that fetches all available displays and updates via native notifications.
 final displaysProvider = FutureProvider<List<Display>>((ref) async {
+  // Use custom native channel for real-time plug/unplug events because
+  // screen_retriever@0.1.9 on macOS doesn't currently emit events.
+  const eventChannel = MethodChannel('lycri/system_events');
+
+  // Register only if it's the first time this provider is initialized.
+  // We keep the listener alive locally to the provider.
+  eventChannel.setMethodCallHandler((call) async {
+    if (call.method == 'onScreensChanged') {
+      // Re-trigger the future to fetch new display list.
+      ref.invalidateSelf();
+    }
+  });
+
+  ref.onDispose(() {
+    eventChannel.setMethodCallHandler(null);
+  });
+
   return await ScreenRetriever.instance.getAllDisplays();
 });

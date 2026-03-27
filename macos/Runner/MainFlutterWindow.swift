@@ -26,6 +26,15 @@ class MainFlutterWindow: NSWindow {
       }
     }
 
+    // ── System events (e.g. screen changes) ────────────────────────────────
+    let eventChannel = FlutterMethodChannel(
+      name: "lycri/system_events",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { _ in
+      eventChannel.invokeMethod("onScreensChanged", arguments: nil)
+    }
+
     FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
       // Register all plugins (window_manager, etc.) for each sub-window engine.
       RegisterGeneratedPlugins(registry: controller)

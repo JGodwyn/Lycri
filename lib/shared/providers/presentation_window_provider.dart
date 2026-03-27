@@ -21,12 +21,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
   final Ref ref;
   WindowController? _controller;
-
-  /// Channel name matches the one in [PresentationScreenPage].
-  static const _channel = WindowMethodChannel(
-    'lycri/presentation',
-    mode: ChannelMode.unidirectional,
-  );
+  bool _isLaunching = false;
 
   /// Open the presentation window.
   ///
@@ -52,24 +47,18 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     String? backgroundImagePath,
     String? backgroundVideoPath,
   ) async {
-    if (state) return; // Already live.
+    if (state || _isLaunching) return; // Already live or busy starting.
+    _isLaunching = true;
 
     final displayOutput = ref.read(displayModeProvider);
 
     // NDI is not yet implemented — caller shows the notice; we do nothing here.
-    if (displayOutput.type == DisplayType.ndi) return;
+    if (displayOutput.type == DisplayType.ndi) {
+      _isLaunching = false;
+      return;
+    }
 
     try {
-      if (_controller != null) {
-        // Try re-showing the previously hidden sub-window.
-        try {
-          await _controller!.show();
-        } catch (_) {
-          // Window was closed by the user — controller is stale.
-          _controller = null;
-        }
-      }
-
       // ── Determine which display to use ──────────────────────────────────
       final displays = await ScreenRetriever.instance.getAllDisplays();
 
@@ -88,9 +77,8 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
         goFullScreen = false;
       }
 
-      // ── Build window arguments (parsed by main.dart + PresentationScreenPage) ──
+      // ── Build window arguments ──────────────────────────────────────────
       final Map<String, dynamic> windowArguments = {
-        // Identifies this sub-window as the presentation engine — MUST be present.
         'type': 'presentation',
         'displayMode': displayOutput.type.index,
         'goFullScreen': goFullScreen,
@@ -100,42 +88,50 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
           'width': targetDisplay.size.width,
           'height': targetDisplay.size.height,
         },
+        // Initial Style Data
+        'fontFamily': fontFamily,
+        'displayLines': displayLines,
+        'textAlign': textAlign.index,
+        'fontColor': fontColor.value.toRadixString(16),
+        'backgroundColor': backgroundColor.value.toRadixString(16),
+        'backgroundType': backgroundType.index,
+        'gradientType': gradientType.index,
+        'gradientColors': gradientColors.map((c) => c.value.toRadixString(16)).toList(),
+        'backgroundImagePath': backgroundImagePath,
+        'backgroundVideoPath': backgroundVideoPath,
+        // Initial Content
+        'lyrics': lyrics,
+        'activeLine': activeLine,
       };
+
+      if (_controller != null) {
+        // Try re-configuring the existing window.
+        try {
+          await _controller!.invokeMethod('setupWindow', windowArguments);
+        } catch (_) {
+          // If update fails, the window might have been closed by the user.
+          _controller = null;
+        }
+      }
 
       if (_controller == null) {
         _controller = await WindowController.create(
           WindowConfiguration(
             arguments: jsonEncode(windowArguments),
-            hiddenAtLaunch: true, // Show manually after positioning
+            hiddenAtLaunch: true,
           ),
         );
       }
 
+      // Show the window once everything is ready.
       await _controller!.show();
-
       state = true;
-
-      // Send / re-sync all style state to the fresh window.
-      await syncFontFamily(fontFamily);
-      await syncDisplayLines(displayLines);
-      await syncTextAlign(textAlign);
-      await syncFontColor(fontColor);
-      await syncBackgroundColor(backgroundColor);
-      await syncBackgroundType(backgroundType);
-      await syncGradientType(gradientType);
-      await syncGradientColors(gradientColors);
-      await syncBackgroundImagePath(backgroundImagePath);
-      await syncBackgroundVideoPath(backgroundVideoPath);
-
-      if (lyrics != null && lyrics.trim().isNotEmpty) {
-        await syncLyrics(lyrics, activeLine: activeLine);
-      } else {
-        await syncActiveLine(activeLine);
-      }
     } catch (e) {
       state = false;
       _controller = null;
-      rethrow;
+      debugPrint('Failed to go live: $e');
+    } finally {
+      _isLaunching = false;
     }
   }
 
@@ -154,139 +150,144 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
   /// Send updated font family to the presentation window.
   Future<void> syncFontFamily(String font) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateFontFamily', font);
-    } catch (_) {
-      // Silently ignore if the presentation window is not ready yet.
+      await _controller!.invokeMethod('updateFontFamily', font);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated display lines count to the presentation window.
   Future<void> syncDisplayLines(int lines) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateDisplayLines', lines);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateDisplayLines', lines);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated text alignment to the presentation window.
   Future<void> syncTextAlign(TextAlign align) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateTextAlign', align.index);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateTextAlign', align.index);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated font color to the presentation window.
   Future<void> syncFontColor(Color color) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateFontColor', color.value);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateFontColor', color.value);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated background color to the presentation window.
   Future<void> syncBackgroundColor(Color color) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateBackgroundColor', color.toARGB32());
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateBackgroundColor', color.toARGB32());
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated background type to the presentation window.
   Future<void> syncBackgroundType(BackgroundType type) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateBackgroundType', type.index);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateBackgroundType', type.index);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated gradient type to the presentation window.
   Future<void> syncGradientType(GradientType type) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateGradientType', type.index);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateGradientType', type.index);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated gradient colors to the presentation window.
   Future<void> syncGradientColors(List<Color> colors) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
       final colorValues = colors.map((c) => c.toARGB32()).toList();
-      await _channel.invokeMethod('updateGradientColors', colorValues);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateGradientColors', colorValues);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated background image path to the presentation window.
   Future<void> syncBackgroundImagePath(String? path) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateBackgroundImagePath', path);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateBackgroundImagePath', path);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated background video path to the presentation window.
   Future<void> syncBackgroundVideoPath(String? path) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateBackgroundVideoPath', path);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateBackgroundVideoPath', path);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Toggle lyrics opacity on the presentation window.
-  ///
-  /// When [visible] is false the presentation window fades lyrics out
-  /// (reduced opacity) so the operator can edit without the audience seeing.
   Future<void> syncLyricsVisibility(bool visible) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateLyricsVisibility', visible);
-    } catch (_) {
-      // Silently ignore.
+      await _controller!.invokeMethod('updateLyricsVisibility', visible);
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send updated lyrics text to the presentation window.
   Future<void> syncLyrics(String? text, {int? activeLine}) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateLyrics', {
+      await _controller!.invokeMethod('updateLyrics', {
         'text': text,
         if (activeLine != null) 'activeLine': activeLine,
       });
-    } catch (_) {
-      // Silently ignore if the presentation window is not ready yet.
+    } catch (e) {
+      _handleChannelError(e);
     }
   }
 
   /// Send the active line index to the presentation window.
   Future<void> syncActiveLine(int index) async {
-    if (!state || _controller == null) return;
+    if (_controller == null) return;
     try {
-      await _channel.invokeMethod('updateActiveLine', index);
-    } catch (_) {
-      // Silently ignore if the presentation window is not ready yet.
+      await _controller!.invokeMethod('updateActiveLine', index);
+    } catch (e) {
+      _handleChannelError(e);
     }
+  }
+
+  /// Detects if the sub-window channel throws an error.
+  void _handleChannelError(dynamic e) {
+    debugPrint('Presentation channel error: $e');
+    // Transient errors (like CHANNEL_UNREGISTERED during engine startup)
+    // shouldn't destroy the active state. The window is chromeless, so users
+    // cannot manually close it.
   }
 
   @override

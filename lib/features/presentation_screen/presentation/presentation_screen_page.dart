@@ -82,20 +82,90 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   static const _animDuration = Duration(milliseconds: 400);
   static const _animCurve = Curves.easeOutCubic;
 
-  /// Channel for receiving updates from the operator.
-  static const _channel = WindowMethodChannel(
-    'lycri/presentation',
-    mode: ChannelMode.unidirectional,
-  );
+  WindowController? _windowController;
 
   @override
   void initState() {
     super.initState();
-    _channel.setMethodCallHandler(_handleMethodCall);
-    _setupWindow();
+
+    // Initial orientation/placement.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        _windowController = await WindowController.fromCurrentEngine();
+        // Listen specifically to this window's channel so the operator can target it directly
+        // and avoid CHANNEL_LIMIT_REACHED exceptions.
+        try {
+          _windowController?.setWindowMethodHandler(_handleMethodCall);
+        } catch (e) {
+          debugPrint('Method handler error: $e');
+        }
+
+        if (_windowController!.arguments.isNotEmpty) {
+          final Map<String, dynamic> args =
+              jsonDecode(_windowController!.arguments);
+          _applyStyleFromArgs(args);
+          await _applyWindowSetup(args);
+        }
+      } catch (e) {
+        debugPrint('Initial window setup failed: $e');
+      }
+    });
   }
 
-  Future<void> _setupWindow() async {
+  /// Parses initial style and content from the JSON arguments passed
+  /// at window creation or update. This avoids rendering default states.
+  void _applyStyleFromArgs(Map<String, dynamic> args) {
+    if (args.isEmpty) return;
+
+    setState(() {
+      if (args.containsKey('fontFamily')) {
+        _fontFamily = args['fontFamily'] as String;
+      }
+      if (args.containsKey('displayLines')) {
+        _displayLines = (args['displayLines'] as num).toInt();
+      }
+      if (args.containsKey('textAlign')) {
+        _textAlign = TextAlign.values[(args['textAlign'] as num).toInt()];
+      }
+      if (args.containsKey('fontColor')) {
+        _fontColor = Color(int.parse(args['fontColor'] as String, radix: 16));
+      }
+      if (args.containsKey('backgroundColor')) {
+        _backgroundColor =
+            Color(int.parse(args['backgroundColor'] as String, radix: 16));
+      }
+      if (args.containsKey('backgroundType')) {
+        _backgroundType = (args['backgroundType'] as num).toInt();
+      }
+      if (args.containsKey('gradientType')) {
+        _gradientType = (args['gradientType'] as num).toInt();
+      }
+      if (args.containsKey('gradientColors')) {
+        _gradientColors =
+            (args['gradientColors'] as List)
+                .map((c) => Color(int.parse(c as String, radix: 16)))
+                .toList();
+      }
+      if (args.containsKey('backgroundImagePath')) {
+        _backgroundImagePath = args['backgroundImagePath'] as String?;
+      }
+      if (args.containsKey('backgroundVideoPath')) {
+        _backgroundVideoPath = args['backgroundVideoPath'] as String?;
+      }
+      if (args.containsKey('lyrics')) {
+        _rawLyrics = args['lyrics'] as String?;
+        _lines =
+            _rawLyrics?.split('\n').where((l) => l.trim().isNotEmpty).toList() ??
+            [];
+      }
+      if (args.containsKey('activeLine')) {
+        _activeLine = (args['activeLine'] as num).toInt();
+        _scrollToActive(_activeLine);
+      }
+    });
+  }
+
+  Future<void> _applyWindowSetup(Map<String, dynamic> args) async {
     // NOTE: We do NOT use the window_manager package here. Its Swift plugin
     // force-unwraps NSApp.mainWindow which is nil inside a sub-window context,
     // causing a fatal crash (WindowManager.swift:60). Instead, we use the
@@ -104,10 +174,6 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     const setupChannel = MethodChannel('lycri/window_setup');
 
     try {
-      final controller = await WindowController.fromCurrentEngine();
-      if (controller.arguments.isEmpty) return;
-
-      final Map<String, dynamic> args = jsonDecode(controller.arguments);
       final targetDisplay = args['targetDisplay'];
       final bool goFullScreen = args['goFullScreen'] as bool? ?? true;
 
@@ -119,15 +185,16 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       final double h = (targetDisplay['height'] as num).toDouble();
 
       if (goFullScreen) {
-        // Extend mode — position window at the target display origin first so
-        // macOS knows which screen to fullscreen on, then go fullscreen.
+        // Position at the target display origin first, then go fullscreen.
         await setupChannel.invokeMethod('setFrame', {
-          'x': x, 'y': y, 'width': w, 'height': h,
+          'x': x,
+          'y': y,
+          'width': w,
+          'height': h,
         });
         await setupChannel.invokeMethod('setFullScreen', {'fullScreen': true});
       } else {
-        // This Display mode — a centered 1280×720 windowed overlay on the
-        // primary screen. No fullscreen so operator can see both windows.
+        // Center the 1280x720 overlay windowed mode on the primary screen.
         const double overlayW = 1280;
         const double overlayH = 720;
         await setupChannel.invokeMethod('setFrame', {
@@ -136,6 +203,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
           'width': overlayW,
           'height': overlayH,
         });
+        await setupChannel.invokeMethod('setFullScreen', {'fullScreen': false});
       }
     } catch (e) {
       debugPrint('lycri/window_setup error: $e');
@@ -144,7 +212,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
   @override
   void dispose() {
-    _channel.setMethodCallHandler(null);
+    try {
+      _windowController?.setWindowMethodHandler(null);
+    } catch (_) {}
     _scrollController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -152,6 +222,13 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
   Future<dynamic> _handleMethodCall(MethodCall call) async {
     switch (call.method) {
+      case 'setupWindow':
+        final Map<String, dynamic> args =
+            Map<String, dynamic>.from(call.arguments);
+        _applyStyleFromArgs(args);
+        await _applyWindowSetup(args);
+        return null;
+
       case 'updateLyrics':
         final dynamic args = call.arguments;
         String? text;
