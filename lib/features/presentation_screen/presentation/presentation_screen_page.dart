@@ -229,6 +229,11 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         await _applyWindowSetup(args);
         return null;
 
+      case 'closeWindow':
+        const setupChannel = MethodChannel('lycri/window_setup');
+        await setupChannel.invokeMethod('close');
+        return null;
+
       case 'updateLyrics':
         final dynamic args = call.arguments;
         String? text;

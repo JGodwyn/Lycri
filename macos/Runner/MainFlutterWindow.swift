@@ -101,6 +101,12 @@ class MainFlutterWindow: NSWindow {
             result(nil)
           }
 
+        case "close":
+          DispatchQueue.main.async {
+            win.close()
+            result(nil)
+          }
+
         default:
           result(FlutterMethodNotImplemented)
         }

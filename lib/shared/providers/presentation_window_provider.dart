@@ -22,6 +22,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
   final Ref ref;
   WindowController? _controller;
   bool _isLaunching = false;
+  num? _lastDisplayId;
 
   /// Open the presentation window.
   ///
@@ -104,13 +105,26 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
         'activeLine': activeLine,
       };
 
+      bool displayChanged = false;
+      if (_lastDisplayId != null && _lastDisplayId != targetDisplay.id) {
+        displayChanged = true;
+      }
+      _lastDisplayId = targetDisplay.id;
+
       if (_controller != null) {
-        // Try re-configuring the existing window.
-        try {
-          await _controller!.invokeMethod('setupWindow', windowArguments);
-        } catch (_) {
-          // If update fails, the window might have been closed by the user.
-          _controller = null;
+        if (displayChanged) {
+          try {
+            await _controller!.invokeMethod('closeWindow');
+          } catch (_) {}
+          _controller = null; // Force window recreation for the new display
+        } else {
+          // Try re-configuring the existing window.
+          try {
+            await _controller!.invokeMethod('setupWindow', windowArguments);
+          } catch (_) {
+            // If update fails, the window might have been closed by the user.
+            _controller = null;
+          }
         }
       }
 
