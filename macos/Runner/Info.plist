@@ -28,5 +28,11 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Lycri app needs to discover and stream NDI video sources on your local network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_ndi._tcp</string>
+	</array>
 </dict>
 </plist>

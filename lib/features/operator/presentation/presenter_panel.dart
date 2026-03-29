@@ -233,18 +233,6 @@ class PresenterPanel extends ConsumerWidget {
                       if (isLive) {
                         ref.read(presentationWindowProvider.notifier).endLive();
                       } else {
-                        // NDI is not yet implemented — show a notice and bail.
-                        final output = ref.read(displayModeProvider);
-                        if (output.type == DisplayType.ndi) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('NDI output is not yet supported.'),
-                              duration: Duration(seconds: 3),
-                            ),
-                          );
-                          return;
-                        }
-
                         final style = ref.read(lyricsStyleProvider);
                         ref
                             .read(presentationWindowProvider.notifier)

@@ -3,6 +3,7 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
+import '../../core/ndi/ndi_service.dart';
 import 'display_mode_provider.dart';
 import 'lyrics_style_provider.dart';
 
@@ -32,8 +33,7 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
   ///   overlay on the **primary** display. Useful for debugging/preview.
   /// - [DisplayOutputMode.extend] → positions the window fullscreen on the
   ///   **secondary** display (like EasyWorship / ProPresenter).
-  /// - [DisplayOutputMode.ndi] → does **not** open a window; the caller is
-  ///   expected to show a notice to the user (NDI output is not yet built).
+  /// - [DisplayOutputMode.ndi] → activates the NDI offscreen renderer and starts streaming.
   Future<void> goLive(
     String? lyrics,
     int activeLine,
@@ -53,8 +53,9 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
     final displayOutput = ref.read(displayModeProvider);
 
-    // NDI is not yet implemented — caller shows the notice; we do nothing here.
     if (displayOutput.type == DisplayType.ndi) {
+      await ref.read(ndiServiceProvider.notifier).startStreaming();
+      state = true;
       _isLaunching = false;
       return;
     }
@@ -151,12 +152,18 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
   /// Hide the presentation window (End Live).
   Future<void> endLive() async {
-    if (!state || _controller == null) return;
+    if (!state) return;
 
-    try {
-      await _controller!.hide();
-    } catch (_) {
-      // Window may already be closed.
+    if (ref.read(ndiServiceProvider)) {
+      ref.read(ndiServiceProvider.notifier).stopStreaming();
+    }
+
+    if (_controller != null) {
+      try {
+        await _controller!.hide();
+      } catch (_) {
+        // Window may already be closed.
+      }
     }
     // Keep _controller around so we can re-show on next goLive.
     state = false;

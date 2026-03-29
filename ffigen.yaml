@@ -1,0 +1,12 @@
+name: NDIBindings
+description: Bindings to NewTek NDI SDK
+output: 'lib/core/ndi/ndi_bindings_ffi.dart'
+headers:
+  entry-points:
+    - 'Processing.NDI.Lib.h'
+compiler-opts:
+  - '-I/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include'
+llvm-path:
+  - '/opt/homebrew/opt/llvm/lib'
+  - '/usr/local/opt/llvm/lib'
+  - '/Library/Developer/CommandLineTools/usr/lib'

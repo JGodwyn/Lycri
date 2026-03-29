@@ -3,6 +3,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import 'editor_panel.dart';
 import 'lyric_input_panel.dart';
+import 'ndi_operator_view.dart';
 import 'presenter_panel.dart';
 
 /// Main operator (control) window for Lycri.
@@ -14,25 +15,30 @@ class OperatorPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface3,
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Left: lyric input sidebar ──────────────────────────────────
-            SizedBox(width: 320, child: const LyricInputPanel()),
+      body: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Left: lyric input sidebar ──────────────────────────────────
+                SizedBox(width: 320, child: const LyricInputPanel()),
 
-            const SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.md),
 
-            // ── Center: presenter preview ────────────────────────────────
-            Expanded(flex: 3, child: const PresenterPanel()),
+                // ── Center: presenter preview ────────────────────────────────
+                Expanded(flex: 3, child: const PresenterPanel()),
 
-            const SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.md),
 
-            // ── Right: style editor ──────────────────────────────────────
-            SizedBox(width: 368, child: const EditorPanel()),
-          ],
-        ),
+                // ── Right: style editor ──────────────────────────────────────
+                SizedBox(width: 368, child: const EditorPanel()),
+              ],
+            ),
+          ),
+          const NdiOperatorView(),
+        ],
       ),
     );
   }
