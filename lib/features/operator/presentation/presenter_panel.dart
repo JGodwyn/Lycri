@@ -238,9 +238,7 @@ class PresenterPanel extends ConsumerWidget {
                         if (output.type == DisplayType.ndi) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'NDI output is not yet supported.',
-                              ),
+                              content: Text('NDI output is not yet supported.'),
                               duration: Duration(seconds: 3),
                             ),
                           );
@@ -800,11 +798,13 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                         Text(
                           'How do you want to display?',
                           style: AppTypography.titleLg.copyWith(
-                            color: AppColors.textSubtle,
+                            color: AppColors.textBold,
                           ),
                         ),
                         const SizedBox(height: AppSpacing.xmd),
-                        ref.watch(displaysProvider).when(
+                        ref
+                            .watch(displaysProvider)
+                            .when(
                               data: (displays) {
                                 // 1. Custom list of outputs: primary display, secondary displays, then NDI.
                                 final List<DisplayOutput> options = [
@@ -815,31 +815,39 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                                   DisplayOutput.ndi(),
                                 ];
 
-                                return Row(
-                                  children:
-                                      options.map((output) {
-                                        final currentOutput = ref.watch(
-                                          displayModeProvider,
-                                        );
-                                        final isSelected =
-                                            currentOutput == output;
+                                return LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final int crossAxisCount =
+                                        options.length < 3 ? options.length : 3;
+                                    final double totalSpacing =
+                                        AppSpacing.md * (crossAxisCount - 1);
+                                    final double itemWidth =
+                                        (constraints.maxWidth - totalSpacing) /
+                                        crossAxisCount;
 
-                                        return Expanded(
-                                          child: Padding(
-                                            padding: EdgeInsets.only(
-                                              right:
-                                                  output != options.last
-                                                      ? AppSpacing.md
-                                                      : 0,
-                                            ),
-                                            child: _DisplayCard(
-                                              output: output,
-                                              isSelected: isSelected,
-                                              onTap: () => _selectMode(output),
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
+                                    return Wrap(
+                                      spacing: AppSpacing.md,
+                                      runSpacing: AppSpacing.md,
+                                      children:
+                                          options.map((output) {
+                                            final currentOutput = ref.watch(
+                                              displayModeProvider,
+                                            );
+                                            final isSelected =
+                                                currentOutput == output;
+
+                                            return SizedBox(
+                                              width: itemWidth,
+                                              child: _DisplayCard(
+                                                output: output,
+                                                isSelected: isSelected,
+                                                onTap:
+                                                    () => _selectMode(output),
+                                              ),
+                                            );
+                                          }).toList(),
+                                    );
+                                  },
                                 );
                               },
                               loading:
@@ -985,6 +993,7 @@ class _DisplayCardState extends State<_DisplayCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOutCubic,
+          height: 80,
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -994,10 +1003,14 @@ class _DisplayCardState extends State<_DisplayCard> {
             children: [
               // Card content
               Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
+                padding: const EdgeInsets.only(
+                  left: AppSpacing.md,
+                  right: AppSpacing.md,
+                  top: AppSpacing.md,
+                  bottom: AppSpacing.md,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     SvgPicture.asset(
                       widget.output.type == DisplayType.thisDisplay
@@ -1009,7 +1022,7 @@ class _DisplayCardState extends State<_DisplayCard> {
                       height: 24,
                       colorFilter: ColorFilter.mode(
                         widget.isSelected
-                            ? AppColors.textBold
+                            ? AppColors.textBrand
                             : AppColors.textSubtle,
                         BlendMode.srcIn,
                       ),
@@ -1017,7 +1030,7 @@ class _DisplayCardState extends State<_DisplayCard> {
                     const SizedBox(height: AppSpacing.md),
                     Text(
                       widget.output.label,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.titleMd.copyWith(
                         color:
