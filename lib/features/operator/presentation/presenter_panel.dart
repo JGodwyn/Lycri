@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:video_player/video_player.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -15,6 +14,7 @@ import '../../../shared/providers/display_mode_provider.dart';
 import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
 import '../../../shared/providers/presentation_window_provider.dart';
+import '../../../shared/widgets/static_video_background.dart';
 import '../../../shared/widgets/lycri_button.dart';
 
 /// Center panel of the operator window.
@@ -339,7 +339,7 @@ class PresenterPanel extends ConsumerWidget {
                           if (style.backgroundType == BackgroundType.video &&
                               style.backgroundVideoPath != null)
                             Positioned.fill(
-                              child: _StaticVideoBackground(
+                              child: StaticVideoBackground(
                                 path: style.backgroundVideoPath!,
                               ),
                             ),
@@ -1142,187 +1142,3 @@ class _ArrowButtonState extends State<_ArrowButton> {
   }
 }
 
-/// A simple looping video player for backgrounds.
-/// Trims playback to 15 seconds if longer.
-class _StaticVideoBackground extends StatefulWidget {
-  final String path;
-  const _StaticVideoBackground({required this.path});
-
-  @override
-  State<_StaticVideoBackground> createState() => _StaticVideoBackgroundState();
-}
-
-class _StaticVideoBackgroundState extends State<_StaticVideoBackground>
-    with SingleTickerProviderStateMixin {
-  VideoPlayerController? _controllerA;
-  VideoPlayerController? _controllerB;
-  late AnimationController _crossFadeController;
-  late Animation<double> _opacityA;
-  late Animation<double> _opacityB;
-
-  bool _isShowingB = false;
-  bool _isTransitioning = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _crossFadeController = AnimationController(
-      duration: const Duration(milliseconds: 500), // fade transition on videos
-      vsync: this,
-    );
-    _opacityA = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(_crossFadeController);
-    _opacityB = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(_crossFadeController);
-
-    _initControllers();
-  }
-
-  @override
-  void didUpdateWidget(_StaticVideoBackground oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.path != widget.path) {
-      _initControllers();
-    }
-  }
-
-  void _initControllers() {
-    _controllerA?.dispose();
-    _controllerB?.dispose();
-    _isShowingB = false;
-    _isTransitioning = false;
-    _crossFadeController.reset();
-
-    _controllerA = VideoPlayerController.file(File(widget.path))
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() {});
-        _controllerA!.setLooping(false); // Disable snapping
-        _controllerA!.setVolume(0);
-        _controllerA!.play();
-        _controllerA!.addListener(_loopListener);
-      });
-
-    // Secondary controller for crossfade
-    _controllerB = VideoPlayerController.file(File(widget.path))
-      ..initialize().then((_) {
-        if (!mounted) return;
-        _controllerB!.setLooping(false); // Disable snapping
-        _controllerB!.setVolume(0);
-        _controllerB!.addListener(_loopListener); // ADDED LISTENER
-      });
-  }
-
-  void _loopListener() {
-    if (!mounted || _isTransitioning) return;
-
-    final controller = _isShowingB ? _controllerB : _controllerA;
-    if (controller == null || !controller.value.isInitialized) return;
-
-    // Maximum playback duration is 15s, or the video length itself.
-    final totalDuration = controller.value.duration;
-    final maxPlayback =
-        totalDuration < const Duration(seconds: 15)
-            ? totalDuration
-            : const Duration(seconds: 15);
-
-    // Start fading 1s before we hit the max playback point.
-    final transitionPoint =
-        maxPlayback -
-        const Duration(milliseconds: 500); // fade transition on videos
-
-    if (controller.value.position >= transitionPoint) {
-      _startTransition();
-    }
-  }
-
-  void _startTransition() {
-    setState(() => _isTransitioning = true);
-
-    if (_isShowingB) {
-      // B -> A
-      _controllerA!.seekTo(Duration.zero);
-      _controllerA!.play();
-      _crossFadeController.reverse().then((_) {
-        if (!mounted) return;
-        _controllerB!.pause();
-        setState(() {
-          _isShowingB = false;
-          _isTransitioning = false;
-        });
-      });
-    } else {
-      // A -> B
-      _controllerB!.seekTo(Duration.zero);
-      _controllerB!.play();
-      _crossFadeController.forward().then((_) {
-        if (!mounted) return;
-        _controllerA!.pause();
-        setState(() {
-          _isShowingB = true;
-          _isTransitioning = false;
-        });
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _controllerA?.removeListener(_loopListener);
-    _controllerB?.removeListener(_loopListener);
-    _controllerA?.dispose();
-    _controllerB?.dispose();
-    _crossFadeController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hasA = _controllerA != null && _controllerA!.value.isInitialized;
-    final hasB = _controllerB != null && _controllerB!.value.isInitialized;
-
-    if (!hasA && !hasB) return Container(color: Colors.black);
-
-    return Stack(
-      children: [
-        if (hasA)
-          Positioned.fill(
-            child: FadeTransition(
-              opacity: _opacityA,
-              child: _VideoPlayerItem(controller: _controllerA!),
-            ),
-          ),
-        if (hasB)
-          Positioned.fill(
-            child: FadeTransition(
-              opacity: _opacityB,
-              child: _VideoPlayerItem(controller: _controllerB!),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _VideoPlayerItem extends StatelessWidget {
-  final VideoPlayerController controller;
-  const _VideoPlayerItem({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: controller.value.size.width,
-          height: controller.value.size.height,
-          child: VideoPlayer(controller),
-        ),
-      ),
-    );
-  }
-}

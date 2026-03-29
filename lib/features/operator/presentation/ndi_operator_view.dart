@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -11,6 +12,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/providers/active_line_provider.dart';
 import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
+import '../../../shared/widgets/static_video_background.dart';
 
 class NdiOperatorView extends ConsumerStatefulWidget {
   const NdiOperatorView({super.key});
@@ -21,47 +23,74 @@ class NdiOperatorView extends ConsumerStatefulWidget {
 
 class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
   final GlobalKey _repaintBoundaryKey = GlobalKey();
+  Timer? _captureTimer;
+  bool _isCapturing = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (ref.read(ndiServiceProvider)) {
-        _captureFrame();
+        _startCaptureLoop();
       }
     });
   }
 
-  void _captureFrame() async {
+  @override
+  void dispose() {
+    _stopCaptureLoop();
+    super.dispose();
+  }
+
+  void _startCaptureLoop() {
+    _stopCaptureLoop();
+    // Run at ~30fps
+    _captureTimer = Timer.periodic(const Duration(milliseconds: 33), (_) => _captureFrame());
+  }
+
+  void _stopCaptureLoop() {
+    _captureTimer?.cancel();
+    _captureTimer = null;
+  }
+
+  Future<void> _captureFrame() async {
+    if (_isCapturing) return;
+    _isCapturing = true;
+
     try {
       final boundary = _repaintBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
-      if (boundary.debugNeedsPaint) {
-         WidgetsBinding.instance.addPostFrameCallback((_) => _captureFrame());
-         return;
+      if (boundary == null) {
+        _isCapturing = false;
+        return;
+      }
+      
+      // If the boundary is not yet laid out, wait.
+      if (!boundary.attached || boundary.debugNeedsPaint) {
+        _isCapturing = false;
+        return;
       }
 
       final image = await boundary.toImage(pixelRatio: 1.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      
       if (byteData != null) {
-        debugPrint('NDI: Captured frame ${image.width}x${image.height}');
         ref.read(ndiServiceProvider.notifier).updateFrameBuffer(byteData.buffer.asUint8List());
       }
+      image.dispose(); // Important to dispose image to avoid memory leaks
     } catch (e) {
-      debugPrint('NDI Frame Capture Error: $e');
+      // Silently fail if frame isn't ready
+    } finally {
+      _isCapturing = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(lyricsProvider, (previous, current) => _captureFrame());
-    ref.listen(activeLineProvider, (previous, current) => _captureFrame());
-    ref.listen(scrollToActiveTriggerProvider, (previous, current) => _captureFrame());
-    ref.listen(lyricsStyleProvider, (previous, current) => _captureFrame());
-    
     ref.listen(ndiServiceProvider, (previous, current) {
-      if (current && !(previous ?? false)) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _captureFrame());
+      if (current) {
+        _startCaptureLoop();
+      } else {
+        _stopCaptureLoop();
       }
     });
 
@@ -71,8 +100,6 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
     final lyrics = ref.watch(lyricsProvider);
     final style = ref.watch(lyricsStyleProvider);
 
-    // We position this 1080p canvas way off-screen so it's not visible to the user,
-    // but Flutter still performs layout and paint, allowing RepaintBoundary to capture it.
     return Positioned(
       left: -2000,
       top: -2000,
@@ -85,13 +112,13 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
             color: Colors.transparent,
             child: Stack(
               children: [
-                // Background layer
+                // 1. Background layer
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
                       color: style.backgroundType == BackgroundType.solidColor
                           ? style.backgroundColor
-                          : Colors.black, // Default to black if no other background
+                          : Colors.black,
                       gradient: style.backgroundType == BackgroundType.gradient
                           ? (style.gradientType == GradientType.linear
                               ? LinearGradient(
@@ -118,11 +145,16 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
                     ),
                   ),
                 ),
-                // Lyrics
+
+                // 2. Video Background (if active)
+                if (style.backgroundType == BackgroundType.video && style.backgroundVideoPath != null)
+                  Positioned.fill(
+                    child: StaticVideoBackground(path: style.backgroundVideoPath!),
+                  ),
+
+                // 3. Lyrics layer
                 Positioned.fill(
-                  child: lyrics != null
-                      ? const _NdiLyricsPreview()
-                      : const SizedBox.shrink(),
+                  child: lyrics != null ? const _NdiLyricsPreview() : const SizedBox.shrink(),
                 ),
               ],
             ),
@@ -132,6 +164,7 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
     );
   }
 }
+
 
 class _NdiLyricsPreview extends ConsumerStatefulWidget {
   const _NdiLyricsPreview();
