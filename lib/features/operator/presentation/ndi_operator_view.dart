@@ -12,6 +12,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/providers/active_line_provider.dart';
 import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
+import '../../../shared/providers/lyrics_visibility_provider.dart';
 import '../../../shared/widgets/static_video_background.dart';
 
 class NdiOperatorView extends ConsumerStatefulWidget {
@@ -99,6 +100,7 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
 
     final lyrics = ref.watch(lyricsProvider);
     final style = ref.watch(lyricsStyleProvider);
+    final isVisible = ref.watch(lyricsVisibilityProvider);
 
     return Positioned(
       left: -2000,
@@ -154,7 +156,11 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
 
                 // 3. Lyrics layer
                 Positioned.fill(
-                  child: lyrics != null ? const _NdiLyricsPreview() : const SizedBox.shrink(),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 300),
+                    opacity: isVisible ? 1.0 : 0.0,
+                    child: lyrics != null ? const _NdiLyricsPreview() : const SizedBox.shrink(),
+                  ),
                 ),
               ],
             ),
@@ -175,6 +181,7 @@ class _NdiLyricsPreview extends ConsumerStatefulWidget {
 
 class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
   final ScrollController _scrollController = ScrollController();
+  final PageController _pageController = PageController();
   final Map<int, GlobalKey> _lineKeys = {};
 
   static const _animDuration = Duration(milliseconds: 400);
@@ -184,13 +191,14 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToActive(ref.read(activeLineProvider));
+      _handleMovement(ref.read(activeLineProvider));
     });
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -198,21 +206,42 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
-  void _scrollToActive(int activeIndex) {
+  void _handleMovement(int activeIndex) {
+    final displayLines = ref.read(lyricsStyleProvider).displayLines;
+    if (displayLines > 0) {
+      _scrollToPage(activeIndex, displayLines);
+    } else {
+      _scrollToLine(activeIndex);
+    }
+  }
+
+  void _scrollToPage(int activeIndex, int displayLines) {
+    if (!_pageController.hasClients) return;
+    final targetPage = activeIndex ~/ displayLines;
+    if (_pageController.page?.round() != targetPage) {
+      _pageController.animateToPage(
+        targetPage,
+        duration: _animDuration,
+        curve: _animCurve,
+      );
+    }
+  }
+
+  void _scrollToLine(int activeIndex) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
       final key = _lineKeys[activeIndex];
       if (key == null) return;
       final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox == null) return;
-      
+
       final viewport = _scrollController.position;
       final lineOffset = renderBox.localToGlobal(
         Offset.zero,
         ancestor: viewport.context.storageContext.findRenderObject(),
       );
       final targetOffset = _scrollController.offset + lineOffset.dy - (viewport.viewportDimension * 0.33);
-      
+
       _scrollController.animateTo(
         targetOffset.clamp(0.0, viewport.maxScrollExtent),
         duration: _animDuration,
@@ -227,38 +256,85 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     final activeIndex = ref.watch(activeLineProvider);
     final styleState = ref.watch(lyricsStyleProvider);
 
-    ref.listen<int>(activeLineProvider, (prev, next) => _scrollToActive(next));
-    ref.listen<int>(scrollToActiveTriggerProvider, (prev, next) => _scrollToActive(ref.read(activeLineProvider)));
+    ref.listen<int>(activeLineProvider, (prev, next) => _handleMovement(next));
+    ref.listen<int>(scrollToActiveTriggerProvider, (prev, next) => _handleMovement(ref.read(activeLineProvider)));
 
     _lineKeys.removeWhere((k, _) => k >= lines.length);
 
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(AppSpacing.x5l),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (int i = 0; i < lines.length; i++)
-              Padding(
-                key: _keyFor(i),
-                padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-                child: AnimatedDefaultTextStyle(
-                  duration: _animDuration,
-                  curve: _animCurve,
-                  style: AppTypography.displayMd.copyWith(
-                    fontFamily: styleState.fontFamily,
-                    color: i == activeIndex ? styleState.fontColor : styleState.fontColor.withValues(alpha: 0.2),
-                    height: 1.4,
-                  ),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Text(lines[i], textAlign: styleState.textAlign, softWrap: true),
-                  ),
+    if (styleState.displayLines > 0) {
+      final totalPages = (lines.length / styleState.displayLines).ceil();
+      return PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: totalPages,
+        itemBuilder: (context, pageIndex) {
+          int startIdx = pageIndex * styleState.displayLines;
+          int endIdx = startIdx + styleState.displayLines;
+          if (endIdx > lines.length) endIdx = lines.length;
+
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.x5l,
+                  vertical: AppSpacing.x2l,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (int i = startIdx; i < endIdx; i++)
+                      _buildLine(i, lines[i], activeIndex, styleState),
+                  ],
                 ),
               ),
-          ],
+            ),
+          );
+        },
+      );
+    }
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.x5l,
+              vertical: AppSpacing.x2l,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (int i = 0; i < lines.length; i++)
+                  _buildLine(i, lines[i], activeIndex, styleState, useKey: true),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLine(int i, String line, int activeIndex, LyricsStyleState styleState, {bool useKey = false}) {
+    return Padding(
+      key: useKey ? _keyFor(i) : null,
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: AnimatedDefaultTextStyle(
+        duration: _animDuration,
+        curve: _animCurve,
+        style: AppTypography.displayMd.copyWith(
+          fontFamily: styleState.fontFamily,
+          color: i == activeIndex ? styleState.fontColor : styleState.fontColor.withValues(alpha: 0.2),
+          height: 1.4,
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: Text(line, textAlign: styleState.textAlign, softWrap: true),
         ),
       ),
     );

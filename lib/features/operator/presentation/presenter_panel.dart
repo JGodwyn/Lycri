@@ -13,6 +13,7 @@ import '../../../shared/providers/active_line_provider.dart';
 import '../../../shared/providers/display_mode_provider.dart';
 import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
+import '../../../shared/providers/lyrics_visibility_provider.dart';
 import '../../../shared/providers/presentation_window_provider.dart';
 import '../../../shared/widgets/static_video_background.dart';
 import '../../../shared/widgets/lycri_button.dart';
@@ -29,6 +30,7 @@ class PresenterPanel extends ConsumerWidget {
     final lyrics = ref.watch(lyricsProvider);
     final lines = ref.watch(lyricsLinesProvider);
     final isLive = ref.watch(presentationWindowProvider);
+    final lyricsVisible = ref.watch(lyricsVisibilityProvider);
 
     // Keep active line position stable during edits.
     // Only reset to 0 when lyrics are first set or fully cleared.
@@ -345,16 +347,20 @@ class PresenterPanel extends ConsumerWidget {
                             ),
                           // Lyrics/Content switcher
                           Positioned.fill(
-                            child: AnimatedSwitcher(
+                            child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 250),
-                              child:
-                                  lyrics != null
-                                      ? const _LyricsPreview(
-                                        key: ValueKey('lyrics'),
-                                      )
-                                      : const _EmptyPresenterState(
-                                        key: ValueKey('empty'),
-                                      ),
+                              opacity: lyricsVisible ? 1.0 : 0.2,
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 250),
+                                child:
+                                    lyrics != null
+                                        ? const _LyricsPreview(
+                                          key: ValueKey('lyrics'),
+                                        )
+                                        : const _EmptyPresenterState(
+                                          key: ValueKey('empty'),
+                                        ),
+                              ),
                             ),
                           ),
                         ],
@@ -384,60 +390,43 @@ class PresenterPanel extends ConsumerWidget {
 ///
 /// Active (eye visible): lyrics shown on the live screen — bright orange with glow.
 /// Inactive: lyrics faded out on the live screen — neutral surface.
-class _VisibilityToggle extends ConsumerStatefulWidget {
+class _VisibilityToggle extends ConsumerWidget {
   const _VisibilityToggle();
 
   @override
-  ConsumerState<_VisibilityToggle> createState() => _VisibilityToggleState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lyricsVisible = ref.watch(lyricsVisibilityProvider);
 
-class _VisibilityToggleState extends ConsumerState<_VisibilityToggle> {
-  // Starts visible.
-  bool _lyricsVisible = true;
-
-  void _toggle() {
-    final next = !_lyricsVisible;
-    setState(() => _lyricsVisible = next);
-    // Fire-and-forget: only sends if the window is live.
-    ref.read(presentationWindowProvider.notifier).syncLyricsVisibility(next);
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: _toggle,
+        onTap: () {
+          final next = !lyricsVisible;
+          ref.read(lyricsVisibilityProvider.notifier).state = next;
+          ref.read(presentationWindowProvider.notifier).syncLyricsVisibility(next);
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
           width: 48,
           height: 32,
           decoration: BoxDecoration(
-            color:
-                _lyricsVisible
-                    ? AppColors
-                        .surfaceBrand // orange when active
-                    : AppColors.surface4, // neutral when inactive
+            color: lyricsVisible ? AppColors.surfaceBrand : AppColors.surface4,
             borderRadius: BorderRadius.circular(AppRadius.full),
-            boxShadow:
-                _lyricsVisible
-                    ? [
-                      // Brand glow matching the image
-                      BoxShadow(
-                        color: AppColors.surfaceBrand.withValues(alpha: 0.55),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                        offset: Offset.zero,
-                      ),
-                    ]
-                    : [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.10),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+            boxShadow: lyricsVisible ? [
+              BoxShadow(
+                color: AppColors.surfaceBrand.withValues(alpha: 0.55),
+                blurRadius: 20,
+                spreadRadius: 2,
+                offset: Offset.zero,
+              )
+            ] : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              )
+            ],
           ),
           child: Center(
             child: SvgPicture.asset(
@@ -445,7 +434,7 @@ class _VisibilityToggleState extends ConsumerState<_VisibilityToggle> {
               width: 22,
               height: 22,
               colorFilter: ColorFilter.mode(
-                _lyricsVisible ? AppColors.textInverse : AppColors.iconSubtle,
+                lyricsVisible ? AppColors.textInverse : AppColors.iconSubtle,
                 BlendMode.srcIn,
               ),
             ),
