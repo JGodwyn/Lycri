@@ -13,7 +13,7 @@ class StaticVideoBackground extends StatefulWidget {
 }
 
 class StaticVideoBackgroundState extends State<StaticVideoBackground>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   VideoPlayerController? _controllerA;
   VideoPlayerController? _controllerB;
   late AnimationController _crossFadeController;
@@ -26,6 +26,7 @@ class StaticVideoBackgroundState extends State<StaticVideoBackground>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _crossFadeController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -41,6 +42,22 @@ class StaticVideoBackgroundState extends State<StaticVideoBackground>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.path != widget.path) {
       _initControllers();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // If the app is resumed, ensure the active video is actually playing.
+    // Some platforms (like macOS/iOS) pause video when focus is lost.
+    if (state == AppLifecycleState.resumed) {
+      _ensureVideoPlaying();
+    }
+  }
+
+  void _ensureVideoPlaying() {
+    final controller = _isShowingB ? _controllerB : _controllerA;
+    if (controller != null && controller.value.isInitialized && !controller.value.isPlaying) {
+      controller.play();
     }
   }
 
@@ -118,6 +135,7 @@ class StaticVideoBackgroundState extends State<StaticVideoBackground>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controllerA?.removeListener(_loopListener);
     _controllerB?.removeListener(_loopListener);
     _controllerA?.dispose();
