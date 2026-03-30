@@ -489,14 +489,27 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                   horizontal: AppSpacing.x5l,
                   vertical: AppSpacing.x2l,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: _crossAxisAlignment,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (int i = startIdx; i < endIdx; i++)
-                      _buildLyricLine(i, useGlobalKey: false),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.center,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints.tightFor(
+                          width: constraints.maxWidth,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: _crossAxisAlignment,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (int i = startIdx; i < endIdx; i++)
+                              _buildLyricLine(i, useGlobalKey: false),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

@@ -181,7 +181,7 @@ class _NdiLyricsPreview extends ConsumerStatefulWidget {
 
 class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
   final ScrollController _scrollController = ScrollController();
-  final PageController _pageController = PageController();
+  late PageController _pageController;
   final Map<int, GlobalKey> _lineKeys = {};
 
   static const _animDuration = Duration(milliseconds: 400);
@@ -190,8 +190,18 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
   @override
   void initState() {
     super.initState();
+    final style = ref.read(lyricsStyleProvider);
+    final lines = ref.read(lyricsLinesProvider);
+    final activeIndex = ref.read(activeLineProvider);
+    
+    _pageController = PageController(
+      initialPage: (style.displayLines > 0 && lines.isNotEmpty)
+          ? activeIndex ~/ style.displayLines
+          : 0,
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _handleMovement(ref.read(activeLineProvider));
+      _handleMovement(activeIndex);
     });
   }
 
@@ -259,11 +269,40 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     ref.listen<int>(activeLineProvider, (prev, next) => _handleMovement(next));
     ref.listen<int>(scrollToActiveTriggerProvider, (prev, next) => _handleMovement(ref.read(activeLineProvider)));
 
+    // Ensure the active lyric stays on screen when display lines or lyrics change.
+    ref.listen<LyricsStyleState>(lyricsStyleProvider, (prev, next) {
+      if (prev?.displayLines != next.displayLines) {
+        setState(() {
+          final lines = ref.read(lyricsLinesProvider);
+          final activeIndex = ref.read(activeLineProvider);
+          final oldController = _pageController;
+          
+          _pageController = PageController(
+            initialPage: (next.displayLines > 0 && lines.isNotEmpty)
+                ? activeIndex ~/ next.displayLines
+                : 0,
+          );
+          
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            oldController.dispose();
+            _handleMovement(activeIndex);
+          });
+        });
+      }
+    });
+
+    ref.listen<List<String>>(lyricsLinesProvider, (prev, next) {
+      if (prev?.length != next.length) {
+        _handleMovement(ref.read(activeLineProvider));
+      }
+    });
+
     _lineKeys.removeWhere((k, _) => k >= lines.length);
 
     if (styleState.displayLines > 0) {
       final totalPages = (lines.length / styleState.displayLines).ceil();
       return PageView.builder(
+        key: ValueKey('ndi_paginated_view_${styleState.displayLines}'),
         controller: _pageController,
         scrollDirection: Axis.vertical,
         physics: const NeverScrollableScrollPhysics(),
@@ -281,13 +320,26 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                   horizontal: AppSpacing.x5l,
                   vertical: AppSpacing.x2l,
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (int i = startIdx; i < endIdx; i++)
-                      _buildLine(i, lines[i], activeIndex, styleState),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.center,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints.tightFor(
+                          width: constraints.maxWidth,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (int i = startIdx; i < endIdx; i++)
+                              _buildLine(i, lines[i], activeIndex, styleState),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
