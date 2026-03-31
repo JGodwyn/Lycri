@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_stroke.dart';
 import '../../core/theme/app_typography.dart';
+import 'lycri_text_field.dart';
 
 /// A single item in a [LycriDropdown].
 class LycriDropdownItem<T> {
@@ -48,7 +50,9 @@ class LycriDropdown<T> extends StatefulWidget {
     required this.selectedValue,
     required this.onChanged,
     this.leadingIcon,
-    this.maxDropdownHeight = 300,
+    this.maxDropdownHeight = 350,
+    this.showSearch = false,
+    this.searchHint = 'Search here...',
   });
 
   /// Available options.
@@ -65,6 +69,12 @@ class LycriDropdown<T> extends StatefulWidget {
 
   /// Maximum height of the dropdown panel before it scrolls.
   final double maxDropdownHeight;
+
+  /// Whether to show a search bar at the top of the dropdown listing.
+  final bool showSearch;
+
+  /// Placeholder text for the search field.
+  final String searchHint;
 
   @override
   State<LycriDropdown<T>> createState() => _LycriDropdownState<T>();
@@ -122,6 +132,8 @@ class _LycriDropdownState<T> extends State<LycriDropdown<T>>
             triggerWidth: triggerWidth,
             maxHeight: widget.maxDropdownHeight,
             layerLink: _layerLink,
+            showSearch: widget.showSearch,
+            searchHint: widget.searchHint,
             onSelected: (value) {
               widget.onChanged(value);
               _removeOverlay();
@@ -229,6 +241,8 @@ class _DropdownOverlay<T> extends StatefulWidget {
     required this.layerLink,
     required this.onSelected,
     required this.onDismiss,
+    this.showSearch = false,
+    this.searchHint = 'Search here...',
   });
 
   final List<LycriDropdownItem<T>> items;
@@ -238,6 +252,8 @@ class _DropdownOverlay<T> extends StatefulWidget {
   final LayerLink layerLink;
   final ValueChanged<T> onSelected;
   final VoidCallback onDismiss;
+  final bool showSearch;
+  final String searchHint;
 
   @override
   State<_DropdownOverlay<T>> createState() => _DropdownOverlayState<T>();
@@ -252,6 +268,9 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
 
   // Exact height per item (item height 48px + divider 1px).
   static const _exactItemHeight = 49.0;
+
+  late final TextEditingController _searchController;
+  List<LycriDropdownItem<T>> _filteredItems = [];
 
   @override
   void initState() {
@@ -268,6 +287,9 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
 
     _scaleAnim = Tween(begin: 0.75, end: 1.0).animate(curved);
     _fadeAnim = Tween(begin: 0.0, end: 1.0).animate(curved);
+
+    _searchController = TextEditingController();
+    _filteredItems = List.from(widget.items);
 
     // ScrollController — center the selected item in the visible area.
     final selectedIndex = widget.items.indexWhere(
@@ -287,8 +309,25 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
     _animController.forward();
   }
 
+  void _onSearchChanged(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredItems = List.from(widget.items);
+      } else {
+        _filteredItems =
+            widget.items
+                .where(
+                  (item) =>
+                      item.label.toLowerCase().contains(query.toLowerCase()),
+                )
+                .toList();
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _searchController.dispose();
     _scrollController.dispose();
     _animController.dispose();
     super.dispose();
@@ -337,40 +376,64 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
                       ),
                     ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    child: Scrollbar(
-                      controller: _scrollController,
-                      thumbVisibility: true,
-                      radius: const Radius.circular(AppRadius.full),
-                      child: ListView.separated(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.sm,
-                        ),
-                        shrinkWrap: true,
-                        itemCount: widget.items.length,
-                        separatorBuilder:
-                            (_, __) => Divider(
-                              height: 1,
-                              thickness: AppStroke.sm,
-                              color: AppColors.borderMinimal,
-                              indent: AppSpacing.lg,
-                              endIndent: AppSpacing.lg,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.showSearch)
+                        Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xmd),
+                          child: LycriTextField(
+                            controller: _searchController,
+                            autoFocus: true,
+                            hintText: widget.searchHint,
+                            onChanged: _onSearchChanged,
+                            prefixIcon: SvgPicture.asset(
+                              "assets/vectors/magnifyingglass.svg",
+                              width: 20,
+                              height: 20,
+                              colorFilter: ColorFilter.mode(
+                                AppColors.iconMinimal,
+                                BlendMode.srcIn,
+                              ),
                             ),
-                        itemBuilder: (_, index) {
-                          final item = widget.items[index];
-                          final isSelected = item.value == widget.selectedValue;
+                          ),
+                        ),
+                      Flexible(
+                        child: Scrollbar(
+                          controller: _scrollController,
+                          thumbVisibility: true,
+                          radius: const Radius.circular(AppRadius.full),
+                          child: ListView.separated(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
+                            shrinkWrap: true,
+                            itemCount: _filteredItems.length,
+                            separatorBuilder:
+                                (_, __) => Divider(
+                                  height: 1,
+                                  thickness: AppStroke.sm,
+                                  color: AppColors.borderMinimal,
+                                  indent: AppSpacing.lg,
+                                  endIndent: AppSpacing.lg,
+                                ),
+                            itemBuilder: (_, index) {
+                              final item = _filteredItems[index];
+                              final isSelected =
+                                  item.value == widget.selectedValue;
 
-                          return _DropdownMenuItem(
-                            label: item.label,
-                            fontFamily: item.fontFamily,
-                            isSelected: isSelected,
-                            onTap: () => widget.onSelected(item.value),
-                          );
-                        },
+                              return _DropdownMenuItem(
+                                label: item.label,
+                                fontFamily: item.fontFamily,
+                                isSelected: isSelected,
+                                onTap: () => widget.onSelected(item.value),
+                              );
+                            },
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),

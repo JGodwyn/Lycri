@@ -130,6 +130,8 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                               .read(lyricsStyleProvider.notifier)
                               .setFontFamily(font),
                       leadingIcon: Icons.text_format,
+                      showSearch: true,
+                      searchHint: 'Search fonts here',
                     ),
                 loading:
                     () => const SizedBox(

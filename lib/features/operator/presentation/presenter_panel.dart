@@ -349,7 +349,7 @@ class PresenterPanel extends ConsumerWidget {
                           Positioned.fill(
                             child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 250),
-                              opacity: lyricsVisible ? 1.0 : 0.2,
+                              opacity: lyricsVisible ? 1.0 : 0.6,
                               child: AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 250),
                                 child:
@@ -403,7 +403,9 @@ class _VisibilityToggle extends ConsumerWidget {
         onTap: () {
           final next = !lyricsVisible;
           ref.read(lyricsVisibilityProvider.notifier).state = next;
-          ref.read(presentationWindowProvider.notifier).syncLyricsVisibility(next);
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncLyricsVisibility(next);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
@@ -413,20 +415,23 @@ class _VisibilityToggle extends ConsumerWidget {
           decoration: BoxDecoration(
             color: lyricsVisible ? AppColors.surfaceBrand : AppColors.surface4,
             borderRadius: BorderRadius.circular(AppRadius.full),
-            boxShadow: lyricsVisible ? [
-              BoxShadow(
-                color: AppColors.surfaceBrand.withValues(alpha: 0.55),
-                blurRadius: 20,
-                spreadRadius: 2,
-                offset: Offset.zero,
-              )
-            ] : [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.10),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              )
-            ],
+            boxShadow:
+                lyricsVisible
+                    ? [
+                      BoxShadow(
+                        color: AppColors.surfaceBrand.withValues(alpha: 0.55),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                        offset: Offset.zero,
+                      ),
+                    ]
+                    : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.10),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
           ),
           child: Center(
             child: SvgPicture.asset(
@@ -1130,4 +1135,3 @@ class _ArrowButtonState extends State<_ArrowButton> {
     );
   }
 }
-
