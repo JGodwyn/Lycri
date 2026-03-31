@@ -3,6 +3,9 @@ import FlutterMacOS
 import desktop_multi_window
 
 class MainFlutterWindow: NSWindow {
+  // Shared across all windows/engines in the process
+  private static var activityToken: NSObjectProtocol?
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -10,6 +13,13 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+
+    // ── Register App Nap control for MAIN engine ─────────────────────────
+    let mainAppNapChannel = FlutterMethodChannel(
+      name: "lycri/app_nap",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    Self.setupAppNapHandler(on: mainAppNapChannel)
 
     // ── System fonts method channel ───────────────────────────────────────
     let fontChannel = FlutterMethodChannel(
@@ -36,22 +46,20 @@ class MainFlutterWindow: NSWindow {
     }
 
     FlutterMultiWindowPlugin.setOnWindowCreatedCallback { controller in
-      // Register all plugins (window_manager, etc.) for each sub-window engine.
       RegisterGeneratedPlugins(registry: controller)
 
+      // ── Register App Nap control for SUB-WINDOW engine ───────────────────
+      let subAppNapChannel = FlutterMethodChannel(
+        name: "lycri/app_nap",
+        binaryMessenger: controller.engine.binaryMessenger
+      )
+      Self.setupAppNapHandler(on: subAppNapChannel)
+
       // ── Native window-setup channel for sub-windows ───────────────────
-      // We cannot use `windowManager` (window_manager package) inside a
-      // sub-window because its Swift plugin force-unwraps NSApp.mainWindow,
-      // which is nil in sub-window contexts. Instead we register a lightweight
-      // native channel here, giving the sub-window direct access to its own
-      // NSWindow so it can set its frame and toggle fullscreen safely.
       let setupChannel = FlutterMethodChannel(
         name: "lycri/window_setup",
         binaryMessenger: controller.engine.binaryMessenger
       )
-
-      // Capture the sub-window's NSWindow weakly so this closure doesn't
-      // outlive the window.
       setupChannel.setMethodCallHandler { [weak controller] (call, result) in
         guard let win = controller?.view.window else {
           result(FlutterError(code: "NO_WINDOW", message: "NSWindow not available", details: nil))
@@ -59,9 +67,7 @@ class MainFlutterWindow: NSWindow {
         }
 
         switch call.method {
-
         case "setFrame":
-          // args: { x, y, width, height }  — all in top-left screen coordinates.
           guard let args = call.arguments as? [String: Any],
                 let x = args["x"] as? Double,
                 let y = args["y"] as? Double,
@@ -71,26 +77,20 @@ class MainFlutterWindow: NSWindow {
             result(FlutterError(code: "BAD_ARGS", message: "Expected x/y/width/height", details: nil))
             return
           }
-
-          // macOS screen coordinates are bottom-left origin. Convert from
-          // top-left (Flutter / screen_retriever convention) to bottom-left.
           let screenHeight = NSScreen.screens.first?.frame.height ?? 0
           let flippedY = screenHeight - y - h
-
           DispatchQueue.main.async {
             win.setFrame(NSRect(x: x, y: flippedY, width: w, height: h), display: true)
             result(nil)
           }
 
         case "setFullScreen":
-          // args: { fullScreen: bool }
           guard let args = call.arguments as? [String: Any],
                 let fs = args["fullScreen"] as? Bool
           else {
             result(FlutterError(code: "BAD_ARGS", message: "Expected fullScreen bool", details: nil))
             return
           }
-
           DispatchQueue.main.async {
             let isAlready = win.styleMask.contains(.fullScreen)
             if fs && !isAlready {
@@ -106,7 +106,6 @@ class MainFlutterWindow: NSWindow {
             win.close()
             result(nil)
           }
-
         default:
           result(FlutterMethodNotImplemented)
         }
@@ -114,5 +113,38 @@ class MainFlutterWindow: NSWindow {
     }
 
     super.awakeFromNib()
+  }
+
+  /// Shared handler setup for both main and sub-window engines.
+  private static func setupAppNapHandler(on channel: FlutterMethodChannel) {
+    channel.setMethodCallHandler { (call, result) in
+      switch call.method {
+      case "disableAppNap":
+        if activityToken == nil {
+          print("Lycri Native: Disabling App Nap (Global Performance Mode ON)")
+          activityToken = ProcessInfo.processInfo.beginActivity(
+            options: [
+              .userInitiated,
+              .idleSystemSleepDisabled,
+              .latencyCritical,
+              .background,
+              .suddenTerminationDisabled,
+              .automaticTerminationDisabled
+            ],
+            reason: "Active Presentation / NDI Stream"
+          )
+        }
+        result(nil)
+      case "enableAppNap":
+        if let token = activityToken {
+          print("Lycri Native: Enabling App Nap (Global Performance Mode OFF)")
+          ProcessInfo.processInfo.endActivity(token)
+          activityToken = nil
+        }
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 }

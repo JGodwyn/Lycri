@@ -88,6 +88,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   void initState() {
     super.initState();
 
+    // Ensure this window's process does not nap during presentation.
+    const MethodChannel('lycri/app_nap').invokeMethod('disableAppNap');
+
     // Initial orientation/placement.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
