@@ -31,6 +31,7 @@ class LycriButton extends StatefulWidget {
     this.fillWidth = false,
     this.height = 40,
     this.disabled = false,
+    this.isLoading = false,
   });
 
   /// The text displayed inside the button.
@@ -60,6 +61,10 @@ class LycriButton extends StatefulWidget {
   /// Defaults to `false`.
   final bool disabled;
 
+  /// When `true`, the button shows a loading spinner and is disabled.
+  /// Defaults to `false`.
+  final bool isLoading;
+
   @override
   State<LycriButton> createState() => _LycriButtonState();
 }
@@ -68,7 +73,7 @@ class _LycriButtonState extends State<LycriButton> {
   bool _hovered = false;
   bool _pressed = false;
 
-  bool get _enabled => !widget.disabled && widget.onPressed != null;
+  bool get _enabled => !widget.disabled && widget.onPressed != null && !widget.isLoading;
 
   // ── Colour resolution ────────────────────────────────────────────────────
 
