@@ -49,20 +49,23 @@ class SegmentedLyricsView extends ConsumerWidget {
             final double animValue = animation.value;
             // 🎨 Slight tilt (approx 3 degrees) and custom premium shadow
             return Transform.rotate(
-              angle: animValue * 0.052, // ~3 degrees
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.12 * animValue),
-                      blurRadius: 16 * animValue,
-                      spreadRadius: 2 * animValue,
-                      offset: Offset(0, 4 * animValue),
-                    ),
-                  ],
+              angle: animValue * 0.052,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12 * animValue),
+                        blurRadius: 16 * animValue,
+                        spreadRadius: 2 * animValue,
+                        offset: Offset(0, 4 * animValue),
+                      ),
+                    ],
+                  ),
+                  child: child,
                 ),
-                child: child,
               ),
             );
           },
@@ -155,7 +158,12 @@ class _SegmentCardState extends State<_SegmentCard> {
       child: GestureDetector(
         onTap: widget.onTap,
         onDoubleTap: () {
-          setState(() => _isEditing = true);
+          setState(() {
+            _isEditing = true;
+            _controller.selection = TextSelection.fromPosition(
+              TextPosition(offset: _controller.text.length),
+            );
+          });
           _focusNode.requestFocus();
         },
         child: AnimatedContainer(
@@ -218,21 +226,29 @@ class _SegmentCardState extends State<_SegmentCard> {
                   focusNode: _focusNode,
                   maxLines: null,
                   autofocus: true,
+                  cursorColor: AppColors.orange400,
+                  cursorWidth: 2.0,
                   style: AppTypography.bodyLg.copyWith(
                     color: AppColors.textBold,
+                    height: 1.5,
                   ),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
+                    filled: false,
                   ),
                   onChanged: (val) => widget.onChanged(val),
-                  onSubmitted: (_) {
-                    setState(() => _isEditing = false);
-                  },
+                  onSubmitted: (_) => setState(() => _isEditing = false),
                   onTapOutside: (_) {
-                    setState(() => _isEditing = false);
-                    FocusScope.of(context).unfocus();
+                    if (_isEditing) {
+                      setState(() => _isEditing = false);
+                      FocusScope.of(context).unfocus();
+                    }
                   },
                 )
               else
@@ -240,6 +256,7 @@ class _SegmentCardState extends State<_SegmentCard> {
                   widget.segment.text,
                   style: AppTypography.bodyLg.copyWith(
                     color: AppColors.textBold,
+                    height: 1.5,
                   ),
                 ),
             ],
