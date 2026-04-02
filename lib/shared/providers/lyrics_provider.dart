@@ -30,8 +30,7 @@ class LyricsNotifier extends StateNotifier<String?> {
   }
 
   void update(String text) {
-    final trimmed = text.trim();
-    state = trimmed.isEmpty ? null : trimmed;
+    state = text.isEmpty ? null : text;
   }
 
   void clear() => state = null;

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -22,6 +23,8 @@ class LyricInputPanel extends ConsumerStatefulWidget {
 
 class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
   final _controller = TextEditingController();
+  final _scrollController = ScrollController();
+  final _focusNode = FocusNode();
   bool _clearing = false;
 
   @override
@@ -41,6 +44,8 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
   void dispose() {
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
+    _scrollController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -133,43 +138,45 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
                       : Column(
                         children: [
                           Expanded(
-                            child: ScrollConfiguration(
-                              behavior: ScrollConfiguration.of(
-                                context,
-                              ).copyWith(scrollbars: false),
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.xl,
-                                ),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surface3,
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.lg,
+                            child: GestureDetector(
+                              onTap: () => _focusNode.requestFocus(),
+                              behavior: HitTestBehavior.opaque,
+                              child: ScrollConfiguration(
+                                behavior: ScrollConfiguration.of(
+                                  context,
+                                ).copyWith(scrollbars: true),
+                                child: Scrollbar(
+                                  controller: _scrollController,
+                                  child: SingleChildScrollView(
+                                    controller: _scrollController,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.xl,
                                     ),
-                                    border: Border.all(
-                                      color: AppColors.borderSubtle,
-                                      width: AppStroke.sm,
-                                    ),
-                                  ),
-                                  child: TextField(
-                                    controller: _controller,
-                                    maxLines: null,
-                                    scrollPhysics:
-                                        const NeverScrollableScrollPhysics(),
-                                    textAlignVertical: TextAlignVertical.top,
-                                    style: AppTypography.bodyMd.copyWith(
-                                      color: AppColors.textBold,
-                                    ),
-                                    decoration: const InputDecoration(
-                                      hintText: 'Paste your lyrics here',
-                                      hintStyle: TextStyle(
-                                        color: AppColors.textMinimal,
+                                    child: TextField(
+                                      controller: _controller,
+                                      focusNode: _focusNode,
+                                      maxLines: null,
+                                      // 🚫 Disable internal scrolling
+                                      scrollPhysics:
+                                          const NeverScrollableScrollPhysics(),
+                                      textAlignVertical: TextAlignVertical.top,
+                                      style: AppTypography.bodyLg.copyWith(
+                                        color: AppColors.textBold,
+                                        height: 1.5,
                                       ),
-                                      contentPadding: EdgeInsets.all(
-                                        AppSpacing.lg,
+                                      decoration: const InputDecoration(
+                                        hintText:
+                                            'Start typing or paste your lyric here',
+                                        hintStyle: TextStyle(
+                                          color: AppColors.textMinimal,
+                                        ),
+                                        hoverColor: Colors.transparent,
+                                        fillColor: Colors.transparent,
+                                        filled: false,
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
                                       ),
-                                      border: InputBorder.none,
                                     ),
                                   ),
                                 ),
@@ -177,24 +184,51 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
                             ),
                           ),
                           const SizedBox(height: AppSpacing.lg),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.xl,
-                            ),
-                            child: LycriButton(
-                              label: 'Clean up',
-                              leadingSvg: 'assets/vectors/Magic-cap.svg',
-                              fillWidth: true,
-                              isLoading: segmentedState.isLoading,
-                              disabled: _controller.text.trim().isEmpty,
-                              onPressed:
-                                  () =>
-                                      ref
-                                          .read(
-                                            segmentedLyricsProvider.notifier,
-                                          )
-                                          .cleanup(),
-                            ),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, animation) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: AnimatedBuilder(
+                                  animation: animation,
+                                  builder: (context, _) {
+                                    final blurAmount =
+                                        (1.0 - animation.value) * 8.0;
+                                    return ImageFiltered(
+                                      imageFilter: ImageFilter.blur(
+                                        sigmaX: blurAmount,
+                                        sigmaY: blurAmount,
+                                      ),
+                                      child: child,
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                            child:
+                                _controller.text.trim().isEmpty
+                                    ? const SizedBox.shrink()
+                                    : Padding(
+                                      key: const ValueKey('clean_up_btn'),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.xl,
+                                      ),
+                                      child: LycriButton(
+                                        label: 'Clean up',
+                                        leadingSvg:
+                                            'assets/vectors/Magic-cap.svg',
+                                        fillWidth: true,
+                                        isLoading: segmentedState.isLoading,
+                                        onPressed:
+                                            () =>
+                                                ref
+                                                    .read(
+                                                      segmentedLyricsProvider
+                                                          .notifier,
+                                                    )
+                                                    .cleanup(),
+                                      ),
+                                    ),
                           ),
                         ],
                       ),
