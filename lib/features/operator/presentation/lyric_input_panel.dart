@@ -130,27 +130,10 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                     );
                   },
                   child: isSegmented
-                      ? GestureDetector(
+                      ? _CircularIconButton(
                           key: const ValueKey('back_btn'),
                           onTap: () => ref.read(segmentedLyricsProvider.notifier).reset(),
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: const BoxDecoration(
-                              color: AppColors.surface3,
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: SvgPicture.asset(
-                              'assets/vectors/Go-back.svg',
-                              width: 20,
-                              height: 20,
-                              colorFilter: const ColorFilter.mode(
-                                AppColors.iconSubtle,
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ),
+                          svgAsset: 'assets/vectors/Go-back.svg',
                         )
                       : const SizedBox.shrink(),
                 ),
@@ -260,29 +243,50 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                           ),
                           const SizedBox(height: AppSpacing.lg),
                           AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
+                            duration: const Duration(milliseconds: 300),
                             transitionBuilder: (child, animation) {
                               return FadeTransition(
                                 opacity: animation,
-                                child: child,
+                                child: AnimatedBuilder(
+                                  animation: animation,
+                                  builder: (context, _) {
+                                    final blurAmount = (1.0 - animation.value) * 8.0;
+                                    return ImageFiltered(
+                                      imageFilter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+                                      child: child,
+                                    );
+                                  },
+                                ),
                               );
                             },
-                            child:
-                                _controller.text.trim().isEmpty || isLoading
-                                    ? const SizedBox.shrink()
-                                    : Padding(
-                                      key: const ValueKey('clean_up_btn'),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: AppSpacing.xl,
-                                      ),
+                            child: (isSegmented || _controller.text.trim().isEmpty)
+                                ? const SizedBox.shrink()
+                                : AnimatedBuilder(
+                                    key: const ValueKey('clean_up_btn'),
+                                    animation: _pulseController,
+                                    builder: (context, child) {
+                                      final pulse = _pulseController.value;
+                                      final opacity = isLoading ? 0.6 : 1.0;
+                                      final blur = isLoading ? (pulse * 4.0) : 0.0;
+                                      
+                                      return Opacity(
+                                        opacity: opacity,
+                                        child: ImageFiltered(
+                                          imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                                          child: child!,
+                                        ),
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
                                       child: LycriButton(
                                         label: 'Clean up',
-                                        leadingSvg:
-                                            'assets/vectors/Magic-cap.svg',
+                                        leadingSvg: 'assets/vectors/Magic-cap.svg',
                                         fillWidth: true,
                                         isLoading: isLoading,
-                                        onPressed:
-                                            () =>
+                                        onPressed: isLoading
+                                            ? null
+                                            : () =>
                                                 ref
                                                     .read(
                                                       segmentedLyricsProvider
@@ -291,12 +295,63 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                                     .cleanup(),
                                       ),
                                     ),
+                                  ),
                           ),
                         ],
                       ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A circular icon button with hover and click feedback.
+class _CircularIconButton extends StatefulWidget {
+  final VoidCallback onTap;
+  final String svgAsset;
+
+  const _CircularIconButton({
+    super.key,
+    required this.onTap,
+    required this.svgAsset,
+  });
+
+  @override
+  State<_CircularIconButton> createState() => _CircularIconButtonState();
+}
+
+class _CircularIconButtonState extends State<_CircularIconButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: _isHovered ? AppColors.surface2 : AppColors.surface3,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: SvgPicture.asset(
+            widget.svgAsset,
+            width: 20,
+            height: 20,
+            colorFilter: const ColorFilter.mode(
+              AppColors.iconSubtle,
+              BlendMode.srcIn,
+            ),
+          ),
+        ),
       ),
     );
   }
