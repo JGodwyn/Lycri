@@ -88,7 +88,8 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
                 if (isSegmented) ...[
                   IconButton(
                     onPressed:
-                        () => ref.read(segmentedLyricsProvider.notifier).reset(),
+                        () =>
+                            ref.read(segmentedLyricsProvider.notifier).reset(),
                     icon: const Icon(Icons.arrow_back_rounded, size: 20),
                     color: AppColors.iconSubtle,
                     visualDensity: VisualDensity.compact,
@@ -120,27 +121,6 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
           const SizedBox(height: AppSpacing.lg),
 
           // ── Hint row ────────────────────────────────────────────────────
-          if (!isSegmented)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline_rounded,
-                    size: 16,
-                    color: AppColors.iconMinimal,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(
-                    'Start by pasting a lyric below…',
-                    style: AppTypography.bodyMd.copyWith(
-                      color: AppColors.textSubtle,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
           if (!isSegmented) const SizedBox(height: AppSpacing.lg),
 
           // ── Content Switcher ────────────────────────────────────────────
@@ -150,74 +130,73 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
               child:
                   isSegmented
                       ? const SegmentedLyricsView()
-                      : Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.xl,
-                        ),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _controller,
-                                maxLines: null,
-                                expands: true,
-                                textAlignVertical: TextAlignVertical.top,
-                                style: AppTypography.bodyMd.copyWith(
-                                  color: AppColors.textBold,
+                      : Column(
+                        children: [
+                          Expanded(
+                            child: ScrollConfiguration(
+                              behavior: ScrollConfiguration.of(
+                                context,
+                              ).copyWith(scrollbars: false),
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.xl,
                                 ),
-                                decoration: InputDecoration(
-                                  hintText: 'Paste your lyrics here',
-                                  hintStyle: AppTypography.bodyMd.copyWith(
-                                    color: AppColors.textMinimal,
-                                  ),
-                                  filled: true,
-                                  fillColor: AppColors.surface3,
-                                  contentPadding: const EdgeInsets.all(
-                                    AppSpacing.lg,
-                                  ),
-                                  border: OutlineInputBorder(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface3,
                                     borderRadius: BorderRadius.circular(
                                       AppRadius.lg,
                                     ),
-                                    borderSide: BorderSide(
+                                    border: Border.all(
                                       color: AppColors.borderSubtle,
                                       width: AppStroke.sm,
                                     ),
                                   ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.lg,
+                                  child: TextField(
+                                    controller: _controller,
+                                    maxLines: null,
+                                    scrollPhysics:
+                                        const NeverScrollableScrollPhysics(),
+                                    textAlignVertical: TextAlignVertical.top,
+                                    style: AppTypography.bodyMd.copyWith(
+                                      color: AppColors.textBold,
                                     ),
-                                    borderSide: BorderSide(
-                                      color: AppColors.borderSubtle,
-                                      width: AppStroke.sm,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.lg,
-                                    ),
-                                    borderSide: BorderSide(
-                                      color: AppColors.borderSubtle,
-                                      width: AppStroke.sm,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Paste your lyrics here',
+                                      hintStyle: TextStyle(
+                                        color: AppColors.textMinimal,
+                                      ),
+                                      contentPadding: EdgeInsets.all(
+                                        AppSpacing.lg,
+                                      ),
+                                      border: InputBorder.none,
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: AppSpacing.lg),
-                            LycriButton(
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.xl,
+                            ),
+                            child: LycriButton(
                               label: 'Clean up',
+                              leadingSvg: 'assets/vectors/Magic-cap.svg',
                               fillWidth: true,
                               isLoading: segmentedState.isLoading,
                               disabled: _controller.text.trim().isEmpty,
                               onPressed:
-                                  () => ref
-                                      .read(segmentedLyricsProvider.notifier)
-                                      .cleanup(),
+                                  () =>
+                                      ref
+                                          .read(
+                                            segmentedLyricsProvider.notifier,
+                                          )
+                                          .cleanup(),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
             ),
           ),

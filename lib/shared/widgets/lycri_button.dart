@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
@@ -27,6 +28,7 @@ class LycriButton extends StatefulWidget {
     this.onPressed,
     this.variant = LycriButtonVariant.primary,
     this.leadingIcon,
+    this.leadingSvg,
     this.trailingIcon,
     this.fillWidth = false,
     this.height = 40,
@@ -46,6 +48,9 @@ class LycriButton extends StatefulWidget {
 
   /// Optional icon shown before the label. Hidden when `null`.
   final IconData? leadingIcon;
+
+  /// Optional SVG asset shown before the label. Hidden when `null`.
+  final String? leadingSvg;
 
   /// Optional icon shown after the label. Hidden when `null`.
   final IconData? trailingIcon;
@@ -73,7 +78,8 @@ class _LycriButtonState extends State<LycriButton> {
   bool _hovered = false;
   bool _pressed = false;
 
-  bool get _enabled => !widget.disabled && widget.onPressed != null && !widget.isLoading;
+  bool get _enabled =>
+      !widget.disabled && widget.onPressed != null && !widget.isLoading;
 
   // ── Colour resolution ────────────────────────────────────────────────────
 
@@ -151,8 +157,19 @@ class _LycriButtonState extends State<LycriButton> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Leading icon — hidden when null
-              if (widget.leadingIcon != null) ...[
-                Icon(widget.leadingIcon, size: 16, color: _foregroundColor),
+              if (widget.leadingIcon != null || widget.leadingSvg != null) ...[
+                if (widget.leadingIcon != null)
+                  Icon(widget.leadingIcon, size: 16, color: _foregroundColor)
+                else if (widget.leadingSvg != null)
+                  SvgPicture.asset(
+                    widget.leadingSvg!,
+                    width: 24,
+                    height: 24,
+                    colorFilter: ColorFilter.mode(
+                      _foregroundColor,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                 const SizedBox(width: AppSpacing.md),
               ],
 
