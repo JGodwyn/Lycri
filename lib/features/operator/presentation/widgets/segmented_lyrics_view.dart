@@ -57,10 +57,15 @@ class SegmentedLyricsView extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(AppRadius.lg),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.12 * animValue),
-                        blurRadius: 16 * animValue,
-                        spreadRadius: 2 * animValue,
-                        offset: Offset(0, 4 * animValue),
+                        color: Colors.black.withValues(alpha: 0.15 * animValue),
+                        blurRadius: 24 * animValue,
+                        spreadRadius:
+                            -12 *
+                            animValue, // 🪄 Pulls the shadow in from the sides
+                        offset: Offset(
+                          0,
+                          16 * animValue,
+                        ), // 🏗️ Increases vertical loft
                       ),
                     ],
                   ),
@@ -154,7 +159,10 @@ class _SegmentCardState extends State<_SegmentCard> {
     final headerColor = AppColors.orange400;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.sm,
+      ),
       child: GestureDetector(
         onTap: widget.onTap,
         onDoubleTap: () {
