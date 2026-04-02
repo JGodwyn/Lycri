@@ -1086,7 +1086,6 @@ class _GradientTypeSelector extends StatelessWidget {
 
   static const _labels = ['Linear', 'Radial'];
   static const _values = [GradientType.linear, GradientType.radial];
-  static const _icons = [Icons.linear_scale, Icons.vignette];
 
   @override
   Widget build(BuildContext context) {

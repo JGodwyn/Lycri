@@ -21,16 +21,22 @@ class LyricInputPanel extends ConsumerStatefulWidget {
   ConsumerState<LyricInputPanel> createState() => _LyricInputPanelState();
 }
 
-class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
+class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
+    with TickerProviderStateMixin {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
+  late final AnimationController _pulseController;
   bool _clearing = false;
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
     // Initialize controller with current lyrics if any
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final current = ref.read(lyricsProvider);
@@ -46,6 +52,7 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -60,6 +67,14 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
   Widget build(BuildContext context) {
     final segmentedState = ref.watch(segmentedLyricsProvider);
     final isSegmented = segmentedState.isSegmented;
+    final isLoading = segmentedState.isLoading;
+
+    if (isLoading) {
+      _pulseController.repeat(reverse: true);
+    } else {
+      _pulseController.stop();
+      _pulseController.value = 0;
+    }
 
     // When lyrics are cleared externally or updated from segments,
     // sync the text field.
@@ -83,99 +98,159 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
       ),
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Header ──────────────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            padding: const EdgeInsets.all(AppSpacing.xl),
             child: Row(
               children: [
-                if (isSegmented) ...[
-                  IconButton(
-                    onPressed:
-                        () =>
-                            ref.read(segmentedLyricsProvider.notifier).reset(),
-                    icon: const Icon(Icons.arrow_back_rounded, size: 20),
-                    color: AppColors.iconSubtle,
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                ],
                 Text(
                   'Lycri',
                   style: AppTypography.headingMd.copyWith(
                     color: AppColors.textBold,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const Spacer(),
-                SvgPicture.asset(
-                  'assets/vectors/info-fill.svg',
-                  width: 20,
-                  height: 20,
-                  colorFilter: const ColorFilter.mode(
-                    AppColors.iconMinimal,
-                    BlendMode.srcIn,
-                  ),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: AnimatedBuilder(
+                        animation: animation,
+                        builder: (context, _) {
+                          final blurAmount = (1.0 - animation.value) * 8.0;
+                          return ImageFiltered(
+                            imageFilter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+                            child: child,
+                          );
+                        },
+                      ),
+                    );
+                  },
+                  child: isSegmented
+                      ? GestureDetector(
+                          key: const ValueKey('back_btn'),
+                          onTap: () => ref.read(segmentedLyricsProvider.notifier).reset(),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: const BoxDecoration(
+                              color: AppColors.surface3,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: SvgPicture.asset(
+                              'assets/vectors/Go-back.svg',
+                              width: 20,
+                              height: 20,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.iconSubtle,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: AppSpacing.lg),
-
-          // ── Hint row ────────────────────────────────────────────────────
-          if (!isSegmented) const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: AppSpacing.none),
 
           // ── Content Switcher ────────────────────────────────────────────
           Expanded(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 400),
+              duration: const Duration(milliseconds: 600),
+              switchInCurve: Curves.easeInOutCubic,
+              switchOutCurve: Curves.easeInOutCubic,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: AnimatedBuilder(
+                    animation: animation,
+                    builder: (context, _) {
+                      final blurAmount = (1.0 - animation.value) * 15.0;
+                      return ImageFiltered(
+                        imageFilter: ImageFilter.blur(
+                          sigmaX: blurAmount,
+                          sigmaY: blurAmount,
+                        ),
+                        child: child,
+                      );
+                    },
+                  ),
+                );
+              },
               child:
                   isSegmented
-                      ? const SegmentedLyricsView()
+                      ? const SegmentedLyricsView(key: ValueKey('segmented'))
                       : Column(
+                        key: const ValueKey('raw_input'),
                         children: [
                           Expanded(
                             child: GestureDetector(
                               onTap: () => _focusNode.requestFocus(),
                               behavior: HitTestBehavior.opaque,
-                              child: ScrollConfiguration(
-                                behavior: ScrollConfiguration.of(
-                                  context,
-                                ).copyWith(scrollbars: true),
-                                child: Scrollbar(
-                                  controller: _scrollController,
-                                  child: SingleChildScrollView(
-                                    controller: _scrollController,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.xl,
-                                    ),
-                                    child: TextField(
-                                      controller: _controller,
-                                      focusNode: _focusNode,
-                                      maxLines: null,
-                                      // 🚫 Disable internal scrolling
-                                      scrollPhysics:
-                                          const NeverScrollableScrollPhysics(),
-                                      textAlignVertical: TextAlignVertical.top,
-                                      style: AppTypography.bodyLg.copyWith(
-                                        color: AppColors.textBold,
-                                        height: 1.5,
+                              child: AnimatedBuilder(
+                                animation: _pulseController,
+                                builder: (context, child) {
+                                  final pulse = _pulseController.value;
+                                  final opacity =
+                                      isLoading
+                                          ? 0.5 + (0.3 * (1 - pulse))
+                                          : 1.0;
+                                  final blur = isLoading ? (pulse * 6.0) : 0.0;
+
+                                  return Opacity(
+                                    opacity: opacity,
+                                    child: ImageFiltered(
+                                      imageFilter: ImageFilter.blur(
+                                        sigmaX: blur,
+                                        sigmaY: blur,
                                       ),
-                                      decoration: const InputDecoration(
-                                        hintText:
-                                            'Start typing or paste your lyric here',
-                                        hintStyle: TextStyle(
-                                          color: AppColors.textMinimal,
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: ScrollConfiguration(
+                                  behavior: ScrollConfiguration.of(
+                                    context,
+                                  ).copyWith(scrollbars: true),
+                                  child: Scrollbar(
+                                    controller: _scrollController,
+                                    child: SingleChildScrollView(
+                                      controller: _scrollController,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.xl,
+                                      ),
+                                      child: TextField(
+                                        controller: _controller,
+                                        focusNode: _focusNode,
+                                        maxLines: null,
+                                        scrollPhysics:
+                                            const NeverScrollableScrollPhysics(),
+                                        textAlignVertical:
+                                            TextAlignVertical.top,
+                                        style: AppTypography.bodyLg.copyWith(
+                                          color: AppColors.textBold,
+                                          height: 1.5,
                                         ),
-                                        hoverColor: Colors.transparent,
-                                        fillColor: Colors.transparent,
-                                        filled: false,
-                                        border: InputBorder.none,
-                                        enabledBorder: InputBorder.none,
-                                        focusedBorder: InputBorder.none,
+                                        decoration: const InputDecoration(
+                                          hintText:
+                                              'Start typing or paste your lyric here',
+                                          hintStyle: TextStyle(
+                                            color: AppColors.textMinimal,
+                                          ),
+                                          hoverColor: Colors.transparent,
+                                          fillColor: Colors.transparent,
+                                          filled: false,
+                                          border: InputBorder.none,
+                                          enabledBorder: InputBorder.none,
+                                          focusedBorder: InputBorder.none,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -189,24 +264,11 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
                             transitionBuilder: (child, animation) {
                               return FadeTransition(
                                 opacity: animation,
-                                child: AnimatedBuilder(
-                                  animation: animation,
-                                  builder: (context, _) {
-                                    final blurAmount =
-                                        (1.0 - animation.value) * 8.0;
-                                    return ImageFiltered(
-                                      imageFilter: ImageFilter.blur(
-                                        sigmaX: blurAmount,
-                                        sigmaY: blurAmount,
-                                      ),
-                                      child: child,
-                                    );
-                                  },
-                                ),
+                                child: child,
                               );
                             },
                             child:
-                                _controller.text.trim().isEmpty
+                                _controller.text.trim().isEmpty || isLoading
                                     ? const SizedBox.shrink()
                                     : Padding(
                                       key: const ValueKey('clean_up_btn'),
@@ -218,7 +280,7 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel> {
                                         leadingSvg:
                                             'assets/vectors/Magic-cap.svg',
                                         fillWidth: true,
-                                        isLoading: segmentedState.isLoading,
+                                        isLoading: isLoading,
                                         onPressed:
                                             () =>
                                                 ref
