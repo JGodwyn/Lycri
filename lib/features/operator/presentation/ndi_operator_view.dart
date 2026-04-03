@@ -395,49 +395,58 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                         ? EdgeInsets.zero 
                         : const EdgeInsets.symmetric(vertical: AppSpacing.x2l);
 
-                    return Padding(
-                      padding: pagePadding,
-                      child: Builder(builder: (context) {
-                        final Widget lineList = Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment:
-                              styleState.textAlign == TextAlign.center
-                                  ? CrossAxisAlignment.center
-                                  : styleState.textAlign == TextAlign.right
-                                  ? CrossAxisAlignment.end
-                                  : CrossAxisAlignment.start,
-                          children: [
-                            for (int i = startIdx; i < endIdx; i++)
-                              _buildLine(i, lines[i], activeIndex, styleState, useKey: isAutoLargeSegment),
-                          ],
-                        );
+                    final Widget pageWidget = Builder(builder: (context) {
+                      final Widget lineList = Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment:
+                            styleState.textAlign == TextAlign.center
+                                ? CrossAxisAlignment.center
+                                : styleState.textAlign == TextAlign.right
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                        children: [
+                          for (int i = startIdx; i < endIdx; i++)
+                            _buildLine(i, lines[i], activeIndex, styleState, useKey: isAutoLargeSegment),
+                        ],
+                      );
 
-                        if (isAutoLargeSegment) {
-                          final bool isActivePage = pageIndex == _getSegmentPageIndex(activeIndex, segmentedState.segments.map((s) => s.lineCount).toList());
-                          return ScrollConfiguration(
-                            behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: AppSpacing.x2l,
-                              ),
-                              controller: isActivePage ? _scrollController : null,
-                              child: lineList,
+                      if (isAutoLargeSegment) {
+                        final bool isActivePage = pageIndex == _getSegmentPageIndex(activeIndex, segmentedState.segments.map((s) => s.lineCount).toList());
+                        return ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.x2l,
                             ),
-                          );
-                        }
-
-                        return FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.center,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints.tightFor(
-                              width: constraints.maxWidth,
-                            ),
+                            controller: isActivePage ? _scrollController : null,
                             child: lineList,
                           ),
                         );
-                      }),
+                      }
+
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.x2l),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.center,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints.tightFor(
+                                width: constraints.maxWidth,
+                              ),
+                              child: lineList,
+                            ),
+                          ),
+                        ),
+                      );
+                    });
+
+                    return SizedBox.expand(
+                      child: Padding(
+                        padding: pagePadding,
+                        child: pageWidget,
+                      ),
                     );
                   },
                 ),

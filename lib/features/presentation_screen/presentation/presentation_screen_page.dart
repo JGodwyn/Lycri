@@ -601,45 +601,54 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                         ? EdgeInsets.zero 
                         : const EdgeInsets.symmetric(vertical: AppSpacing.x2l);
 
-                    return Padding(
-                      padding: pagePadding,
-                      child: Builder(builder: (context) {
-                        final Widget lineList = Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: _crossAxisAlignment,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            for (int i = startIdx; i < endIdx; i++)
-                              _buildLyricLine(i, useGlobalKey: isAutoLargeSegment),
-                          ],
-                        );
+                    final Widget pageWidget = Builder(builder: (context) {
+                      final Widget lineList = Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: _crossAxisAlignment,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (int i = startIdx; i < endIdx; i++)
+                            _buildLyricLine(i, useGlobalKey: isAutoLargeSegment),
+                        ],
+                      );
 
-                        if (isAutoLargeSegment) {
-                          final bool isActivePage = pageIndex == _getSegmentPageIndex(_activeLine);
-                          return ScrollConfiguration(
-                            behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: AppSpacing.x2l,
-                              ),
-                              // Only attach the main scroll controller to the active page
-                              controller: isActivePage ? _scrollController : null,
-                              child: lineList,
+                      if (isAutoLargeSegment) {
+                        final bool isActivePage = pageIndex == _getSegmentPageIndex(_activeLine);
+                        return ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.x2l,
                             ),
-                          );
-                        }
-
-                        return FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.center,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints.tightFor(
-                              width: constraints.maxWidth,
-                            ),
+                            // Only attach the main scroll controller to the active page
+                            controller: isActivePage ? _scrollController : null,
                             child: lineList,
                           ),
                         );
-                      }),
+                      }
+
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.x2l),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.center,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints.tightFor(
+                                width: constraints.maxWidth,
+                              ),
+                              child: lineList,
+                            ),
+                          ),
+                        ),
+                      );
+                    });
+
+                    return SizedBox.expand(
+                      child: Padding(
+                        padding: pagePadding,
+                        child: pageWidget,
+                      ),
                     );
                   },
                 ),
