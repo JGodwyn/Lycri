@@ -150,7 +150,7 @@ class AppTypography {
   // Apply TextCapitalization.words on the widget for capitalize case
 
   static const TextStyle btnLg = TextStyle(
-    fontFamily: fontDisplay,
+    fontFamily: fontBody,
     fontSize: 16,
     fontWeight: FontWeight.w400,
     letterSpacing: -0.36,

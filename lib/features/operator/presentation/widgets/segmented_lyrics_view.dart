@@ -287,15 +287,6 @@ class _SegmentCardState extends State<_SegmentCard> {
                         },
                       ),
                       LycriMenuAction(
-                        label: 'Remove',
-                        iconPath: 'assets/vectors/delete-trash-2.svg',
-                        isDestructive: true,
-                        onTap: () {
-                          // TODO: Implement Remove
-                          debugPrint('Remove tapped');
-                        },
-                      ),
-                      LycriMenuAction(
                         label: 'Set as chorus',
                         iconPath: 'assets/vectors/Starred-message.svg',
                         onTap: () {
@@ -309,6 +300,15 @@ class _SegmentCardState extends State<_SegmentCard> {
                         onTap: () {
                           // TODO: Implement Remove chorus
                           debugPrint('Remove chorus tapped');
+                        },
+                      ),
+                      LycriMenuAction(
+                        label: 'Remove',
+                        iconPath: 'assets/vectors/delete-trash-2.svg',
+                        isDestructive: true,
+                        onTap: () {
+                          // TODO: Implement Remove
+                          debugPrint('Remove tapped');
                         },
                       ),
                     ],

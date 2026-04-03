@@ -53,12 +53,43 @@ class _LycriActionMenuState extends State<LycriActionMenu>
 
   void _showMenu() {
     _overlayEntry = OverlayEntry(
-      builder:
-          (context) => _LycriMenuOverlay(
-            layerLink: _layerLink,
-            actions: widget.actions,
-            onDismiss: _hideMenu,
-          ),
+      builder: (overlayContext) {
+        // Measure the trigger's position to decide where to place the menu
+        final RenderBox renderBox = context.findRenderObject() as RenderBox;
+        final Offset offset = renderBox.localToGlobal(Offset.zero);
+        final Size screenSize = MediaQuery.of(overlayContext).size;
+
+        const double menuWidth = 200.0;
+        // Estimate menu height based on number of actions + dividers + padding
+        final double menuHeight = (widget.actions.length * 48.0) + (widget.actions.length - 1) + 32.0;
+        const double gap = AppSpacing.sm;
+
+        final double spaceBelow = screenSize.height - (offset.dy + renderBox.size.height + gap);
+        final double spaceAbove = offset.dy - gap;
+
+        final bool showAbove = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+
+        // Calculate horizontal offset (left-align by default)
+        double dx = 0.0;
+        final double globalLeft = offset.dx + dx;
+        if (globalLeft + menuWidth > screenSize.width - AppSpacing.md) {
+          dx = renderBox.size.width - menuWidth;
+        }
+
+        // Final clamp
+        final double finalGlobalLeft = offset.dx + dx;
+        if (finalGlobalLeft < AppSpacing.md) {
+          dx = -offset.dx + AppSpacing.md;
+        }
+
+        return _LycriMenuOverlay(
+          layerLink: _layerLink,
+          actions: widget.actions,
+          onDismiss: _hideMenu,
+          dx: dx,
+          showAbove: showAbove,
+        );
+      },
     );
 
     Overlay.of(context).insert(_overlayEntry!);
@@ -85,9 +116,12 @@ class _LycriActionMenuState extends State<LycriActionMenu>
     return CompositedTransformTarget(
       link: _layerLink,
       child: GestureDetector(
-        onTap: _toggleMenu,
-        behavior: HitTestBehavior.opaque,
-        child: widget.child,
+        onTap: () {}, // Consume tap to prevent parent card selection
+        child: Listener(
+          onPointerDown: (_) => _toggleMenu(),
+          behavior: HitTestBehavior.opaque,
+          child: widget.child,
+        ),
       ),
     );
   }
@@ -98,11 +132,15 @@ class _LycriMenuOverlay extends StatefulWidget {
     required this.layerLink,
     required this.actions,
     required this.onDismiss,
+    required this.dx,
+    required this.showAbove,
   });
 
   final LayerLink layerLink;
   final List<LycriMenuAction> actions;
   final VoidCallback onDismiss;
+  final double dx;
+  final bool showAbove;
 
   @override
   State<_LycriMenuOverlay> createState() => _LycriMenuOverlayState();
@@ -118,7 +156,7 @@ class _LycriMenuOverlayState extends State<_LycriMenuOverlay>
   void initState() {
     super.initState();
     _animController = AnimationController(
-      duration: const Duration(milliseconds: 100),
+      duration: const Duration(milliseconds: 200),
       vsync: this,
     );
 
@@ -155,17 +193,18 @@ class _LycriMenuOverlayState extends State<_LycriMenuOverlay>
         CompositedTransformFollower(
           link: widget.layerLink,
           showWhenUnlinked: false,
-          // 🪄 Aligning the menu to the left of the trigger, with a slight vertical gap
-          offset: const Offset(0, 24),
+          targetAnchor: widget.showAbove ? Alignment.topLeft : Alignment.bottomLeft,
+          followerAnchor: widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
+          offset: Offset(widget.dx, widget.showAbove ? -AppSpacing.sm : AppSpacing.sm),
           child: FadeTransition(
             opacity: _fadeAnim,
             child: ScaleTransition(
               scale: _scaleAnim,
-              alignment: Alignment.topLeft,
+              alignment: widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
               child: Material(
                 type: MaterialType.transparency,
                 child: Container(
-                  width: 220,
+                  width: 200,
                   decoration: BoxDecoration(
                     color: AppColors.surface4,
                     borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -180,6 +219,10 @@ class _LycriMenuOverlayState extends State<_LycriMenuOverlay>
                         offset: const Offset(0, 8),
                       ),
                     ],
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.md,
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -244,16 +287,16 @@ class _MenuActionTileState extends State<_MenuActionTile> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 80),
           padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
           ),
           color: _isHovered ? AppColors.surface3 : AppColors.surface4,
           child: Row(
             children: [
               SvgPicture.asset(
                 widget.action.iconPath,
-                width: 20,
-                height: 20,
+                width: 24,
+                height: 24,
                 colorFilter: ColorFilter.mode(
                   widget.action.isDestructive
                       ? AppColors.textDanger
@@ -265,7 +308,7 @@ class _MenuActionTileState extends State<_MenuActionTile> {
               Expanded(
                 child: Text(
                   widget.action.label,
-                  style: AppTypography.bodyMd.copyWith(
+                  style: AppTypography.bodyLg.copyWith(
                     color:
                         widget.action.isDestructive
                             ? AppColors.textDanger
