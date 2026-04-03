@@ -229,10 +229,15 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     } else if (style.displayLines == -1 && segmented.isSegmented) {
       final activeSegIdx = _getSegmentPageIndex(activeIndex, segmented.segments.map((s) => s.lineCount).toList());
       
-      // Always animate to the current segment's page.
-      _scrollToExactPage(activeSegIdx);
+      if (_pageController.hasClients && _pageController.page?.round() != activeSegIdx) {
+        _pageController.animateToPage(
+          activeSegIdx,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
       
-      // If the segment is large (> 4 lines), also handle internal scrolling.
+      // Sync large segment scrolling IMMEDIATELY during page slide.
       if (segmented.segments[activeSegIdx].lineCount > 4) {
         _scrollToLine(activeIndex);
       }
@@ -241,13 +246,55 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     }
   }
 
-  void _scrollToExactPage(int targetPage) {
-    if (!_pageController.hasClients) return;
-    if (_pageController.page?.round() != targetPage) {
-      _pageController.animateToPage(
-        targetPage,
-        duration: _animDuration,
-        curve: _animCurve,
+  void _scrollToLine(int lineIndex) {
+    // First attempt immediately after build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _performLineScrollAnimation(lineIndex);
+    });
+
+    // Also retry after a small delay for segment switches.
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _performLineScrollAnimation(lineIndex);
+    });
+    
+    // Final check for slow page transitions.
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) _performLineScrollAnimation(lineIndex);
+    });
+  }
+
+  void _performLineScrollAnimation(int lineIndex) {
+    if (!_scrollController.hasClients) return;
+
+    final key = _lineKeys[lineIndex];
+    if (key == null || key.currentContext == null) return;
+
+    final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
+
+    final viewport = _scrollController.position;
+    final scrollObject = viewport.context.storageContext.findRenderObject();
+    if (scrollObject == null) return;
+
+    final lineOffset = renderBox.localToGlobal(
+      Offset.zero,
+      ancestor: scrollObject,
+    );
+
+    final targetOffset =
+        (_scrollController.offset +
+        lineOffset.dy -
+        (viewport.viewportDimension * 0.33)).clamp(0.0, viewport.maxScrollExtent);
+
+    // Jump instantly for large switches to hide correction glance.
+    if ((_scrollController.offset - targetOffset).abs() > viewport.viewportDimension) {
+      _scrollController.jumpTo(targetOffset);
+    } else {
+      _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
       );
     }
   }
@@ -272,29 +319,6 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
         curve: _animCurve,
       );
     }
-  }
-
-  void _scrollToLine(int activeIndex) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      final key = _lineKeys[activeIndex];
-      if (key == null) return;
-      final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
-      if (renderBox == null) return;
-
-      final viewport = _scrollController.position;
-      final lineOffset = renderBox.localToGlobal(
-        Offset.zero,
-        ancestor: viewport.context.storageContext.findRenderObject(),
-      );
-      final targetOffset = _scrollController.offset + lineOffset.dy - (viewport.viewportDimension * 0.33);
-
-      _scrollController.animateTo(
-        targetOffset.clamp(0.0, viewport.maxScrollExtent),
-        duration: _animDuration,
-        curve: _animCurve,
-      );
-    });
   }
 
   @override

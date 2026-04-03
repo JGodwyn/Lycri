@@ -365,7 +365,8 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                 );
               }
               
-              // If it's Auto mode and we are on a large segment, trigger inner scroll.
+              // If it's Auto mode and we are on a large segment, trigger inner scroll IMMEDIATELY
+              // so it happens during the page transition.
               if (_displayLines == -1 && _isSegmented) {
                 _scrollToActive(newIndex);
               }
@@ -480,35 +481,59 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
     if (!isContinuous && !souldScrollInternally) return;
 
+    // First attempt.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Continuous scrolling mode:
-      if (!_scrollController.hasClients) return;
+      if (!mounted) return;
+      _performScrollAnimation(activeIndex);
+    });
 
-      final key = _lineKeys[activeIndex];
-      if (key == null) return;
+    // Also retry after a small delay to ensure the PageView transition 
+    // hasn't disturbed the RenderBox visibility or controller attachment.
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _performScrollAnimation(activeIndex);
+    });
+    
+    // Also retry after a longer delay for segment switches.
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _performScrollAnimation(activeIndex);
+    });
+  }
 
-      final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
-      if (renderBox == null) return;
+  void _performScrollAnimation(int activeIndex) {
+    if (!_scrollController.hasClients) return;
 
-      // Position of the line relative to the scroll viewport.
-      final viewport = _scrollController.position;
-      final lineOffset = renderBox.localToGlobal(
-        Offset.zero,
-        ancestor: viewport.context.storageContext.findRenderObject(),
-      );
+    final key = _lineKeys[activeIndex];
+    if (key == null || key.currentContext == null) return;
 
-      // Target: place the line ~1/3 from the top so readers see context below.
-      final targetOffset =
-          _scrollController.offset +
-          lineOffset.dy -
-          (viewport.viewportDimension * 0.33);
+    final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
 
+    final viewport = _scrollController.position;
+    // We must find the line position relative to the scroll viewport safely.
+    final scrollObject = viewport.context.storageContext.findRenderObject();
+    if (scrollObject == null) return;
+
+    final lineOffset = renderBox.localToGlobal(
+      Offset.zero,
+      ancestor: scrollObject,
+    );
+
+    final targetOffset =
+        (_scrollController.offset +
+        lineOffset.dy -
+        (viewport.viewportDimension * 0.33)).clamp(0.0, viewport.maxScrollExtent);
+
+    // If we're far from the target (likely switching pages), jump instantly 
+    // so the segment is already correctly scrolled when it slides in.
+    if ((_scrollController.offset - targetOffset).abs() > viewport.viewportDimension) {
+      _scrollController.jumpTo(targetOffset);
+    } else {
       _scrollController.animateTo(
-        targetOffset.clamp(0.0, viewport.maxScrollExtent),
+        targetOffset,
         duration: _animDuration,
         curve: _animCurve,
       );
-    });
+    }
   }
 
   CrossAxisAlignment get _crossAxisAlignment {
