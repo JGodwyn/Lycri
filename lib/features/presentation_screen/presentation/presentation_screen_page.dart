@@ -343,38 +343,38 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         final bool wasPaginated = _isCurrentlyPaginated(_activeLine);
         final bool isPaginated = _isCurrentlyPaginated(newIndex);
 
-          setState(() {
-            _activeLine = newIndex;
-  
-            if (wasPaginated != isPaginated) {
-              // Mode switch (Paginated <-> Continuous)
-              _recalculatePaging();
-            } else if (isPaginated) {
-              // Same paginated mode: animate to the new page.
-              final targetPage =
-                  _displayLines > 0
-                      ? newIndex ~/ _displayLines
-                      : _getSegmentPageIndex(newIndex);
-  
-              if (_pageController.hasClients &&
-                  _pageController.page?.round() != targetPage) {
-                _pageController.animateToPage(
-                  targetPage,
-                  duration: _animDuration,
-                  curve: _animCurve,
-                );
-              }
-              
-              // If it's Auto mode and we are on a large segment, trigger inner scroll IMMEDIATELY
-              // so it happens during the page transition.
-              if (_displayLines == -1 && _isSegmented) {
-                _scrollToActive(newIndex);
-              }
-            } else {
-              // Same continuous mode: scroll to the new line.
+        setState(() {
+          _activeLine = newIndex;
+
+          if (wasPaginated != isPaginated) {
+            // Mode switch (Paginated <-> Continuous)
+            _recalculatePaging();
+          } else if (isPaginated) {
+            // Same paginated mode: animate to the new page.
+            final targetPage =
+                _displayLines > 0
+                    ? newIndex ~/ _displayLines
+                    : _getSegmentPageIndex(newIndex);
+
+            if (_pageController.hasClients &&
+                _pageController.page?.round() != targetPage) {
+              _pageController.animateToPage(
+                targetPage,
+                duration: _animDuration,
+                curve: _animCurve,
+              );
+            }
+
+            // If it's Auto mode and we are on a large segment, trigger inner scroll IMMEDIATELY
+            // so it happens during the page transition.
+            if (_displayLines == -1 && _isSegmented) {
               _scrollToActive(newIndex);
             }
-          });
+          } else {
+            // Same continuous mode: scroll to the new line.
+            _scrollToActive(newIndex);
+          }
+        });
         return null;
 
       case 'updateFontFamily':
@@ -466,10 +466,11 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Smoothly scroll so the active line is roughly centered in the viewport.
   void _scrollToActive(int activeIndex) {
     if (!mounted) return;
-    
+
     // Continuous scrolling mode: All (0) or Unsegmented Auto (-1)
-    bool isContinuous = _displayLines == 0 || (_displayLines == -1 && !_isSegmented);
-    
+    bool isContinuous =
+        _displayLines == 0 || (_displayLines == -1 && !_isSegmented);
+
     // We also scroll INTERNALLY within a page if in Auto mode and segment is > 4 lines.
     bool souldScrollInternally = false;
     if (_displayLines == -1 && _isSegmented && _segmentLineCounts.isNotEmpty) {
@@ -487,12 +488,12 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       _performScrollAnimation(activeIndex);
     });
 
-    // Also retry after a small delay to ensure the PageView transition 
+    // Also retry after a small delay to ensure the PageView transition
     // hasn't disturbed the RenderBox visibility or controller attachment.
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) _performScrollAnimation(activeIndex);
     });
-    
+
     // Also retry after a longer delay for segment switches.
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) _performScrollAnimation(activeIndex);
@@ -518,14 +519,15 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       ancestor: scrollObject,
     );
 
-    final targetOffset =
-        (_scrollController.offset +
-        lineOffset.dy -
-        (viewport.viewportDimension * 0.33)).clamp(0.0, viewport.maxScrollExtent);
+    final targetOffset = (_scrollController.offset +
+            lineOffset.dy -
+            (viewport.viewportDimension * 0.33))
+        .clamp(0.0, viewport.maxScrollExtent);
 
-    // If we're far from the target (likely switching pages), jump instantly 
+    // If we're far from the target (likely switching pages), jump instantly
     // so the segment is already correctly scrolled when it slides in.
-    if ((_scrollController.offset - targetOffset).abs() > viewport.viewportDimension) {
+    if ((_scrollController.offset - targetOffset).abs() >
+        viewport.viewportDimension) {
       _scrollController.jumpTo(targetOffset);
     } else {
       _scrollController.animateTo(
@@ -616,64 +618,75 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1200),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.x5l,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.x5l),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final bool isAutoLargeSegment = _displayLines == -1 && _segmentLineCounts[pageIndex] > 4;
-                    final EdgeInsets pagePadding = isAutoLargeSegment 
-                        ? EdgeInsets.zero 
-                        : const EdgeInsets.symmetric(vertical: AppSpacing.x2l);
+                    final bool isAutoLargeSegment =
+                        _displayLines == -1 &&
+                        _segmentLineCounts[pageIndex] > 4;
+                    final EdgeInsets pagePadding =
+                        isAutoLargeSegment
+                            ? EdgeInsets.zero
+                            : const EdgeInsets.symmetric(
+                              vertical: AppSpacing.x2l,
+                            );
 
-                    final Widget pageWidget = Builder(builder: (context) {
-                      final Widget lineList = Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: _crossAxisAlignment,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          for (int i = startIdx; i < endIdx; i++)
-                            _buildLyricLine(i, useGlobalKey: isAutoLargeSegment),
-                        ],
-                      );
+                    final Widget pageWidget = Builder(
+                      builder: (context) {
+                        final Widget lineList = Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: _crossAxisAlignment,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (int i = startIdx; i < endIdx; i++)
+                              _buildLyricLine(
+                                i,
+                                useGlobalKey: isAutoLargeSegment,
+                              ),
+                          ],
+                        );
 
-                      if (isAutoLargeSegment) {
-                        final bool isActivePage = pageIndex == _getSegmentPageIndex(_activeLine);
-                        return ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                          child: SingleChildScrollView(
+                        if (isAutoLargeSegment) {
+                          final bool isActivePage =
+                              pageIndex == _getSegmentPageIndex(_activeLine);
+                          return ScrollConfiguration(
+                            behavior: ScrollConfiguration.of(
+                              context,
+                            ).copyWith(scrollbars: false),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.x2l,
+                              ),
+                              // Only attach the main scroll controller to the active page
+                              controller:
+                                  isActivePage ? _scrollController : null,
+                              child: lineList,
+                            ),
+                          );
+                        }
+
+                        return Center(
+                          child: Padding(
                             padding: const EdgeInsets.symmetric(
                               vertical: AppSpacing.x2l,
                             ),
-                            // Only attach the main scroll controller to the active page
-                            controller: isActivePage ? _scrollController : null,
-                            child: lineList,
-                          ),
-                        );
-                      }
-
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.x2l),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.center,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints.tightFor(
-                                width: constraints.maxWidth,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.center,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints.tightFor(
+                                  width: constraints.maxWidth,
+                                ),
+                                child: lineList,
                               ),
-                              child: lineList,
                             ),
                           ),
-                        ),
-                      );
-                    });
+                        );
+                      },
+                    );
 
                     return SizedBox.expand(
-                      child: Padding(
-                        padding: pagePadding,
-                        child: pageWidget,
-                      ),
+                      child: Padding(padding: pagePadding, child: pageWidget),
                     );
                   },
                 ),

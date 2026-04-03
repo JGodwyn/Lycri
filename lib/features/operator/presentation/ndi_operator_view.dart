@@ -46,7 +46,10 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
   void _startCaptureLoop() {
     _stopCaptureLoop();
     // Run at ~30fps
-    _captureTimer = Timer.periodic(const Duration(milliseconds: 33), (_) => _captureFrame());
+    _captureTimer = Timer.periodic(
+      const Duration(milliseconds: 33),
+      (_) => _captureFrame(),
+    );
   }
 
   void _stopCaptureLoop() {
@@ -59,12 +62,14 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
     _isCapturing = true;
 
     try {
-      final boundary = _repaintBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary =
+          _repaintBoundaryKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
       if (boundary == null) {
         _isCapturing = false;
         return;
       }
-      
+
       // If the boundary is not yet laid out, wait.
       if (!boundary.attached || boundary.debugNeedsPaint) {
         _isCapturing = false;
@@ -72,10 +77,14 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
       }
 
       final image = await boundary.toImage(pixelRatio: 1.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      
+      final byteData = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
+
       if (byteData != null) {
-        ref.read(ndiServiceProvider.notifier).updateFrameBuffer(byteData.buffer.asUint8List());
+        ref
+            .read(ndiServiceProvider.notifier)
+            .updateFrameBuffer(byteData.buffer.asUint8List());
       }
       image.dispose(); // Important to dispose image to avoid memory leaks
     } catch (e) {
@@ -118,40 +127,51 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: style.backgroundType == BackgroundType.solidColor
-                          ? style.backgroundColor
-                          : Colors.black,
-                      gradient: style.backgroundType == BackgroundType.gradient
-                          ? (style.gradientType == GradientType.linear
-                              ? LinearGradient(
-                                  colors: style.gradientColors.length >= 2
-                                      ? style.gradientColors
-                                      : [Colors.white, Colors.black],
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                )
-                              : RadialGradient(
-                                  colors: style.gradientColors.length >= 2
-                                      ? style.gradientColors
-                                      : [Colors.white, Colors.black],
-                                  center: Alignment.center,
-                                  radius: 0.8,
-                                ))
-                          : null,
-                      image: style.backgroundType == BackgroundType.image &&
-                              style.backgroundImagePath != null
-                          ? DecorationImage(
-                              image: FileImage(File(style.backgroundImagePath!)),
-                              fit: BoxFit.cover)
-                          : null,
+                      color:
+                          style.backgroundType == BackgroundType.solidColor
+                              ? style.backgroundColor
+                              : Colors.black,
+                      gradient:
+                          style.backgroundType == BackgroundType.gradient
+                              ? (style.gradientType == GradientType.linear
+                                  ? LinearGradient(
+                                    colors:
+                                        style.gradientColors.length >= 2
+                                            ? style.gradientColors
+                                            : [Colors.white, Colors.black],
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                  )
+                                  : RadialGradient(
+                                    colors:
+                                        style.gradientColors.length >= 2
+                                            ? style.gradientColors
+                                            : [Colors.white, Colors.black],
+                                    center: Alignment.center,
+                                    radius: 0.8,
+                                  ))
+                              : null,
+                      image:
+                          style.backgroundType == BackgroundType.image &&
+                                  style.backgroundImagePath != null
+                              ? DecorationImage(
+                                image: FileImage(
+                                  File(style.backgroundImagePath!),
+                                ),
+                                fit: BoxFit.cover,
+                              )
+                              : null,
                     ),
                   ),
                 ),
 
                 // 2. Video Background (if active)
-                if (style.backgroundType == BackgroundType.video && style.backgroundVideoPath != null)
+                if (style.backgroundType == BackgroundType.video &&
+                    style.backgroundVideoPath != null)
                   Positioned.fill(
-                    child: StaticVideoBackground(path: style.backgroundVideoPath!),
+                    child: StaticVideoBackground(
+                      path: style.backgroundVideoPath!,
+                    ),
                   ),
 
                 // 3. Lyrics layer
@@ -159,7 +179,10 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
                   child: AnimatedOpacity(
                     duration: const Duration(milliseconds: 300),
                     opacity: isVisible ? 1.0 : 0.0,
-                    child: lyrics != null ? const _NdiLyricsPreview() : const SizedBox.shrink(),
+                    child:
+                        lyrics != null
+                            ? const _NdiLyricsPreview()
+                            : const SizedBox.shrink(),
                   ),
                 ),
               ],
@@ -170,7 +193,6 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
     );
   }
 }
-
 
 class _NdiLyricsPreview extends ConsumerStatefulWidget {
   const _NdiLyricsPreview();
@@ -193,14 +215,20 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     final style = ref.read(lyricsStyleProvider);
     final lines = ref.read(lyricsLinesProvider);
     final activeIndex = ref.read(activeLineProvider);
-    
+
     final segmented = ref.read(segmentedLyricsProvider);
 
     _pageController = PageController(
-      initialPage: (style.displayLines > 0 && lines.isNotEmpty)
-          ? activeIndex ~/ style.displayLines
-          : (style.displayLines == -1 && segmented.isSegmented && lines.isNotEmpty)
-              ? _getSegmentPageIndex(activeIndex, segmented.segments.map((s) => s.lineCount).toList())
+      initialPage:
+          (style.displayLines > 0 && lines.isNotEmpty)
+              ? activeIndex ~/ style.displayLines
+              : (style.displayLines == -1 &&
+                  segmented.isSegmented &&
+                  lines.isNotEmpty)
+              ? _getSegmentPageIndex(
+                activeIndex,
+                segmented.segments.map((s) => s.lineCount).toList(),
+              )
               : 0,
     );
 
@@ -227,16 +255,20 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     if (style.displayLines > 0) {
       _scrollToPage(activeIndex, style.displayLines);
     } else if (style.displayLines == -1 && segmented.isSegmented) {
-      final activeSegIdx = _getSegmentPageIndex(activeIndex, segmented.segments.map((s) => s.lineCount).toList());
-      
-      if (_pageController.hasClients && _pageController.page?.round() != activeSegIdx) {
+      final activeSegIdx = _getSegmentPageIndex(
+        activeIndex,
+        segmented.segments.map((s) => s.lineCount).toList(),
+      );
+
+      if (_pageController.hasClients &&
+          _pageController.page?.round() != activeSegIdx) {
         _pageController.animateToPage(
           activeSegIdx,
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOut,
         );
       }
-      
+
       // Sync large segment scrolling IMMEDIATELY during page slide.
       if (segmented.segments[activeSegIdx].lineCount > 4) {
         _scrollToLine(activeIndex);
@@ -257,7 +289,7 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) _performLineScrollAnimation(lineIndex);
     });
-    
+
     // Final check for slow page transitions.
     Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) _performLineScrollAnimation(lineIndex);
@@ -282,13 +314,14 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
       ancestor: scrollObject,
     );
 
-    final targetOffset =
-        (_scrollController.offset +
-        lineOffset.dy -
-        (viewport.viewportDimension * 0.33)).clamp(0.0, viewport.maxScrollExtent);
+    final targetOffset = (_scrollController.offset +
+            lineOffset.dy -
+            (viewport.viewportDimension * 0.33))
+        .clamp(0.0, viewport.maxScrollExtent);
 
     // Jump instantly for large switches to hide correction glance.
-    if ((_scrollController.offset - targetOffset).abs() > viewport.viewportDimension) {
+    if ((_scrollController.offset - targetOffset).abs() >
+        viewport.viewportDimension) {
       _scrollController.jumpTo(targetOffset);
     } else {
       _scrollController.animateTo(
@@ -303,8 +336,8 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     if (segmentLineCounts.isEmpty) return 0;
     int currentSum = 0;
     for (int i = 0; i < segmentLineCounts.length; i++) {
-        currentSum += segmentLineCounts[i];
-        if (activeIndex < currentSum) return i;
+      currentSum += segmentLineCounts[i];
+      if (activeIndex < currentSum) return i;
     }
     return 0;
   }
@@ -328,7 +361,10 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     final styleState = ref.watch(lyricsStyleProvider);
 
     ref.listen<int>(activeLineProvider, (prev, next) => _handleMovement(next));
-    ref.listen<int>(scrollToActiveTriggerProvider, (prev, next) => _handleMovement(ref.read(activeLineProvider)));
+    ref.listen<int>(
+      scrollToActiveTriggerProvider,
+      (prev, next) => _handleMovement(ref.read(activeLineProvider)),
+    );
 
     // Ensure the active lyric stays on screen when display lines or lyrics change.
     ref.listen<LyricsStyleState>(lyricsStyleProvider, (prev, next) {
@@ -337,17 +373,23 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
           final lines = ref.read(lyricsLinesProvider);
           final activeIndex = ref.read(activeLineProvider);
           final oldController = _pageController;
-          
+
           final segmented = ref.read(segmentedLyricsProvider);
 
           _pageController = PageController(
-            initialPage: (next.displayLines > 0 && lines.isNotEmpty)
-                ? activeIndex ~/ next.displayLines
-                : (next.displayLines == -1 && segmented.isSegmented && lines.isNotEmpty)
-                    ? _getSegmentPageIndex(activeIndex, segmented.segments.map((s) => s.lineCount).toList())
+            initialPage:
+                (next.displayLines > 0 && lines.isNotEmpty)
+                    ? activeIndex ~/ next.displayLines
+                    : (next.displayLines == -1 &&
+                        segmented.isSegmented &&
+                        lines.isNotEmpty)
+                    ? _getSegmentPageIndex(
+                      activeIndex,
+                      segmented.segments.map((s) => s.lineCount).toList(),
+                    )
                     : 0,
           );
-          
+
           WidgetsBinding.instance.addPostFrameCallback((_) {
             oldController.dispose();
             _handleMovement(activeIndex);
@@ -371,7 +413,9 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     if (styleState.displayLines > 0) {
       shouldPaginate = true;
       totalPages = (lines.length / styleState.displayLines).ceil();
-    } else if (styleState.displayLines == -1 && segmentedState.isSegmented && lines.isNotEmpty) {
+    } else if (styleState.displayLines == -1 &&
+        segmentedState.isSegmented &&
+        lines.isNotEmpty) {
       // Always paginate by segment in Auto mode.
       shouldPaginate = true;
       totalPages = segmentedState.segments.length;
@@ -379,7 +423,9 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
 
     if (shouldPaginate) {
       return PageView.builder(
-        key: ValueKey('ndi_paginated_view_${styleState.displayLines}_${segmentedState.isSegmented}'),
+        key: ValueKey(
+          'ndi_paginated_view_${styleState.displayLines}_${segmentedState.isSegmented}',
+        ),
         controller: _pageController,
         scrollDirection: Axis.vertical,
         physics: const NeverScrollableScrollPhysics(),
@@ -392,12 +438,12 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
             startIdx = pageIndex * styleState.displayLines;
             endIdx = startIdx + styleState.displayLines;
           } else {
-             // Segmented paging
-             startIdx = 0;
-             for (int i = 0; i < pageIndex; i++) {
-                 startIdx += segmentedState.segments[i].lineCount;
-             }
-             endIdx = startIdx + segmentedState.segments[pageIndex].lineCount;
+            // Segmented paging
+            startIdx = 0;
+            for (int i = 0; i < pageIndex; i++) {
+              startIdx += segmentedState.segments[i].lineCount;
+            }
+            endIdx = startIdx + segmentedState.segments[pageIndex].lineCount;
           }
 
           if (endIdx > lines.length) endIdx = lines.length;
@@ -406,71 +452,89 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1200),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.x5l,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.x5l),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final bool isAutoLargeSegment = 
+                    final bool isAutoLargeSegment =
                         styleState.displayLines == -1 &&
                         segmentedState.segments[pageIndex].lineCount > 4;
 
-                    final EdgeInsets pagePadding = isAutoLargeSegment 
-                        ? EdgeInsets.zero 
-                        : const EdgeInsets.symmetric(vertical: AppSpacing.x2l);
+                    final EdgeInsets pagePadding =
+                        isAutoLargeSegment
+                            ? EdgeInsets.zero
+                            : const EdgeInsets.symmetric(
+                              vertical: AppSpacing.x2l,
+                            );
 
-                    final Widget pageWidget = Builder(builder: (context) {
-                      final Widget lineList = Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment:
-                            styleState.textAlign == TextAlign.center
-                                ? CrossAxisAlignment.center
-                                : styleState.textAlign == TextAlign.right
-                                ? CrossAxisAlignment.end
-                                : CrossAxisAlignment.start,
-                        children: [
-                          for (int i = startIdx; i < endIdx; i++)
-                            _buildLine(i, lines[i], activeIndex, styleState, useKey: isAutoLargeSegment),
-                        ],
-                      );
+                    final Widget pageWidget = Builder(
+                      builder: (context) {
+                        final Widget lineList = Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment:
+                              styleState.textAlign == TextAlign.center
+                                  ? CrossAxisAlignment.center
+                                  : styleState.textAlign == TextAlign.right
+                                  ? CrossAxisAlignment.end
+                                  : CrossAxisAlignment.start,
+                          children: [
+                            for (int i = startIdx; i < endIdx; i++)
+                              _buildLine(
+                                i,
+                                lines[i],
+                                activeIndex,
+                                styleState,
+                                useKey: isAutoLargeSegment,
+                              ),
+                          ],
+                        );
 
-                      if (isAutoLargeSegment) {
-                        final bool isActivePage = pageIndex == _getSegmentPageIndex(activeIndex, segmentedState.segments.map((s) => s.lineCount).toList());
-                        return ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-                          child: SingleChildScrollView(
+                        if (isAutoLargeSegment) {
+                          final bool isActivePage =
+                              pageIndex ==
+                              _getSegmentPageIndex(
+                                activeIndex,
+                                segmentedState.segments
+                                    .map((s) => s.lineCount)
+                                    .toList(),
+                              );
+                          return ScrollConfiguration(
+                            behavior: ScrollConfiguration.of(
+                              context,
+                            ).copyWith(scrollbars: false),
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.x2l,
+                              ),
+                              controller:
+                                  isActivePage ? _scrollController : null,
+                              child: lineList,
+                            ),
+                          );
+                        }
+
+                        return Center(
+                          child: Padding(
                             padding: const EdgeInsets.symmetric(
                               vertical: AppSpacing.x2l,
                             ),
-                            controller: isActivePage ? _scrollController : null,
-                            child: lineList,
-                          ),
-                        );
-                      }
-
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: AppSpacing.x2l),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.center,
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints.tightFor(
-                                width: constraints.maxWidth,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.center,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints.tightFor(
+                                  width: constraints.maxWidth,
+                                ),
+                                child: lineList,
                               ),
-                              child: lineList,
                             ),
                           ),
-                        ),
-                      );
-                    });
+                        );
+                      },
+                    );
 
                     return SizedBox.expand(
-                      child: Padding(
-                        padding: pagePadding,
-                        child: pageWidget,
-                      ),
+                      child: Padding(padding: pagePadding, child: pageWidget),
                     );
                   },
                 ),
@@ -496,7 +560,13 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (int i = 0; i < lines.length; i++)
-                  _buildLine(i, lines[i], activeIndex, styleState, useKey: true),
+                  _buildLine(
+                    i,
+                    lines[i],
+                    activeIndex,
+                    styleState,
+                    useKey: true,
+                  ),
               ],
             ),
           ),
@@ -505,7 +575,13 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     );
   }
 
-  Widget _buildLine(int i, String line, int activeIndex, LyricsStyleState styleState, {bool useKey = false}) {
+  Widget _buildLine(
+    int i,
+    String line,
+    int activeIndex,
+    LyricsStyleState styleState, {
+    bool useKey = false,
+  }) {
     return Padding(
       key: useKey ? _keyFor(i) : null,
       padding: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -514,7 +590,10 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
         curve: _animCurve,
         style: AppTypography.displayMd.copyWith(
           fontFamily: styleState.fontFamily,
-          color: i == activeIndex ? styleState.fontColor : styleState.fontColor.withValues(alpha: 0.2),
+          color:
+              i == activeIndex
+                  ? styleState.fontColor
+                  : styleState.fontColor.withValues(alpha: 0.2),
           height: 1.4,
         ),
         child: SizedBox(

@@ -60,6 +60,7 @@ class PresenterPanel extends ConsumerWidget {
         final segmentedState = ref.read(segmentedLyricsProvider);
         ref.read(presentationWindowProvider.notifier).syncLyrics(
           next,
+          activeLine: ref.read(activeLineProvider),
           isSegmented: segmentedState.isSegmented,
           segmentLineCounts: segmentedState.segments.map((s) => s.lineCount).toList(),
         );
@@ -81,6 +82,7 @@ class PresenterPanel extends ConsumerWidget {
       if (ref.read(presentationWindowProvider)) {
         ref.read(presentationWindowProvider.notifier).syncLyrics(
           ref.read(lyricsProvider),
+          activeLine: ref.read(activeLineProvider),
           isSegmented: next.isSegmented,
           segmentLineCounts: next.segments.map((s) => s.lineCount).toList(),
         );

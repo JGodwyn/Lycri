@@ -164,7 +164,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
 
       counts[type] = (counts[type] ?? 0) + 1;
       segments.add(LyricsSegment(
-        id: _uuid.v4(),
+        id: '${_uuid.v4()}_${type.name}_${counts[type]}',
         text: block.text,
         type: type,
         number: counts[type]!,

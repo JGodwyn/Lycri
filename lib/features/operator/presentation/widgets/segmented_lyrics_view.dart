@@ -9,6 +9,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/providers/active_line_provider.dart';
 import '../../../../shared/providers/lyrics_provider.dart';
 import '../../models/lyrics_segment.dart';
+import '../../../../shared/widgets/lycri_action_menu.dart';
 
 class SegmentedLyricsView extends ConsumerStatefulWidget {
   const SegmentedLyricsView({super.key});
@@ -38,12 +39,13 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
 
       if (activeLineIndex >= start && activeLineIndex <= end && count > 0) {
         final key = _itemKeys[segment.id];
-        if (key != null && key.currentContext != null) {
+        final context = key?.currentContext;
+        if (context != null && context.mounted) {
           Scrollable.ensureVisible(
-            key.currentContext!,
+            context,
             duration: const Duration(milliseconds: 400),
             curve: Curves.easeInOutCubic,
-            alignment: 0.5, // 🪄 Center the active card
+            alignment: 0.5,
           );
         }
         break;
@@ -56,7 +58,9 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
   Widget build(BuildContext context) {
     final state = ref.watch(segmentedLyricsProvider);
 
-    // Synchronize keys
+    // Synchronize scroll keys
+    final activeIds = state.segments.map((s) => s.id).toSet();
+    _itemKeys.removeWhere((id, _) => !activeIds.contains(id));
     for (final s in state.segments) {
       _itemKeys.putIfAbsent(s.id, () => GlobalKey());
     }
@@ -136,7 +140,8 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
             range.start != -1;
 
         return _SegmentCard(
-          key: _itemKeys[segment.id]!,
+          key: ValueKey(segment.id),
+          scrollKey: _itemKeys[segment.id]!,
           segment: segment,
           index: index,
           isActive: isActive,
@@ -162,6 +167,7 @@ class _SegmentCard extends StatefulWidget {
   final bool isActive;
   final VoidCallback onTap;
   final ValueChanged<String> onChanged;
+  final GlobalKey scrollKey;
 
   const _SegmentCard({
     super.key,
@@ -170,6 +176,7 @@ class _SegmentCard extends StatefulWidget {
     required this.isActive,
     required this.onTap,
     required this.onChanged,
+    required this.scrollKey,
   });
 
   @override
@@ -236,6 +243,7 @@ class _SegmentCardState extends State<_SegmentCard> {
           _focusNode.requestFocus();
         },
         child: AnimatedContainer(
+          key: widget.scrollKey,
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             color: backgroundColor,
@@ -260,13 +268,61 @@ class _SegmentCardState extends State<_SegmentCard> {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.xmd),
-                  SvgPicture.asset(
-                    'assets/vectors/more-horizontal.svg',
-                    width: 20,
-                    height: 20,
-                    colorFilter: const ColorFilter.mode(
-                      AppColors.iconSubtle,
-                      BlendMode.srcIn,
+                  LycriActionMenu(
+                    actions: [
+                      LycriMenuAction(
+                        label: 'Edit',
+                        iconPath: 'assets/vectors/edit-pen.svg',
+                        onTap: () {
+                          // TODO: Implement Edit
+                          debugPrint('Edit tapped');
+                        },
+                      ),
+                      LycriMenuAction(
+                        label: 'Hide',
+                        iconPath: 'assets/vectors/eye-off.svg',
+                        onTap: () {
+                          // TODO: Implement Hide
+                          debugPrint('Hide tapped');
+                        },
+                      ),
+                      LycriMenuAction(
+                        label: 'Remove',
+                        iconPath: 'assets/vectors/delete-trash-2.svg',
+                        isDestructive: true,
+                        onTap: () {
+                          // TODO: Implement Remove
+                          debugPrint('Remove tapped');
+                        },
+                      ),
+                      LycriMenuAction(
+                        label: 'Set as chorus',
+                        iconPath: 'assets/vectors/Starred-message.svg',
+                        onTap: () {
+                          // TODO: Implement Set as chorus
+                          debugPrint('Set as chorus tapped');
+                        },
+                      ),
+                      LycriMenuAction(
+                        label: 'Remove chorus',
+                        iconPath: 'assets/vectors/Message.svg',
+                        onTap: () {
+                          // TODO: Implement Remove chorus
+                          debugPrint('Remove chorus tapped');
+                        },
+                      ),
+                    ],
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: SvgPicture.asset(
+                        'assets/vectors/more-horizontal.svg',
+                        width: 20,
+                        height: 20,
+                        colorFilter: const ColorFilter.mode(
+                          AppColors.iconSubtle,
+                          BlendMode.srcIn,
+                        ),
+                      ),
                     ),
                   ),
                   const Spacer(),
