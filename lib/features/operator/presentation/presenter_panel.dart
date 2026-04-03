@@ -15,6 +15,7 @@ import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
 import '../../../shared/providers/lyrics_visibility_provider.dart';
 import '../../../shared/providers/presentation_window_provider.dart';
+import '../../operator/models/lyrics_segment.dart';
 import '../../../shared/widgets/static_video_background.dart';
 import '../../../shared/widgets/lycri_button.dart';
 
@@ -56,7 +57,12 @@ class PresenterPanel extends ConsumerWidget {
       }
 
       if (ref.read(presentationWindowProvider)) {
-        ref.read(presentationWindowProvider.notifier).syncLyrics(next);
+        final segmentedState = ref.read(segmentedLyricsProvider);
+        ref.read(presentationWindowProvider.notifier).syncLyrics(
+          next,
+          isSegmented: segmentedState.isSegmented,
+          segmentLineCounts: segmentedState.segments.map((s) => s.lineCount).toList(),
+        );
         ref
             .read(presentationWindowProvider.notifier)
             .syncActiveLine(ref.read(activeLineProvider));
@@ -67,6 +73,17 @@ class PresenterPanel extends ConsumerWidget {
     ref.listen<int>(activeLineProvider, (prev, next) {
       if (ref.read(presentationWindowProvider)) {
         ref.read(presentationWindowProvider.notifier).syncActiveLine(next);
+      }
+    });
+
+    // Sync segmentation info to the presentation window.
+    ref.listen<SegmentedLyricsState>(segmentedLyricsProvider, (prev, next) {
+      if (ref.read(presentationWindowProvider)) {
+        ref.read(presentationWindowProvider.notifier).syncLyrics(
+          ref.read(lyricsProvider),
+          isSegmented: next.isSegmented,
+          segmentLineCounts: next.segments.map((s) => s.lineCount).toList(),
+        );
       }
     });
 
@@ -236,6 +253,7 @@ class PresenterPanel extends ConsumerWidget {
                         ref.read(presentationWindowProvider.notifier).endLive();
                       } else {
                         final style = ref.read(lyricsStyleProvider);
+                        final segmentedState = ref.read(segmentedLyricsProvider);
                         ref
                             .read(presentationWindowProvider.notifier)
                             .goLive(
@@ -251,6 +269,8 @@ class PresenterPanel extends ConsumerWidget {
                               style.gradientColors,
                               style.backgroundImagePath,
                               style.backgroundVideoPath,
+                              segmentedState.isSegmented,
+                              segmentedState.segments.map((s) => s.lineCount).toList(),
                             );
                       }
                     },

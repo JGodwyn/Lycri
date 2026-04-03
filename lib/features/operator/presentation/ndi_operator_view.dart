@@ -194,10 +194,14 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     final lines = ref.read(lyricsLinesProvider);
     final activeIndex = ref.read(activeLineProvider);
     
+    final segmented = ref.read(segmentedLyricsProvider);
+
     _pageController = PageController(
       initialPage: (style.displayLines > 0 && lines.isNotEmpty)
           ? activeIndex ~/ style.displayLines
-          : 0,
+          : (style.displayLines == -1 && segmented.isSegmented && lines.isNotEmpty)
+              ? _getSegmentPageIndex(activeIndex, segmented.segments.map((s) => s.lineCount).toList())
+              : 0,
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -217,12 +221,45 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
   }
 
   void _handleMovement(int activeIndex) {
-    final displayLines = ref.read(lyricsStyleProvider).displayLines;
-    if (displayLines > 0) {
-      _scrollToPage(activeIndex, displayLines);
+    final style = ref.read(lyricsStyleProvider);
+    final segmented = ref.read(segmentedLyricsProvider);
+
+    if (style.displayLines > 0) {
+      _scrollToPage(activeIndex, style.displayLines);
+    } else if (style.displayLines == -1 && segmented.isSegmented) {
+      final activeSegIdx = _getSegmentPageIndex(activeIndex, segmented.segments.map((s) => s.lineCount).toList());
+      
+      // Always animate to the current segment's page.
+      _scrollToExactPage(activeSegIdx);
+      
+      // If the segment is large (> 4 lines), also handle internal scrolling.
+      if (segmented.segments[activeSegIdx].lineCount > 4) {
+        _scrollToLine(activeIndex);
+      }
     } else {
       _scrollToLine(activeIndex);
     }
+  }
+
+  void _scrollToExactPage(int targetPage) {
+    if (!_pageController.hasClients) return;
+    if (_pageController.page?.round() != targetPage) {
+      _pageController.animateToPage(
+        targetPage,
+        duration: _animDuration,
+        curve: _animCurve,
+      );
+    }
+  }
+
+  int _getSegmentPageIndex(int activeIndex, List<int> segmentLineCounts) {
+    if (segmentLineCounts.isEmpty) return 0;
+    int currentSum = 0;
+    for (int i = 0; i < segmentLineCounts.length; i++) {
+        currentSum += segmentLineCounts[i];
+        if (activeIndex < currentSum) return i;
+    }
+    return 0;
   }
 
   void _scrollToPage(int activeIndex, int displayLines) {
@@ -277,10 +314,14 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
           final activeIndex = ref.read(activeLineProvider);
           final oldController = _pageController;
           
+          final segmented = ref.read(segmentedLyricsProvider);
+
           _pageController = PageController(
             initialPage: (next.displayLines > 0 && lines.isNotEmpty)
                 ? activeIndex ~/ next.displayLines
-                : 0,
+                : (next.displayLines == -1 && segmented.isSegmented && lines.isNotEmpty)
+                    ? _getSegmentPageIndex(activeIndex, segmented.segments.map((s) => s.lineCount).toList())
+                    : 0,
           );
           
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -299,17 +340,42 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
 
     _lineKeys.removeWhere((k, _) => k >= lines.length);
 
+    final segmentedState = ref.watch(segmentedLyricsProvider);
+    bool shouldPaginate = false;
+    int totalPages = 1;
+
     if (styleState.displayLines > 0) {
-      final totalPages = (lines.length / styleState.displayLines).ceil();
+      shouldPaginate = true;
+      totalPages = (lines.length / styleState.displayLines).ceil();
+    } else if (styleState.displayLines == -1 && segmentedState.isSegmented && lines.isNotEmpty) {
+      // Always paginate by segment in Auto mode.
+      shouldPaginate = true;
+      totalPages = segmentedState.segments.length;
+    }
+
+    if (shouldPaginate) {
       return PageView.builder(
-        key: ValueKey('ndi_paginated_view_${styleState.displayLines}'),
+        key: ValueKey('ndi_paginated_view_${styleState.displayLines}_${segmentedState.isSegmented}'),
         controller: _pageController,
         scrollDirection: Axis.vertical,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: totalPages,
         itemBuilder: (context, pageIndex) {
-          int startIdx = pageIndex * styleState.displayLines;
-          int endIdx = startIdx + styleState.displayLines;
+          int startIdx;
+          int endIdx;
+
+          if (styleState.displayLines > 0) {
+            startIdx = pageIndex * styleState.displayLines;
+            endIdx = startIdx + styleState.displayLines;
+          } else {
+             // Segmented paging
+             startIdx = 0;
+             for (int i = 0; i < pageIndex; i++) {
+                 startIdx += segmentedState.segments[i].lineCount;
+             }
+             endIdx = startIdx + segmentedState.segments[pageIndex].lineCount;
+          }
+
           if (endIdx > lines.length) endIdx = lines.length;
 
           return Center(
@@ -322,6 +388,36 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                 ),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
+                    final bool isAutoLargeSegment = 
+                        styleState.displayLines == -1 &&
+                        segmentedState.segments[pageIndex].lineCount > 4;
+
+                    final Widget lineList = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment:
+                          styleState.textAlign == TextAlign.center
+                              ? CrossAxisAlignment.center
+                              : styleState.textAlign == TextAlign.right
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
+                      children: [
+                        for (int i = startIdx; i < endIdx; i++)
+                          _buildLine(i, lines[i], activeIndex, styleState, useKey: isAutoLargeSegment),
+                      ],
+                    );
+
+                    if (isAutoLargeSegment) {
+                      final bool isActivePage = pageIndex == _getSegmentPageIndex(activeIndex, segmentedState.segments.map((s) => s.lineCount).toList());
+                      return ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                        child: SingleChildScrollView(
+                          controller: isActivePage ? _scrollController : null,
+                          child: lineList,
+                        ),
+                      );
+                    }
+
                     return FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.center,
@@ -329,14 +425,7 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                         constraints: BoxConstraints.tightFor(
                           width: constraints.maxWidth,
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            for (int i = startIdx; i < endIdx; i++)
-                              _buildLine(i, lines[i], activeIndex, styleState),
-                          ],
-                        ),
+                        child: lineList,
                       ),
                     );
                   },

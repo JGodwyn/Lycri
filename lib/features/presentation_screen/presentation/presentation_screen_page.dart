@@ -35,8 +35,14 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// The font family used to render the lyrics.
   String _fontFamily = 'Libre Caslon Condensed';
 
-  /// Number of lines to display simultaneously (0 = Auto).
-  int _displayLines = 0;
+  /// Number of lines to display simultaneously (-1 = Auto, 0 = All, > 0 = Paginated).
+  int _displayLines = -1;
+
+  /// Whether the lyrics are currently segmented.
+  bool _isSegmented = false;
+
+  /// Line counts for each segment, used for "Auto" segmentation paging.
+  List<int> _segmentLineCounts = [];
 
   /// Text alignment for the lyrics.
   TextAlign _textAlign = TextAlign.left;
@@ -104,8 +110,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         }
 
         if (_windowController!.arguments.isNotEmpty) {
-          final Map<String, dynamic> args =
-              jsonDecode(_windowController!.arguments);
+          final Map<String, dynamic> args = jsonDecode(
+            _windowController!.arguments,
+          );
           _applyStyleFromArgs(args);
           await _applyWindowSetup(args);
         }
@@ -134,8 +141,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         _fontColor = Color(int.parse(args['fontColor'] as String, radix: 16));
       }
       if (args.containsKey('backgroundColor')) {
-        _backgroundColor =
-            Color(int.parse(args['backgroundColor'] as String, radix: 16));
+        _backgroundColor = Color(
+          int.parse(args['backgroundColor'] as String, radix: 16),
+        );
       }
       if (args.containsKey('backgroundType')) {
         _backgroundType = (args['backgroundType'] as num).toInt();
@@ -158,14 +166,70 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       if (args.containsKey('lyrics')) {
         _rawLyrics = args['lyrics'] as String?;
         _lines =
-            _rawLyrics?.split('\n').where((l) => l.trim().isNotEmpty).toList() ??
+            _rawLyrics
+                ?.split('\n')
+                .where((l) => l.trim().isNotEmpty)
+                .toList() ??
             [];
+      }
+      if (args.containsKey('isSegmented')) {
+        _isSegmented = args['isSegmented'] as bool? ?? false;
+      }
+      if (args.containsKey('segmentLineCounts')) {
+        _segmentLineCounts =
+            (args['segmentLineCounts'] as List?)?.cast<int>() ?? [];
       }
       if (args.containsKey('activeLine')) {
         _activeLine = (args['activeLine'] as num).toInt();
-        _scrollToActive(_activeLine);
+        _recalculatePaging();
       }
     });
+  }
+
+  /// Helper to determine if we should be in paginated (fitted) mode for a given index.
+  bool _isCurrentlyPaginated(int activeIndex) {
+    if (_displayLines > 0) return true;
+    if (_displayLines == -1 && _isSegmented && _segmentLineCounts.isNotEmpty) {
+      // In Auto mode with segments, we ARE always paginated (one page per segment).
+      // This ensures we have a vertical slide transition between segments and
+      // never see adjacent segments.
+      return true;
+    }
+    return false;
+  }
+
+  /// Recalculate PageController based on current display style and segmentation.
+  void _recalculatePaging() {
+    if (!mounted) return;
+
+    if (_isCurrentlyPaginated(_activeLine)) {
+      final targetPage =
+          _displayLines > 0
+              ? (_lines.isNotEmpty ? _activeLine ~/ _displayLines : 0)
+              : _getSegmentPageIndex(_activeLine);
+
+      // We recreate the controller here to ensure it's fresh for the mode switch.
+      final oldController = _pageController;
+      _pageController = PageController(initialPage: targetPage);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          oldController.dispose();
+        } catch (_) {}
+      });
+    } else {
+      _scrollToActive(_activeLine);
+    }
+  }
+
+  /// Returns which segment index contains the given global line index.
+  int _getSegmentPageIndex(int activeIndex) {
+    if (_segmentLineCounts.isEmpty) return 0;
+    int currentSum = 0;
+    for (int i = 0; i < _segmentLineCounts.length; i++) {
+      currentSum += _segmentLineCounts[i];
+      if (activeIndex < currentSum) return i;
+    }
+    return 0;
   }
 
   Future<void> _applyWindowSetup(Map<String, dynamic> args) async {
@@ -226,8 +290,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   Future<dynamic> _handleMethodCall(MethodCall call) async {
     switch (call.method) {
       case 'setupWindow':
-        final Map<String, dynamic> args =
-            Map<String, dynamic>.from(call.arguments);
+        final Map<String, dynamic> args = Map<String, dynamic>.from(
+          call.arguments,
+        );
         _applyStyleFromArgs(args);
         await _applyWindowSetup(args);
         return null;
@@ -256,30 +321,59 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                   .split('\n')
                   .where((l) => l.trim().isNotEmpty)
                   .toList();
+
+          if (args is Map) {
+            if (args.containsKey('isSegmented')) {
+              _isSegmented = args['isSegmented'] as bool? ?? false;
+            }
+            if (args.containsKey('segmentLineCounts')) {
+              _segmentLineCounts =
+                  (args['segmentLineCounts'] as List?)?.cast<int>() ?? [];
+            }
+          }
           _activeLine = activeLine;
           _lineKeys.clear();
 
-          if (_displayLines > 0) {
-            final oldController = _pageController;
-            _pageController = PageController(
-              initialPage: _lines.isNotEmpty ? _activeLine ~/ _displayLines : 0,
-            );
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              oldController.dispose();
-            });
-          }
+          _recalculatePaging();
         });
-
-        if (_displayLines == 0) {
-          _scrollToActive(activeLine);
-        }
         return null;
-
 
       case 'updateActiveLine':
         final newIndex = (call.arguments as int?) ?? 0;
-        setState(() => _activeLine = newIndex);
-        _scrollToActive(newIndex);
+        final bool wasPaginated = _isCurrentlyPaginated(_activeLine);
+        final bool isPaginated = _isCurrentlyPaginated(newIndex);
+
+          setState(() {
+            _activeLine = newIndex;
+  
+            if (wasPaginated != isPaginated) {
+              // Mode switch (Paginated <-> Continuous)
+              _recalculatePaging();
+            } else if (isPaginated) {
+              // Same paginated mode: animate to the new page.
+              final targetPage =
+                  _displayLines > 0
+                      ? newIndex ~/ _displayLines
+                      : _getSegmentPageIndex(newIndex);
+  
+              if (_pageController.hasClients &&
+                  _pageController.page?.round() != targetPage) {
+                _pageController.animateToPage(
+                  targetPage,
+                  duration: _animDuration,
+                  curve: _animCurve,
+                );
+              }
+              
+              // If it's Auto mode and we are on a large segment, trigger inner scroll.
+              if (_displayLines == -1 && _isSegmented) {
+                _scrollToActive(newIndex);
+              }
+            } else {
+              // Same continuous mode: scroll to the new line.
+              _scrollToActive(newIndex);
+            }
+          });
         return null;
 
       case 'updateFontFamily':
@@ -294,20 +388,8 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         if (newLines != null && newLines != _displayLines) {
           setState(() {
             _displayLines = newLines;
-            if (newLines > 0) {
-              final oldController = _pageController;
-              _pageController = PageController(
-                initialPage: _lines.isNotEmpty ? _activeLine ~/ newLines : 0,
-              );
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                oldController.dispose();
-              });
-            }
+            _recalculatePaging();
           });
-
-          if (newLines == 0) {
-            _scrollToActive(_activeLine);
-          }
         }
         return null;
 
@@ -380,23 +462,25 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
-  /// Smoothly scroll or paginate so the active line is visible.
+  /// Smoothly scroll so the active line is roughly centered in the viewport.
   void _scrollToActive(int activeIndex) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_displayLines > 0) {
-        // We are in pagination mode. Push the page up/down.
-        if (!_pageController.hasClients) return;
-        final targetPage = activeIndex ~/ _displayLines;
-        if (_pageController.page?.round() != targetPage) {
-          _pageController.animateToPage(
-            targetPage,
-            duration: _animDuration,
-            curve: _animCurve,
-          );
-        }
-        return;
+    if (!mounted) return;
+    
+    // Continuous scrolling mode: All (0) or Unsegmented Auto (-1)
+    bool isContinuous = _displayLines == 0 || (_displayLines == -1 && !_isSegmented);
+    
+    // We also scroll INTERNALLY within a page if in Auto mode and segment is > 4 lines.
+    bool souldScrollInternally = false;
+    if (_displayLines == -1 && _isSegmented && _segmentLineCounts.isNotEmpty) {
+      final segIdx = _getSegmentPageIndex(activeIndex);
+      if (_segmentLineCounts[segIdx] > 4) {
+        souldScrollInternally = true;
       }
+    }
 
+    if (!isContinuous && !souldScrollInternally) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       // Continuous scrolling mode:
       if (!_scrollController.hasClients) return;
 
@@ -467,12 +551,18 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     _lineKeys.removeWhere((k, _) => k >= _lines.length);
 
     int totalPages = 1;
-    if (_displayLines > 0 && _lines.isNotEmpty) {
-      totalPages = (_lines.length / _displayLines).ceil();
+    bool isPaginated = _isCurrentlyPaginated(_activeLine);
+
+    if (isPaginated) {
+      if (_displayLines > 0) {
+        totalPages = (_lines.length / _displayLines).ceil();
+      } else {
+        totalPages = _segmentLineCounts.length;
+      }
     }
 
     Widget content;
-    if (_displayLines > 0) {
+    if (isPaginated) {
       content = PageView.builder(
         key: ValueKey('paginated_view_$_displayLines'),
         controller: _pageController,
@@ -480,8 +570,21 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         physics: const NeverScrollableScrollPhysics(),
         itemCount: totalPages,
         itemBuilder: (context, pageIndex) {
-          int startIdx = pageIndex * _displayLines;
-          int endIdx = startIdx + _displayLines;
+          int startIdx;
+          int endIdx;
+
+          if (_displayLines > 0) {
+            startIdx = pageIndex * _displayLines;
+            endIdx = startIdx + _displayLines;
+          } else {
+            // Segmented paging
+            startIdx = 0;
+            for (int i = 0; i < pageIndex; i++) {
+              startIdx += _segmentLineCounts[i];
+            }
+            endIdx = startIdx + _segmentLineCounts[pageIndex];
+          }
+
           if (endIdx > _lines.length) endIdx = _lines.length;
 
           return Center(
@@ -494,6 +597,30 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                 ),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
+                    final bool isAutoLargeSegment = _displayLines == -1 && _segmentLineCounts[pageIndex] > 4;
+
+                    final Widget lineList = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: _crossAxisAlignment,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (int i = startIdx; i < endIdx; i++)
+                          _buildLyricLine(i, useGlobalKey: isAutoLargeSegment),
+                      ],
+                    );
+
+                    if (isAutoLargeSegment) {
+                      final bool isActivePage = pageIndex == _getSegmentPageIndex(_activeLine);
+                      return ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                        child: SingleChildScrollView(
+                          // Only attach the main scroll controller to the active page
+                          controller: isActivePage ? _scrollController : null,
+                          child: lineList,
+                        ),
+                      );
+                    }
+
                     return FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.center,
@@ -501,15 +628,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                         constraints: BoxConstraints.tightFor(
                           width: constraints.maxWidth,
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: _crossAxisAlignment,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            for (int i = startIdx; i < endIdx; i++)
-                              _buildLyricLine(i, useGlobalKey: false),
-                          ],
-                        ),
+                        child: lineList,
                       ),
                     );
                   },
@@ -677,7 +796,9 @@ class _StaticVideoBackgroundState extends State<_StaticVideoBackground>
 
   void _ensureVideoPlaying() {
     final controller = _isShowingB ? _controllerB : _controllerA;
-    if (controller != null && controller.value.isInitialized && !controller.value.isPlaying) {
+    if (controller != null &&
+        controller.value.isInitialized &&
+        !controller.value.isPlaying) {
       controller.play();
     }
   }

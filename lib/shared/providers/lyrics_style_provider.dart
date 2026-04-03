@@ -12,7 +12,7 @@ enum GradientType { linear, radial }
 class LyricsStyleState {
   const LyricsStyleState({
     this.fontFamily = 'Libre Caslon Condensed',
-    this.displayLines = 0, // 0 = Auto
+    this.displayLines = -1, // -1 = Auto, 0 = All, > 0 = Paginated
     this.textAlign = TextAlign.left,
     this.fontColor = const Color(0xFF000000), // Default to purely black
     this.backgroundType = BackgroundType.solidColor,
@@ -27,7 +27,7 @@ class LyricsStyleState {
   /// The selected font family name.
   final String fontFamily;
 
-  /// The number of lines to display at once (0 = Auto).
+  /// The number of lines to display at once (-1 = Auto, 0 = All).
   final int displayLines;
 
   /// The text alignment.

@@ -1,4 +1,4 @@
-enum LyricsSegmentType { verse, chorus }
+enum LyricsSegmentType { intro, verse, preChorus, chorus, bridge, outro }
 
 class LyricsSegment {
   final String id;

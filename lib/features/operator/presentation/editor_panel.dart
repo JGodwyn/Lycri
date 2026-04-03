@@ -30,7 +30,7 @@ class EditorPanel extends ConsumerStatefulWidget {
 }
 
 class _EditorPanelState extends ConsumerState<EditorPanel> {
-  static const List<String> _lineCounts = ['Auto', '1', '2', '3', '4', '5'];
+  static const List<String> _lineCounts = ['Auto', '1', '2', '3', '4', 'All'];
 
   /// Track previous background type to determine push direction.
   BackgroundType? _prevBackgroundType;
@@ -53,7 +53,7 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
       lyricsStyleProvider.select((s) => s.displayLines),
     );
     final selectedLineCountStr =
-        displayLines == 0 ? 'Auto' : displayLines.toString();
+        displayLines == -1 ? 'Auto' : (displayLines == 0 ? 'All' : displayLines.toString());
 
     final currentBackgroundType = ref.watch(
       lyricsStyleProvider.select((s) => s.backgroundType),
@@ -162,7 +162,7 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                 items: _lineCounts,
                 selected: selectedLineCountStr,
                 onSelected: (v) {
-                  final count = v == 'Auto' ? 0 : int.parse(v);
+                  final count = v == 'Auto' ? -1 : (v == 'All' ? 0 : int.parse(v));
                   ref.read(lyricsStyleProvider.notifier).setDisplayLines(count);
                 },
               ),

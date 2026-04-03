@@ -47,6 +47,8 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     List<Color> gradientColors,
     String? backgroundImagePath,
     String? backgroundVideoPath,
+    bool isSegmented,
+    List<int> segmentLineCounts,
   ) async {
     if (state || _isLaunching) return; // Already live or busy starting.
     _isLaunching = true;
@@ -101,6 +103,8 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
         'gradientColors': gradientColors.map((c) => c.value.toRadixString(16)).toList(),
         'backgroundImagePath': backgroundImagePath,
         'backgroundVideoPath': backgroundVideoPath,
+        'isSegmented': isSegmented,
+        'segmentLineCounts': segmentLineCounts,
         // Initial Content
         'lyrics': lyrics,
         'activeLine': activeLine,
@@ -281,12 +285,19 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
   }
 
   /// Send updated lyrics text to the presentation window.
-  Future<void> syncLyrics(String? text, {int? activeLine}) async {
+  Future<void> syncLyrics(
+    String? text, {
+    int? activeLine,
+    bool? isSegmented,
+    List<int>? segmentLineCounts,
+  }) async {
     if (_controller == null) return;
     try {
       await _controller!.invokeMethod('updateLyrics', {
         'text': text,
         if (activeLine != null) 'activeLine': activeLine,
+        if (isSegmented != null) 'isSegmented': isSegmented,
+        if (segmentLineCounts != null) 'segmentLineCounts': segmentLineCounts,
       });
     } catch (e) {
       _handleChannelError(e);

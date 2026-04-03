@@ -49,8 +49,8 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
 
     state = state.copyWith(isLoading: true);
 
-    // Simulate thinking/processing time for a "nice" feel.
-    await Future.delayed(const Duration(milliseconds: 800));
+    // Simulate deep structural thinking/processing time.
+    await Future.delayed(const Duration(milliseconds: 1500));
 
     final segments = _segmentLyrics(rawText);
 
@@ -95,69 +95,218 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     _ref.read(lyricsProvider.notifier).update(combined);
   }
 
-  /// Heuristic logic to split text into Verses and Choruses.
+  /// Intelligent logic to split text into structured song sections.
   List<LyricsSegment> _segmentLyrics(String rawText) {
-    final blocks = rawText
-        .split(RegExp(r'\n\s*\n'))
-        .where((b) => b.trim().isNotEmpty)
-        .map((b) => b.trim())
-        .toList();
+    if (rawText.trim().isEmpty) return [];
 
-    if (blocks.isEmpty) return [];
+    final lines = rawText.split('\n');
+    final rawBlocks = <_RawBlock>[];
+    var currentLines = <String>[];
+    String? currentLabel;
 
-    final segments = <LyricsSegment>[];
-    int verseCount = 0;
-    int chorusCount = 0;
+    for (var line in lines) {
+      final t = line.trim();
+      if (t.isEmpty) {
+        if (currentLines.isNotEmpty || currentLabel != null) {
+          rawBlocks.addAll(_createLyricalBlocks(currentLines, currentLabel));
+          currentLines = [];
+          currentLabel = null;
+        }
+        continue;
+      }
 
-    // 1. Basic tagging by keywords.
-    // 2. Identify repeating blocks as choruses.
-    final blockFrequency = <String, int>{};
-    for (final b in blocks) {
-      blockFrequency[b] = (blockFrequency[b] ?? 0) + 1;
-    }
-
-    // A block is a chorus if it repeats OR starts with "Chorus".
-    final chorusTexts =
-        blockFrequency.entries
-            .where((e) => e.value > 1)
-            .map((e) => e.key)
-            .toSet();
-
-    for (final block in blocks) {
-      final isChorusHeader =
-          block.toLowerCase().startsWith('chorus') ||
-          block.toLowerCase().startsWith('[chorus]');
-
-      final actualText =
-          isChorusHeader
-              ? block.replaceFirst(RegExp(r'^\[?chorus\]?:?\s*', caseSensitive: false), '').trim()
-              : block;
-
-      final isChorus = isChorusHeader || chorusTexts.contains(actualText);
-
-      if (isChorus) {
-        chorusCount++;
-        segments.add(
-          LyricsSegment(
-            id: _uuid.v4(),
-            text: actualText,
-            type: LyricsSegmentType.chorus,
-            number: chorusCount,
-          ),
-        );
+      // Check if line is an explicit structural label (e.g. [Chorus], (Verse 1))
+      // It MUST match the pattern AND contain a known section keyword to be a label.
+      if (_isExplicitLabel(t)) {
+        if (currentLines.isNotEmpty || currentLabel != null) {
+          rawBlocks.addAll(_createLyricalBlocks(currentLines, currentLabel));
+          currentLines = [];
+        }
+        currentLabel = t.replaceAll(RegExp(r'[\[\]()]'), '').trim();
       } else {
-        verseCount++;
-        segments.add(
-          LyricsSegment(
-            id: _uuid.v4(),
-            text: actualText,
-            type: LyricsSegmentType.verse,
-            number: verseCount,
-          ),
-        );
+        currentLines.add(t);
       }
     }
+    if (currentLines.isNotEmpty || currentLabel != null) {
+      rawBlocks.addAll(_createLyricalBlocks(currentLines, currentLabel));
+    }
 
+    if (rawBlocks.isEmpty) return [];
+
+    final blockStrings = rawBlocks.map((b) => b.text.toLowerCase().trim()).toList();
+    final frequency = <String, int>{};
+    for (var s in blockStrings) {
+      frequency[s] = (frequency[s] ?? 0) + 1;
+    }
+    final chorusTexts = frequency.entries.where((e) => e.value > 1).map((e) => e.key).toSet();
+
+    final segments = <LyricsSegment>[];
+    final counts = <LyricsSegmentType, int>{};
+
+    for (int i = 0; i < rawBlocks.length; i++) {
+      final block = rawBlocks[i];
+      final normText = block.text.toLowerCase().trim();
+      LyricsSegmentType type = LyricsSegmentType.verse;
+
+      if (block.explicitLabel != null) {
+        type = _labelToType(block.explicitLabel!);
+      } else if (chorusTexts.contains(normText)) {
+        type = LyricsSegmentType.chorus;
+      } else if (i == 0 && block.lineCount <= 2) {
+        type = LyricsSegmentType.intro;
+      } else if (i == rawBlocks.length - 1 && block.lineCount <= 2) {
+        type = LyricsSegmentType.outro;
+      } else if (i < rawBlocks.length - 1 && 
+                 segments.length > 0 && 
+                 chorusTexts.contains(rawBlocks[i + 1].text.toLowerCase().trim())) {
+        type = block.lineCount <= 4 ? LyricsSegmentType.preChorus : LyricsSegmentType.bridge;
+      }
+
+      counts[type] = (counts[type] ?? 0) + 1;
+      segments.add(LyricsSegment(
+        id: _uuid.v4(),
+        text: block.text,
+        type: type,
+        number: counts[type]!,
+      ));
+    }
     return segments;
   }
+
+  /// Elastic Snapping algorithm: Splits lines into blocks by finding the most "Lyrical" break points.
+  List<_RawBlock> _createLyricalBlocks(List<String> lines, String? explicitLabel) {
+    if (lines.isEmpty) {
+      return explicitLabel != null ? [_RawBlock(text: '', explicitLabel: explicitLabel)] : [];
+    }
+
+    final blocks = <_RawBlock>[];
+    int start = 0;
+
+    while (start < lines.length) {
+      final remaining = lines.length - start;
+      if (remaining <= 10) {
+        // Last block: no need to score, just take it all.
+        final stanza = lines.sublist(start).join('\n');
+        blocks.add(_RawBlock(text: stanza, explicitLabel: start == 0 ? explicitLabel : null));
+        break;
+      }
+
+      // Elastic Window: Scan potential split points between lines 4 and 10.
+      int bestSplitOffset = 8;
+      double bestScore = -1.0;
+
+      for (int offset = 4; offset <= 10; offset++) {
+        final currentPoint = start + offset;
+        if (currentPoint >= lines.length) break;
+
+        double score = 0.0;
+        
+        // 1. Even line count bonus (rhythmic balance)
+        if (offset % 2 == 0) score += 2.0;
+
+        // 2. Rhyme Preservation (Highest Priority)
+        // Check if splitting AT the current point breaks a rhyme couplet (i-1 vs i)
+        // Or if it completes a verse on a strong rhyme (i-1 vs i-2).
+        final lineBefore = lines[currentPoint - 1];
+        final lineTwoBefore = currentPoint > 1 ? lines[currentPoint - 2] : null;
+        final nextLine = lines[currentPoint];
+
+        final isCoupletEnd = lineTwoBefore != null && _RhymeAnalyzer.isRhyme(lineBefore, lineTwoBefore);
+        final breaksCouplet = _RhymeAnalyzer.isRhyme(lineBefore, nextLine);
+        
+        if (isCoupletEnd) score += 5.0; // Ends on a satisfying rhyme
+        if (breaksCouplet) score -= 8.0; // DON'T split here if it breaks a rhyme!
+
+        // 3. Proximity to ideal size (8 lines)
+        score += (8 - (offset - 8).abs()).toDouble();
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestSplitOffset = offset;
+        }
+      }
+
+      final stanza = lines.sublist(start, start + bestSplitOffset).join('\n');
+      blocks.add(_RawBlock(text: stanza, explicitLabel: start == 0 ? explicitLabel : null));
+      start += bestSplitOffset;
+    }
+    return blocks;
+  }
+
+  bool _isExplicitLabel(String line) {
+    final t = line.trim();
+    if (!(RegExp(r'^\[.*\]$').hasMatch(t) || RegExp(r'^\(.*\)$').hasMatch(t))) {
+      return false;
+    }
+
+    final content = t.replaceAll(RegExp(r'[\[\]()]'), '').toLowerCase();
+    // A label must contain a songwriting keyword to be considered structural.
+    const keywords = [
+      'verse',
+      'chorus',
+      'hook',
+      'bridge',
+      'intro',
+      'outro',
+      'pre',
+      'lift',
+      'break',
+      'refrain',
+    ];
+    return keywords.any((k) => content.contains(k));
+  }
+
+  LyricsSegmentType _labelToType(String label) {
+    final l = label.toLowerCase();
+    if (l.contains('chorus') || l.contains('hook') || l.contains('refrain')) {
+      return LyricsSegmentType.chorus;
+    }
+    if (l.contains('intro')) return LyricsSegmentType.intro;
+    if (l.contains('outro')) return LyricsSegmentType.outro;
+    if (l.contains('pre')) return LyricsSegmentType.preChorus;
+    if (l.contains('bridge') || l.contains('break')) {
+      return LyricsSegmentType.bridge;
+    }
+    return LyricsSegmentType.verse;
+  }
+}
+
+/// Offline Phonetic Heuristic to identify rhymes and vowel patterns.
+class _RhymeAnalyzer {
+  static bool isRhyme(String l1, String l2) {
+    final w1 = _clean(l1.split(' ').last);
+    final w2 = _clean(l2.split(' ').last);
+    if (w1.length < 2 || w2.length < 2) return false;
+
+    // Perfect suffix match (last 2-3 chars)
+    if (w1.endsWith(w2.substring(w2.length - (w2.length >= 3 ? 3 : 2))) ||
+        w2.endsWith(w1.substring(w1.length - (w1.length >= 3 ? 3 : 2)))) {
+      return true;
+    }
+
+    // Slant rhyme check: Vowel pattern match
+    final v1 = _extractVowels(w1);
+    final v2 = _extractVowels(w2);
+    if (v1.length >= 1 && v1 == v2) return true;
+
+    return false;
+  }
+
+  static String _clean(String w) => w.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+
+  static String _extractVowels(String w) {
+    final vowels = RegExp(r'[aeiouy]+');
+    final matches = vowels.allMatches(w);
+    if (matches.isEmpty) return '';
+    return matches.last.group(0)!; // Focus on the last vowel sound
+  }
+}
+
+class _RawBlock {
+  final String text;
+  final String? explicitLabel;
+
+  _RawBlock({required this.text, this.explicitLabel});
+
+  int get lineCount => text.split('\n').where((l) => l.trim().isNotEmpty).length;
 }

@@ -10,13 +10,61 @@ import '../../../../shared/providers/active_line_provider.dart';
 import '../../../../shared/providers/lyrics_provider.dart';
 import '../../models/lyrics_segment.dart';
 
-class SegmentedLyricsView extends ConsumerWidget {
+class SegmentedLyricsView extends ConsumerStatefulWidget {
   const SegmentedLyricsView({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SegmentedLyricsView> createState() =>
+      _SegmentedLyricsViewState();
+}
+
+class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _itemKeys = {};
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToActive(SegmentedLyricsState state, int activeLineIndex) {
+    int currentLineOffset = 0;
+    for (int i = 0; i < state.segments.length; i++) {
+      final segment = state.segments[i];
+      final count = segment.lineCount;
+      final start = currentLineOffset;
+      final end = currentLineOffset + count - 1;
+
+      if (activeLineIndex >= start && activeLineIndex <= end && count > 0) {
+        final key = _itemKeys[segment.id];
+        if (key != null && key.currentContext != null) {
+          Scrollable.ensureVisible(
+            key.currentContext!,
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOutCubic,
+            alignment: 0.5, // 🪄 Center the active card
+          );
+        }
+        break;
+      }
+      currentLineOffset += count;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(segmentedLyricsProvider);
-    final activeLineIndex = ref.watch(activeLineProvider);
+
+    // Synchronize keys
+    for (final s in state.segments) {
+      _itemKeys.putIfAbsent(s.id, () => GlobalKey());
+    }
+
+    // Trigger scroll when active line changes
+    ref.listen(activeLineProvider, (prev, next) {
+      _scrollToActive(state, next);
+    });
 
     // Calculate line ranges for each segment to determine the active one.
     int currentLineOffset = 0;
@@ -36,6 +84,7 @@ class SegmentedLyricsView extends ConsumerWidget {
     }
 
     return ReorderableListView.builder(
+      scrollController: _scrollController,
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       itemCount: state.segments.length,
       buildDefaultDragHandles: false,
@@ -80,13 +129,14 @@ class SegmentedLyricsView extends ConsumerWidget {
       itemBuilder: (context, index) {
         final segment = state.segments[index];
         final range = segmentRanges[index];
+        final activeLineIndex = ref.watch(activeLineProvider);
         final isActive =
             activeLineIndex >= range.start &&
             activeLineIndex <= range.end &&
             range.start != -1;
 
         return _SegmentCard(
-          key: ValueKey(segment.id),
+          key: _itemKeys[segment.id]!,
           segment: segment,
           index: index,
           isActive: isActive,
@@ -154,9 +204,20 @@ class _SegmentCardState extends State<_SegmentCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isChorus = widget.segment.type == LyricsSegmentType.chorus;
-    final backgroundColor = isChorus ? AppColors.orange50 : AppColors.orange0;
+    final type = widget.segment.type;
+    final isSpecial =
+        type == LyricsSegmentType.chorus || type == LyricsSegmentType.bridge;
+    final backgroundColor = isSpecial ? AppColors.orange50 : AppColors.orange0;
     final headerColor = AppColors.orange400;
+
+    final typeLabel = switch (type) {
+      LyricsSegmentType.intro => 'Intro',
+      LyricsSegmentType.verse => 'Verse',
+      LyricsSegmentType.preChorus => 'Pre-Chorus',
+      LyricsSegmentType.chorus => 'Chorus',
+      LyricsSegmentType.bridge => 'Bridge',
+      LyricsSegmentType.outro => 'Outro',
+    };
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -192,7 +253,7 @@ class _SegmentCardState extends State<_SegmentCard> {
               Row(
                 children: [
                   Text(
-                    '${isChorus ? 'Chorus' : 'Verse'} ${widget.segment.number}',
+                    '$typeLabel ${widget.segment.number}',
                     style: AppTypography.titleMd.copyWith(
                       color: headerColor,
                       fontWeight: FontWeight.w600,
