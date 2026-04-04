@@ -44,40 +44,31 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   /// Cached segmented state from the last cleanup session.
   List<LyricsSegment>? _cachedSegments;
 
-  /// The raw text snapshot that produced the cached segments.
-  /// Used to invalidate the cache if the user edits the lyrics.
-  String? _cachedRawText;
-
   SegmentedLyricsNotifier(this._ref) : super(SegmentedLyricsState.initial());
 
   /// Triggers the intelligent cleanup/segmentation process.
-  /// If a cached state exists and the raw text hasn't changed, restores it.
+  /// If a cached state exists, merges edits into it to preserve metadata.
   Future<void> cleanup() async {
     final rawText = _ref.read(lyricsProvider);
     if (rawText == null || rawText.isEmpty) return;
 
-    // Restore cached segments if the text hasn't changed.
-    if (_cachedSegments != null &&
-        _cachedRawText != null &&
-        _normalizeForComparison(rawText) ==
-            _normalizeForComparison(_cachedRawText!)) {
+    // If we have a cache, merge the (possibly edited) text into it.
+    if (_cachedSegments != null && _cachedSegments!.isNotEmpty) {
+      final merged = _mergeWithCache(rawText);
       state = state.copyWith(
-        segments: _cachedSegments!,
+        segments: merged,
         isSegmented: true,
         isLoading: false,
       );
-      // Re-sync raw text from segments (respects hidden state).
       _syncToRaw();
       return;
     }
 
+    // No cache — fresh segmentation.
     state = state.copyWith(isLoading: true);
-
-    // Simulate deep structural thinking/processing time.
     await Future.delayed(const Duration(milliseconds: 1500));
 
     final segments = _segmentLyrics(rawText);
-
     state = state.copyWith(
       segments: segments,
       isSegmented: true,
@@ -85,23 +76,88 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     );
   }
 
-  /// Normalizes text for cache comparison (ignores whitespace differences).
-  String _normalizeForComparison(String text) {
-    return text
-        .split('\n')
-        .map((l) => l.trim())
-        .where((l) => l.isNotEmpty)
-        .join('\n');
+  /// Merges new raw text into cached segments, preserving metadata
+  /// (isHidden, type, order) for blocks that still exist.
+  List<LyricsSegment> _mergeWithCache(String newRawText) {
+    final newBlocks = _splitIntoBlocks(newRawText);
+    final usedCacheIndices = <int>{};
+    final result = <LyricsSegment>[];
+
+    for (final block in newBlocks) {
+      int bestIndex = -1;
+      double bestScore = 0.0;
+
+      for (int i = 0; i < _cachedSegments!.length; i++) {
+        if (usedCacheIndices.contains(i)) continue;
+        final score = _textSimilarity(block, _cachedSegments![i].text);
+        if (score > bestScore && score > 0.4) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+
+      if (bestIndex != -1) {
+        // Matched — keep metadata (type, isHidden), update text.
+        usedCacheIndices.add(bestIndex);
+        result.add(_cachedSegments![bestIndex].copyWith(text: block));
+      } else {
+        // New block — create a fresh verse segment.
+        result.add(LyricsSegment(
+          id: _uuid.v4(),
+          text: block,
+          type: LyricsSegmentType.verse,
+          number: 1,
+        ));
+      }
+    }
+
+    return result;
+  }
+
+  /// Splits raw text into blocks separated by empty lines.
+  List<String> _splitIntoBlocks(String text) {
+    final blocks = <String>[];
+    final lines = text.split('\n');
+    final current = <String>[];
+
+    for (final line in lines) {
+      if (line.trim().isEmpty) {
+        if (current.isNotEmpty) {
+          blocks.add(current.join('\n'));
+          current.clear();
+        }
+      } else {
+        current.add(line);
+      }
+    }
+    if (current.isNotEmpty) {
+      blocks.add(current.join('\n'));
+    }
+    return blocks;
+  }
+
+  /// Calculates similarity between two text blocks (0.0 – 1.0)
+  /// based on the proportion of shared non-empty lines.
+  double _textSimilarity(String a, String b) {
+    final linesA =
+        a.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    final linesB =
+        b.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    if (linesA.isEmpty && linesB.isEmpty) return 1.0;
+    if (linesA.isEmpty || linesB.isEmpty) return 0.0;
+
+    final setB = linesB.toSet();
+    final matches = linesA.where((l) => setB.contains(l)).length;
+    // Proportion of the larger block that overlaps.
+    final maxLen = linesA.length > linesB.length ? linesA.length : linesB.length;
+    return matches / maxLen;
   }
 
   /// Reverts back to raw text mode, caching the current segmented state.
   void reset() {
-    // Cache the current segments and the full raw text (including hidden).
+    // Cache the current segments (including hidden ones).
     if (state.segments.isNotEmpty) {
       _cachedSegments = List<LyricsSegment>.from(state.segments);
-      _cachedRawText = state.segments
-          .map((s) => s.text.trim())
-          .join('\n\n');
     }
 
     // Unhide all segments so their text is restored to the paste view.
