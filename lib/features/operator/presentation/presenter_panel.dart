@@ -591,6 +591,15 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
       _scrollToActive(ref.read(activeLineProvider));
     });
 
+    // Re-scroll after lyrics text changes (e.g. segment hidden/shown).
+    ref.listen<List<String>>(lyricsLinesProvider, (prev, next) {
+      if (prev != null && prev.length != next.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _scrollToActive(ref.read(activeLineProvider));
+        });
+      }
+    });
+
     // Prune stale keys when the line count shrinks.
     _lineKeys.removeWhere((k, _) => k >= lines.length);
 

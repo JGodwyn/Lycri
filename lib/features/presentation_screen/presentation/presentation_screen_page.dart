@@ -208,14 +208,24 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
               ? (_lines.isNotEmpty ? _activeLine ~/ _displayLines : 0)
               : _getSegmentPageIndex(_activeLine);
 
-      // We recreate the controller here to ensure it's fresh for the mode switch.
-      final oldController = _pageController;
-      _pageController = PageController(initialPage: targetPage);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        try {
-          oldController.dispose();
-        } catch (_) {}
-      });
+      if (_pageController.hasClients) {
+        // Controller is attached — jump to the correct page after rebuild.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || !_pageController.hasClients) return;
+          if (_pageController.page?.round() != targetPage) {
+            _pageController.jumpToPage(targetPage);
+          }
+        });
+      } else {
+        // Controller not yet attached (first build or mode switch) — recreate.
+        final oldController = _pageController;
+        _pageController = PageController(initialPage: targetPage);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            oldController.dispose();
+          } catch (_) {}
+        });
+      }
     } else {
       _scrollToActive(_activeLine);
     }
@@ -343,38 +353,38 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         final bool wasPaginated = _isCurrentlyPaginated(_activeLine);
         final bool isPaginated = _isCurrentlyPaginated(newIndex);
 
+        // Update state first so the rebuild highlights the correct line.
         setState(() {
           _activeLine = newIndex;
+        });
 
-          if (wasPaginated != isPaginated) {
-            // Mode switch (Paginated <-> Continuous)
-            _recalculatePaging();
-          } else if (isPaginated) {
-            // Same paginated mode: animate to the new page.
-            final targetPage =
-                _displayLines > 0
-                    ? newIndex ~/ _displayLines
-                    : _getSegmentPageIndex(newIndex);
+        if (wasPaginated != isPaginated) {
+          // Mode switch (Paginated <-> Continuous)
+          _recalculatePaging();
+        } else if (isPaginated) {
+          // Same paginated mode: animate to the new page.
+          final targetPage =
+              _displayLines > 0
+                  ? newIndex ~/ _displayLines
+                  : _getSegmentPageIndex(newIndex);
 
-            if (_pageController.hasClients &&
-                _pageController.page?.round() != targetPage) {
-              _pageController.animateToPage(
-                targetPage,
-                duration: _animDuration,
-                curve: _animCurve,
-              );
-            }
+          if (_pageController.hasClients &&
+              _pageController.page?.round() != targetPage) {
+            _pageController.animateToPage(
+              targetPage,
+              duration: _animDuration,
+              curve: _animCurve,
+            );
+          }
 
-            // If it's Auto mode and we are on a large segment, trigger inner scroll IMMEDIATELY
-            // so it happens during the page transition.
-            if (_displayLines == -1 && _isSegmented) {
-              _scrollToActive(newIndex);
-            }
-          } else {
-            // Same continuous mode: scroll to the new line.
+          // Sync large-segment inner scroll (mirrors NDI _handleMovement).
+          if (_displayLines == -1 && _isSegmented) {
             _scrollToActive(newIndex);
           }
-        });
+        } else {
+          // Same continuous mode: scroll to the new line.
+          _scrollToActive(newIndex);
+        }
         return null;
 
       case 'updateFontFamily':
@@ -463,6 +473,11 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
+  /// Scrolls to the active line within the current view.
+  ///
+  /// Uses the same multi-delay retry pattern as NDI: try immediately after
+  /// the next frame, then at 100ms, then at 400ms (matching the page
+  /// animation duration) to guarantee the scroll controller is attached.
   void _scrollToActive(int activeIndex) {
     if (!mounted) return;
 
@@ -470,7 +485,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     bool isContinuous =
         _displayLines == 0 || (_displayLines == -1 && !_isSegmented);
 
-    // We also scroll INTERNALLY within a page if in Auto mode and segment is > 4 lines.
+    // We also scroll INTERNALLY within a page if Auto + segment > 4 lines.
     bool shouldScrollInternally = false;
     if (_displayLines == -1 && _isSegmented && _segmentLineCounts.isNotEmpty) {
       final segIdx = _getSegmentPageIndex(activeIndex);
@@ -481,62 +496,58 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
     if (!isContinuous && !shouldScrollInternally) return;
 
-    void attemptScroll(int retryCount) {
-      if (!mounted || retryCount <= 0) return;
+    // Attempt 1: immediately after next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _performScrollAnimation(activeIndex);
+    });
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
+    // Attempt 2: after a short delay for segment switches.
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _performScrollAnimation(activeIndex);
+    });
 
-        final key = _lineKeys[activeIndex];
-        if (key == null || key.currentContext == null) {
-          Future.delayed(
-            const Duration(milliseconds: 50),
-            () => attemptScroll(retryCount - 1),
-          );
-          return;
-        }
+    // Attempt 3: after the page animation completes (400ms).
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) _performScrollAnimation(activeIndex);
+    });
+  }
 
-        final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
-        if (renderBox == null || !renderBox.hasSize) {
-          Future.delayed(
-            const Duration(milliseconds: 50),
-            () => attemptScroll(retryCount - 1),
-          );
-          return;
-        }
+  /// Performs the actual scroll animation (mirrors NDI's _performLineScrollAnimation).
+  void _performScrollAnimation(int activeIndex) {
+    if (!_scrollController.hasClients) return;
 
-        final viewport = _scrollController.position;
-        final storageContext = viewport.context.storageContext;
-        final scrollObject = storageContext.findRenderObject();
-        if (scrollObject == null) return;
+    final key = _lineKeys[activeIndex];
+    if (key == null || key.currentContext == null) return;
 
-        final lineOffset = renderBox.localToGlobal(
-          Offset.zero,
-          ancestor: scrollObject,
-        );
+    final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return;
 
-        final targetOffset =
-            (_scrollController.offset +
-                lineOffset.dy -
-                (viewport.viewportDimension * 0.33))
-            .clamp(0.0, viewport.maxScrollExtent);
+    final viewport = _scrollController.position;
+    final scrollObject = viewport.context.storageContext.findRenderObject();
+    if (scrollObject == null) return;
 
-        // If we're far from the target (likely switching pages), jump instantly
-        // so the segment is already correctly scrolled when it slides in.
-        if ((_scrollController.offset - targetOffset).abs() >
-            viewport.viewportDimension) {
-          _scrollController.jumpTo(targetOffset);
-        } else {
-          _scrollController.animateTo(
-            targetOffset,
-            duration: _animDuration,
-            curve: _animCurve,
-          );
-        }
-      });
+    final lineOffset = renderBox.localToGlobal(
+      Offset.zero,
+      ancestor: scrollObject,
+    );
+
+    final targetOffset =
+        (_scrollController.offset +
+            lineOffset.dy -
+            (viewport.viewportDimension * 0.33))
+        .clamp(0.0, viewport.maxScrollExtent);
+
+    // Jump instantly for large offsets to hide correction glance.
+    if ((_scrollController.offset - targetOffset).abs() >
+        viewport.viewportDimension) {
+      _scrollController.jumpTo(targetOffset);
+    } else {
+      _scrollController.animateTo(
+        targetOffset,
+        duration: _animDuration,
+        curve: _animCurve,
+      );
     }
-
-    attemptScroll(5);
   }
 
   CrossAxisAlignment get _crossAxisAlignment {

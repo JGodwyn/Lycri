@@ -64,6 +64,16 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
 
   /// Reverts back to raw text mode.
   void reset() {
+    // Unhide all segments so their text is restored to the paste view.
+    final hasHidden = state.segments.any((s) => s.isHidden);
+    if (hasHidden) {
+      final restored = [
+        for (final s in state.segments)
+          if (s.isHidden) s.copyWith(isHidden: false) else s,
+      ];
+      state = state.copyWith(segments: restored);
+      _syncToRaw();
+    }
     state = SegmentedLyricsState.initial();
   }
 
@@ -155,12 +165,16 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       }
     }
 
-    // 4. Update the active line BEFORE syncing to raw so listeners get the new index
+    // 4. Sync raw text FIRST so all listeners see the new lyrics when
+    //    activeLineProvider fires.
+    _syncToRaw();
+
+    // 5. Now update the active line — listeners will see correct lyrics.
     if (newActiveIndex != -1) {
       _ref.read(activeLineProvider.notifier).jumpTo(newActiveIndex);
+      // Force scroll-to-active for views that only listen to this trigger.
+      _ref.read(scrollToActiveTriggerProvider.notifier).state++;
     }
-    
-    _syncToRaw();
   }
 
   /// Reorders segments and syncs back to global lyricsProvider.
