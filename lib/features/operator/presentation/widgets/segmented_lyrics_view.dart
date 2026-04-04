@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -141,22 +142,36 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
             activeLineIndex <= range.end &&
             range.start != -1;
 
-        return _SegmentCard(
+        // Calculate dynamic numbering (instance count of this type up to this index)
+        int displayNumber = 0;
+        for (int j = 0; j <= index; j++) {
+          if (state.segments[j].type == segment.type) {
+            displayNumber++;
+          }
+        }
+
+        return Container(
           key: ValueKey(segment.id),
-          scrollKey: _itemKeys[segment.id]!,
-          segment: segment,
-          index: index,
-          isActive: isActive,
-          onTap: () {
-            if (range.start != -1) {
-              ref.read(activeLineProvider.notifier).jumpTo(range.start);
-            }
-          },
-          onChanged: (val) {
-            ref
-                .read(segmentedLyricsProvider.notifier)
-                .updateSegment(segment.id, val);
-          },
+          child: _SegmentCard(
+            segment: segment,
+            index: index,
+            displayNumber: displayNumber,
+            isActive: isActive,
+            scrollKey: _itemKeys[segment.id],
+            onTap: () {
+              if (range.start != -1) {
+                ref.read(activeLineProvider.notifier).jumpTo(range.start);
+              }
+            },
+            onChanged: (val) {
+              ref
+                  .read(segmentedLyricsProvider.notifier)
+                  .updateSegment(segment.id, val);
+            },
+            onRemove: () {
+              ref.read(segmentedLyricsProvider.notifier).removeSegment(segment.id);
+            },
+          ),
         );
       },
     );
@@ -166,34 +181,49 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
 class _SegmentCard extends ConsumerStatefulWidget {
   final LyricsSegment segment;
   final int index;
+  final int displayNumber;
   final bool isActive;
   final VoidCallback onTap;
+  final VoidCallback onRemove;
   final ValueChanged<String> onChanged;
-  final GlobalKey scrollKey;
+  final GlobalKey? scrollKey;
 
   const _SegmentCard({
-    super.key,
     required this.segment,
     required this.index,
+    required this.displayNumber,
     required this.isActive,
     required this.onTap,
+    required this.onRemove,
     required this.onChanged,
-    required this.scrollKey,
+    this.scrollKey,
   });
 
   @override
   ConsumerState<_SegmentCard> createState() => _SegmentCardState();
 }
 
-class _SegmentCardState extends ConsumerState<_SegmentCard> {
+class _SegmentCardState extends ConsumerState<_SegmentCard>
+    with TickerProviderStateMixin {
   late TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   bool _isEditing = false;
+  late AnimationController _exitController;
+  late Animation<double> _exitAnimation;
+  bool _isRemoving = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.segment.text);
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _exitAnimation = CurvedAnimation(
+      parent: _exitController,
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   @override
@@ -208,7 +238,16 @@ class _SegmentCardState extends ConsumerState<_SegmentCard> {
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
+    _exitController.dispose();
     super.dispose();
+  }
+
+  void _handleRemoveRequested() {
+    if (_isRemoving) return;
+    setState(() => _isRemoving = true);
+    _exitController.forward().then((_) {
+      widget.onRemove();
+    });
   }
 
   @override
@@ -228,46 +267,59 @@ class _SegmentCardState extends ConsumerState<_SegmentCard> {
       LyricsSegmentType.outro => 'Outro',
     };
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xl,
-        vertical: AppSpacing.sm,
-      ),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        onDoubleTap: () {
-          setState(() {
-            _isEditing = true;
-            _controller.selection = TextSelection.fromPosition(
-              TextPosition(offset: _controller.text.length),
+    return SizeTransition(
+      sizeFactor: Tween<double>(begin: 1.0, end: 0.0).animate(_exitAnimation),
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 1.0, end: 0.0).animate(_exitAnimation),
+        child: AnimatedBuilder(
+          animation: _exitAnimation,
+          builder: (context, child) {
+            final blur = _exitAnimation.value * 10.0;
+            return ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+              child: child,
             );
-          });
-          _focusNode.requestFocus();
-        },
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 300),
-          opacity: widget.segment.isHidden ? 0.5 : 1.0,
-          child: AnimatedContainer(
-            key: widget.scrollKey,
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              border: Border.all(
-                color:
-                    widget.isActive ? AppColors.orange200 : Colors.transparent,
-                width: AppStroke.lg,
-              ),
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.sm,
             ),
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
-                  children: [
+            child: GestureDetector(
+              onTap: widget.onTap,
+              onDoubleTap: () {
+                setState(() {
+                  _isEditing = true;
+                  _controller.selection = TextSelection.fromPosition(
+                    TextPosition(offset: _controller.text.length),
+                  );
+                });
+                _focusNode.requestFocus();
+              },
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: widget.segment.isHidden ? 0.5 : 1.0,
+                child: AnimatedContainer(
+                  key: widget.scrollKey,
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(
+                      color:
+                          widget.isActive ? AppColors.orange200 : Colors.transparent,
+                      width: AppStroke.lg,
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        children: [
                     Text(
-                      '$typeLabel ${widget.segment.number}',
+                      '$typeLabel ${widget.displayNumber}',
                       style: AppTypography.titleMd.copyWith(
                         color: headerColor,
                         fontWeight: FontWeight.w600,
@@ -297,29 +349,25 @@ class _SegmentCardState extends ConsumerState<_SegmentCard> {
                           },
                         ),
                         LycriMenuAction(
-                          label: 'Set as chorus',
-                          iconPath: 'assets/vectors/Starred-message.svg',
+                          label:
+                              widget.segment.type == LyricsSegmentType.chorus
+                                  ? 'Remove chorus'
+                                  : 'Set as chorus',
+                          iconPath:
+                              widget.segment.type == LyricsSegmentType.chorus
+                                  ? 'assets/vectors/Message.svg'
+                                  : 'assets/vectors/Starred-message.svg',
                           onTap: () {
-                            // TODO: Implement Set as chorus
-                            debugPrint('Set as chorus tapped');
-                          },
-                        ),
-                        LycriMenuAction(
-                          label: 'Remove chorus',
-                          iconPath: 'assets/vectors/Message.svg',
-                          onTap: () {
-                            // TODO: Implement Remove chorus
-                            debugPrint('Remove chorus tapped');
+                            ref
+                                .read(segmentedLyricsProvider.notifier)
+                                .toggleChorus(widget.segment.id);
                           },
                         ),
                         LycriMenuAction(
                           label: 'Remove',
                           iconPath: 'assets/vectors/delete-trash-2.svg',
                           isDestructive: true,
-                          onTap: () {
-                            // TODO: Implement Remove
-                            debugPrint('Remove tapped');
-                          },
+                          onTap: _handleRemoveRequested,
                         ),
                       ],
                       child: MouseRegion(
@@ -394,11 +442,14 @@ class _SegmentCardState extends ConsumerState<_SegmentCard> {
                       height: 1.5,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }

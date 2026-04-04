@@ -41,12 +41,35 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   final Ref _ref;
   static const _uuid = Uuid();
 
+  /// Cached segmented state from the last cleanup session.
+  List<LyricsSegment>? _cachedSegments;
+
+  /// The raw text snapshot that produced the cached segments.
+  /// Used to invalidate the cache if the user edits the lyrics.
+  String? _cachedRawText;
+
   SegmentedLyricsNotifier(this._ref) : super(SegmentedLyricsState.initial());
 
   /// Triggers the intelligent cleanup/segmentation process.
+  /// If a cached state exists and the raw text hasn't changed, restores it.
   Future<void> cleanup() async {
     final rawText = _ref.read(lyricsProvider);
     if (rawText == null || rawText.isEmpty) return;
+
+    // Restore cached segments if the text hasn't changed.
+    if (_cachedSegments != null &&
+        _cachedRawText != null &&
+        _normalizeForComparison(rawText) ==
+            _normalizeForComparison(_cachedRawText!)) {
+      state = state.copyWith(
+        segments: _cachedSegments!,
+        isSegmented: true,
+        isLoading: false,
+      );
+      // Re-sync raw text from segments (respects hidden state).
+      _syncToRaw();
+      return;
+    }
 
     state = state.copyWith(isLoading: true);
 
@@ -62,8 +85,25 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     );
   }
 
-  /// Reverts back to raw text mode.
+  /// Normalizes text for cache comparison (ignores whitespace differences).
+  String _normalizeForComparison(String text) {
+    return text
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .join('\n');
+  }
+
+  /// Reverts back to raw text mode, caching the current segmented state.
   void reset() {
+    // Cache the current segments and the full raw text (including hidden).
+    if (state.segments.isNotEmpty) {
+      _cachedSegments = List<LyricsSegment>.from(state.segments);
+      _cachedRawText = state.segments
+          .map((s) => s.text.trim())
+          .join('\n\n');
+    }
+
     // Unhide all segments so their text is restored to the paste view.
     final hasHidden = state.segments.any((s) => s.isHidden);
     if (hasHidden) {
@@ -175,6 +215,84 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       // Force scroll-to-active for views that only listen to this trigger.
       _ref.read(scrollToActiveTriggerProvider.notifier).state++;
     }
+  }
+
+  /// Toggles a segment between chorus and its previous type (defaults to verse).
+  void toggleChorus(String id) {
+    final newSegments = [
+      for (final s in state.segments)
+        if (s.id == id)
+          s.copyWith(
+            type:
+                s.type == LyricsSegmentType.chorus
+                    ? LyricsSegmentType.verse
+                    : LyricsSegmentType.chorus,
+          )
+        else
+          s,
+    ];
+    state = state.copyWith(segments: newSegments);
+  }
+
+  /// Removes a segment entirely and maintains active line stability.
+  void removeSegment(String id) {
+    final oldSegments = state.segments;
+    final activeIndex = _ref.read(activeLineProvider);
+
+    // 1. Determine the current active segment before removal.
+    String? currentSegId;
+    int lineInSeg = 0;
+    int currentOffset = 0;
+
+    for (final s in oldSegments) {
+      if (s.isHidden) continue;
+      final count = s.lineCount;
+      if (activeIndex >= currentOffset && activeIndex < currentOffset + count) {
+        currentSegId = s.id;
+        lineInSeg = activeIndex - currentOffset;
+        break;
+      }
+      currentOffset += count;
+    }
+
+    // 2. Remove the segment.
+    final newSegments = oldSegments.where((s) => s.id != id).toList();
+    if (newSegments.isEmpty) {
+      // If all segments are removed, reset to paste view.
+      state = SegmentedLyricsState.initial();
+      _ref.read(lyricsProvider.notifier).clear();
+      return;
+    }
+    state = state.copyWith(segments: newSegments);
+
+    // 3. Recalculate active line index.
+    int newActiveIndex = 0;
+    if (currentSegId == id) {
+      // The active segment was removed — jump to the first visible line.
+      int offset = 0;
+      for (final s in newSegments) {
+        if (!s.isHidden && s.lineCount > 0) {
+          newActiveIndex = offset;
+          break;
+        }
+        if (!s.isHidden) offset += s.lineCount;
+      }
+    } else if (currentSegId != null) {
+      // Active segment still exists — find its new offset.
+      int offset = 0;
+      for (final s in newSegments) {
+        if (s.id == currentSegId) {
+          newActiveIndex = offset + lineInSeg;
+          break;
+        }
+        if (!s.isHidden) offset += s.lineCount;
+      }
+    }
+
+    // 4. Sync and update selection.
+    _syncToRaw();
+    _ref.read(activeLineProvider.notifier).jumpTo(newActiveIndex);
+    _ref.read(scrollToActiveTriggerProvider.notifier).state++;
   }
 
   /// Reorders segments and syncs back to global lyricsProvider.
