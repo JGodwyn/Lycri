@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../features/operator/models/lyrics_segment.dart';
+import 'active_line_provider.dart';
 
 /// Shared lyrics state — `null` means no lyrics sent yet,
 /// a non-null [String] means lyrics are active and should be displayed.
@@ -76,6 +77,92 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     _syncToRaw();
   }
 
+  void toggleHideSegment(String id) {
+    final oldSegments = state.segments;
+    final activeIndex = _ref.read(activeLineProvider);
+
+    // 1. Identify which segment and line the activeIndex currently points to
+    String? currentSegId;
+    int lineInSeg = 0;
+    int currentOffset = 0;
+
+    for (final s in oldSegments) {
+      if (s.isHidden) continue;
+      final count = s.lineCount;
+      if (activeIndex >= currentOffset && activeIndex < currentOffset + count) {
+        currentSegId = s.id;
+        lineInSeg = activeIndex - currentOffset;
+        break;
+      }
+      currentOffset += count;
+    }
+
+    // 2. Perform the toggle
+    final newSegments = [
+      for (final s in oldSegments)
+        if (s.id == id) s.copyWith(isHidden: !s.isHidden) else s,
+    ];
+    state = state.copyWith(segments: newSegments);
+
+    // 3. Recalculate correctly and update the activeLineProvider synchronously
+    int newActiveIndex = -1;
+    if (currentSegId != null) {
+      int newOffset = 0;
+      LyricsSegment? activeSeg;
+      int activeSegIdx = -1;
+
+      for (int i = 0; i < newSegments.length; i++) {
+        final s = newSegments[i];
+        if (s.id == currentSegId) {
+          activeSeg = s;
+          activeSegIdx = i;
+          if (!s.isHidden) {
+            newActiveIndex = newOffset + lineInSeg;
+          }
+          break;
+        }
+        if (!s.isHidden) {
+          newOffset += s.lineCount;
+        }
+      }
+
+      // If the segment we were on is now hidden, jump to next/prev visible
+      if (newActiveIndex == -1 && activeSeg != null) {
+        int nextVisibleOffset = newOffset;
+        bool foundNext = false;
+        for (int i = activeSegIdx + 1; i < newSegments.length; i++) {
+          final s = newSegments[i];
+          if (!s.isHidden) {
+            newActiveIndex = nextVisibleOffset;
+            foundNext = true;
+            break;
+          }
+          nextVisibleOffset += s.lineCount;
+        }
+
+        if (!foundNext) {
+          int lastVisibleIndex = -1;
+          int runningOffset = 0;
+          for (int i = 0; i < activeSegIdx; i++) {
+            final s = newSegments[i];
+            if (!s.isHidden) {
+              lastVisibleIndex = runningOffset + s.lineCount - 1;
+            }
+            runningOffset += s.lineCount;
+          }
+          newActiveIndex = lastVisibleIndex != -1 ? lastVisibleIndex : 0;
+        }
+      }
+    }
+
+    // 4. Update the active line BEFORE syncing to raw so listeners get the new index
+    if (newActiveIndex != -1) {
+      _ref.read(activeLineProvider.notifier).jumpTo(newActiveIndex);
+    }
+    
+    _syncToRaw();
+  }
+
   /// Reorders segments and syncs back to global lyricsProvider.
   void reorder(int oldIndex, int newIndex) {
     if (oldIndex < newIndex) {
@@ -91,7 +178,11 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
 
   /// Synchronizes the segmented order/content back to the raw lyricsProvider.
   void _syncToRaw() {
-    final combined = state.segments.map((s) => s.text.trim()).join('\n\n');
+    final combined =
+        state.segments
+            .where((s) => !s.isHidden)
+            .map((s) => s.text.trim())
+            .join('\n\n');
     _ref.read(lyricsProvider.notifier).update(combined);
   }
 

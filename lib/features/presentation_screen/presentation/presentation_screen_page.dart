@@ -463,7 +463,6 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
-  /// Smoothly scroll so the active line is roughly centered in the viewport.
   void _scrollToActive(int activeIndex) {
     if (!mounted) return;
 
@@ -472,70 +471,72 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         _displayLines == 0 || (_displayLines == -1 && !_isSegmented);
 
     // We also scroll INTERNALLY within a page if in Auto mode and segment is > 4 lines.
-    bool souldScrollInternally = false;
+    bool shouldScrollInternally = false;
     if (_displayLines == -1 && _isSegmented && _segmentLineCounts.isNotEmpty) {
       final segIdx = _getSegmentPageIndex(activeIndex);
-      if (_segmentLineCounts[segIdx] > 4) {
-        souldScrollInternally = true;
+      if (segIdx < _segmentLineCounts.length && _segmentLineCounts[segIdx] > 4) {
+        shouldScrollInternally = true;
       }
     }
 
-    if (!isContinuous && !souldScrollInternally) return;
+    if (!isContinuous && !shouldScrollInternally) return;
 
-    // First attempt.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _performScrollAnimation(activeIndex);
-    });
+    void attemptScroll(int retryCount) {
+      if (!mounted || retryCount <= 0) return;
 
-    // Also retry after a small delay to ensure the PageView transition
-    // hasn't disturbed the RenderBox visibility or controller attachment.
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) _performScrollAnimation(activeIndex);
-    });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
 
-    // Also retry after a longer delay for segment switches.
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _performScrollAnimation(activeIndex);
-    });
-  }
+        final key = _lineKeys[activeIndex];
+        if (key == null || key.currentContext == null) {
+          Future.delayed(
+            const Duration(milliseconds: 50),
+            () => attemptScroll(retryCount - 1),
+          );
+          return;
+        }
 
-  void _performScrollAnimation(int activeIndex) {
-    if (!_scrollController.hasClients) return;
+        final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
+        if (renderBox == null || !renderBox.hasSize) {
+          Future.delayed(
+            const Duration(milliseconds: 50),
+            () => attemptScroll(retryCount - 1),
+          );
+          return;
+        }
 
-    final key = _lineKeys[activeIndex];
-    if (key == null || key.currentContext == null) return;
+        final viewport = _scrollController.position;
+        final storageContext = viewport.context.storageContext;
+        final scrollObject = storageContext.findRenderObject();
+        if (scrollObject == null) return;
 
-    final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
+        final lineOffset = renderBox.localToGlobal(
+          Offset.zero,
+          ancestor: scrollObject,
+        );
 
-    final viewport = _scrollController.position;
-    // We must find the line position relative to the scroll viewport safely.
-    final scrollObject = viewport.context.storageContext.findRenderObject();
-    if (scrollObject == null) return;
+        final targetOffset =
+            (_scrollController.offset +
+                lineOffset.dy -
+                (viewport.viewportDimension * 0.33))
+            .clamp(0.0, viewport.maxScrollExtent);
 
-    final lineOffset = renderBox.localToGlobal(
-      Offset.zero,
-      ancestor: scrollObject,
-    );
-
-    final targetOffset = (_scrollController.offset +
-            lineOffset.dy -
-            (viewport.viewportDimension * 0.33))
-        .clamp(0.0, viewport.maxScrollExtent);
-
-    // If we're far from the target (likely switching pages), jump instantly
-    // so the segment is already correctly scrolled when it slides in.
-    if ((_scrollController.offset - targetOffset).abs() >
-        viewport.viewportDimension) {
-      _scrollController.jumpTo(targetOffset);
-    } else {
-      _scrollController.animateTo(
-        targetOffset,
-        duration: _animDuration,
-        curve: _animCurve,
-      );
+        // If we're far from the target (likely switching pages), jump instantly
+        // so the segment is already correctly scrolled when it slides in.
+        if ((_scrollController.offset - targetOffset).abs() >
+            viewport.viewportDimension) {
+          _scrollController.jumpTo(targetOffset);
+        } else {
+          _scrollController.animateTo(
+            targetOffset,
+            duration: _animDuration,
+            curve: _animCurve,
+          );
+        }
+      });
     }
+
+    attemptScroll(5);
   }
 
   CrossAxisAlignment get _crossAxisAlignment {

@@ -30,12 +30,13 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
   }
 
   void _scrollToActive(SegmentedLyricsState state, int activeLineIndex) {
-    int currentLineOffset = 0;
-    for (int i = 0; i < state.segments.length; i++) {
-      final segment = state.segments[i];
+    int currentLine = 0;
+    for (final segment in state.segments) {
+      if (segment.isHidden) continue; // Skip hidden segments for scroll tracking
+
       final count = segment.lineCount;
-      final start = currentLineOffset;
-      final end = currentLineOffset + count - 1;
+      final start = currentLine;
+      final end = currentLine + count - 1;
 
       if (activeLineIndex >= start && activeLineIndex <= end && count > 0) {
         final key = _itemKeys[segment.id];
@@ -50,7 +51,7 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
         }
         break;
       }
-      currentLineOffset += count;
+      currentLine += count;
     }
   }
 
@@ -75,7 +76,7 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
     final List<({String id, int start, int end})> segmentRanges = [];
     for (final s in state.segments) {
       final count = s.lineCount;
-      if (count > 0) {
+      if (count > 0 && !s.isHidden) {
         segmentRanges.add((
           id: s.id,
           start: currentLineOffset,
@@ -135,6 +136,7 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
         final range = segmentRanges[index];
         final activeLineIndex = ref.watch(activeLineProvider);
         final isActive =
+            !segment.isHidden &&
             activeLineIndex >= range.start &&
             activeLineIndex <= range.end &&
             range.start != -1;
@@ -161,7 +163,7 @@ class _SegmentedLyricsViewState extends ConsumerState<SegmentedLyricsView> {
   }
 }
 
-class _SegmentCard extends StatefulWidget {
+class _SegmentCard extends ConsumerStatefulWidget {
   final LyricsSegment segment;
   final int index;
   final bool isActive;
@@ -180,10 +182,10 @@ class _SegmentCard extends StatefulWidget {
   });
 
   @override
-  State<_SegmentCard> createState() => _SegmentCardState();
+  ConsumerState<_SegmentCard> createState() => _SegmentCardState();
 }
 
-class _SegmentCardState extends State<_SegmentCard> {
+class _SegmentCardState extends ConsumerState<_SegmentCard> {
   late TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   bool _isEditing = false;
@@ -242,149 +244,158 @@ class _SegmentCardState extends State<_SegmentCard> {
           });
           _focusNode.requestFocus();
         },
-        child: AnimatedContainer(
-          key: widget.scrollKey,
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(
-              color: widget.isActive ? AppColors.orange200 : Colors.transparent,
-              width: AppStroke.lg,
-            ),
-          ),
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Text(
-                    '$typeLabel ${widget.segment.number}',
-                    style: AppTypography.titleMd.copyWith(
-                      color: headerColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.xmd),
-                  LycriActionMenu(
-                    actions: [
-                      LycriMenuAction(
-                        label: 'Edit',
-                        iconPath: 'assets/vectors/edit-pen.svg',
-                        onTap: () {
-                          // TODO: Implement Edit
-                          debugPrint('Edit tapped');
-                        },
-                      ),
-                      LycriMenuAction(
-                        label: 'Hide',
-                        iconPath: 'assets/vectors/eye-off.svg',
-                        onTap: () {
-                          // TODO: Implement Hide
-                          debugPrint('Hide tapped');
-                        },
-                      ),
-                      LycriMenuAction(
-                        label: 'Set as chorus',
-                        iconPath: 'assets/vectors/Starred-message.svg',
-                        onTap: () {
-                          // TODO: Implement Set as chorus
-                          debugPrint('Set as chorus tapped');
-                        },
-                      ),
-                      LycriMenuAction(
-                        label: 'Remove chorus',
-                        iconPath: 'assets/vectors/Message.svg',
-                        onTap: () {
-                          // TODO: Implement Remove chorus
-                          debugPrint('Remove chorus tapped');
-                        },
-                      ),
-                      LycriMenuAction(
-                        label: 'Remove',
-                        iconPath: 'assets/vectors/delete-trash-2.svg',
-                        isDestructive: true,
-                        onTap: () {
-                          // TODO: Implement Remove
-                          debugPrint('Remove tapped');
-                        },
-                      ),
-                    ],
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: SvgPicture.asset(
-                        'assets/vectors/more-horizontal.svg',
-                        width: 20,
-                        height: 20,
-                        colorFilter: const ColorFilter.mode(
-                          AppColors.iconSubtle,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  ReorderableDragStartListener(
-                    index: widget.index,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.grab,
-                      child: SvgPicture.asset(
-                        'assets/vectors/drag-drop-horizontal.svg',
-                        width: 20,
-                        height: 20,
-                        colorFilter: const ColorFilter.mode(
-                          AppColors.iconSubtle,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 300),
+          opacity: widget.segment.isHidden ? 0.5 : 1.0,
+          child: AnimatedContainer(
+            key: widget.scrollKey,
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(
+                color:
+                    widget.isActive ? AppColors.orange200 : Colors.transparent,
+                width: AppStroke.lg,
               ),
-              const SizedBox(height: AppSpacing.md),
-              // Content
-              if (_isEditing)
-                TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  maxLines: null,
-                  autofocus: true,
-                  cursorColor: AppColors.orange400,
-                  cursorWidth: 2.0,
-                  style: AppTypography.bodyLg.copyWith(
-                    color: AppColors.textBold,
-                    height: 1.5,
-                  ),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    errorBorder: InputBorder.none,
-                    disabledBorder: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    filled: false,
-                  ),
-                  onChanged: (val) => widget.onChanged(val),
-                  onSubmitted: (_) => setState(() => _isEditing = false),
-                  onTapOutside: (_) {
-                    if (_isEditing) {
-                      setState(() => _isEditing = false);
-                      FocusScope.of(context).unfocus();
-                    }
-                  },
-                )
-              else
-                Text(
-                  widget.segment.text,
-                  style: AppTypography.bodyLg.copyWith(
-                    color: AppColors.textBold,
-                    height: 1.5,
-                  ),
+            ),
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Text(
+                      '$typeLabel ${widget.segment.number}',
+                      style: AppTypography.titleMd.copyWith(
+                        color: headerColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xmd),
+                    LycriActionMenu(
+                      actions: [
+                        LycriMenuAction(
+                          label: 'Edit',
+                          iconPath: 'assets/vectors/edit-pen.svg',
+                          onTap: () {
+                            setState(() => _isEditing = true);
+                            _focusNode.requestFocus();
+                          },
+                        ),
+                        LycriMenuAction(
+                          label: widget.segment.isHidden ? 'Show' : 'Hide',
+                          iconPath:
+                              widget.segment.isHidden
+                                  ? 'assets/vectors/eye.svg'
+                                  : 'assets/vectors/eye-off.svg',
+                          onTap: () {
+                            ref
+                                .read(segmentedLyricsProvider.notifier)
+                                .toggleHideSegment(widget.segment.id);
+                          },
+                        ),
+                        LycriMenuAction(
+                          label: 'Set as chorus',
+                          iconPath: 'assets/vectors/Starred-message.svg',
+                          onTap: () {
+                            // TODO: Implement Set as chorus
+                            debugPrint('Set as chorus tapped');
+                          },
+                        ),
+                        LycriMenuAction(
+                          label: 'Remove chorus',
+                          iconPath: 'assets/vectors/Message.svg',
+                          onTap: () {
+                            // TODO: Implement Remove chorus
+                            debugPrint('Remove chorus tapped');
+                          },
+                        ),
+                        LycriMenuAction(
+                          label: 'Remove',
+                          iconPath: 'assets/vectors/delete-trash-2.svg',
+                          isDestructive: true,
+                          onTap: () {
+                            // TODO: Implement Remove
+                            debugPrint('Remove tapped');
+                          },
+                        ),
+                      ],
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: SvgPicture.asset(
+                          'assets/vectors/more-horizontal.svg',
+                          width: 20,
+                          height: 20,
+                          colorFilter: const ColorFilter.mode(
+                            AppColors.iconSubtle,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    ReorderableDragStartListener(
+                      index: widget.index,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.grab,
+                        child: SvgPicture.asset(
+                          'assets/vectors/drag-drop-horizontal.svg',
+                          width: 20,
+                          height: 20,
+                          colorFilter: const ColorFilter.mode(
+                            AppColors.iconSubtle,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-            ],
+                const SizedBox(height: AppSpacing.md),
+                // Content
+                if (_isEditing)
+                  TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    maxLines: null,
+                    autofocus: true,
+                    cursorColor: AppColors.orange400,
+                    cursorWidth: 2.0,
+                    style: AppTypography.bodyLg.copyWith(
+                      color: AppColors.textBold,
+                      height: 1.5,
+                    ),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                      filled: false,
+                    ),
+                    onChanged: (val) => widget.onChanged(val),
+                    onSubmitted: (_) => setState(() => _isEditing = false),
+                    onTapOutside: (_) {
+                      if (_isEditing) {
+                        setState(() => _isEditing = false);
+                        FocusScope.of(context).unfocus();
+                      }
+                    },
+                  )
+                else
+                  Text(
+                    widget.segment.text,
+                    style: AppTypography.bodyLg.copyWith(
+                      color: AppColors.textBold,
+                      height: 1.5,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

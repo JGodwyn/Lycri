@@ -5,12 +5,14 @@ class LyricsSegment {
   final String text;
   final LyricsSegmentType type;
   final int number;
+  final bool isHidden;
 
   const LyricsSegment({
     required this.id,
     required this.text,
     required this.type,
     required this.number,
+    this.isHidden = false,
   });
 
   LyricsSegment copyWith({
@@ -18,12 +20,14 @@ class LyricsSegment {
     String? text,
     LyricsSegmentType? type,
     int? number,
+    bool? isHidden,
   }) {
     return LyricsSegment(
       id: id ?? this.id,
       text: text ?? this.text,
       type: type ?? this.type,
       number: number ?? this.number,
+      isHidden: isHidden ?? this.isHidden,
     );
   }
 
@@ -39,11 +43,16 @@ class LyricsSegment {
           id == other.id &&
           text == other.text &&
           type == other.type &&
-          number == other.number;
+          number == other.number &&
+          isHidden == other.isHidden;
 
   @override
   int get hashCode =>
-      id.hashCode ^ text.hashCode ^ type.hashCode ^ number.hashCode;
+      id.hashCode ^
+      text.hashCode ^
+      type.hashCode ^
+      number.hashCode ^
+      isHidden.hashCode;
 }
 
 class SegmentedLyricsState {

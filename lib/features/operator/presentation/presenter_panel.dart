@@ -62,7 +62,11 @@ class PresenterPanel extends ConsumerWidget {
           next,
           activeLine: ref.read(activeLineProvider),
           isSegmented: segmentedState.isSegmented,
-          segmentLineCounts: segmentedState.segments.map((s) => s.lineCount).toList(),
+          segmentLineCounts:
+              segmentedState.segments
+                  .where((s) => !s.isHidden)
+                  .map((s) => s.lineCount)
+                  .toList(),
         );
         ref
             .read(presentationWindowProvider.notifier)
@@ -84,7 +88,11 @@ class PresenterPanel extends ConsumerWidget {
           ref.read(lyricsProvider),
           activeLine: ref.read(activeLineProvider),
           isSegmented: next.isSegmented,
-          segmentLineCounts: next.segments.map((s) => s.lineCount).toList(),
+          segmentLineCounts:
+              next.segments
+                  .where((s) => !s.isHidden)
+                  .map((s) => s.lineCount)
+                  .toList(),
         );
       }
     });
@@ -272,7 +280,10 @@ class PresenterPanel extends ConsumerWidget {
                               style.backgroundImagePath,
                               style.backgroundVideoPath,
                               segmentedState.isSegmented,
-                              segmentedState.segments.map((s) => s.lineCount).toList(),
+                              segmentedState.segments
+                                  .where((s) => !s.isHidden)
+                                  .map((s) => s.lineCount)
+                                  .toList(),
                             );
                       }
                     },
@@ -515,37 +526,54 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
-  /// Smoothly scroll so the active line is roughly centered in the viewport.
   void _scrollToActive(int activeIndex) {
-    // Wait one frame so the layout is up-to-date after the rebuild.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
+    if (!mounted) return;
 
-      final key = _lineKeys[activeIndex];
-      if (key == null) return;
+    // Retry multiple times to ensure we catch the layout after a lyric update
+    void attemptScroll(int retryCount) {
+      if (!mounted || retryCount <= 0) return;
 
-      final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
-      if (renderBox == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scrollController.hasClients) return;
 
-      // Position of the line relative to the scroll viewport.
-      final viewport = _scrollController.position;
-      final lineOffset = renderBox.localToGlobal(
-        Offset.zero,
-        ancestor: viewport.context.storageContext.findRenderObject(),
-      );
+        final key = _lineKeys[activeIndex];
+        if (key == null || key.currentContext == null) {
+          // If the key isn't found, the UI likely haven't rebuilt with the new lines yet.
+          // Retry after a short delay.
+          Future.delayed(const Duration(milliseconds: 50), () => attemptScroll(retryCount - 1));
+          return;
+        }
 
-      // Target: place the line ~1/3 from the top so readers see context below.
-      final targetOffset =
-          _scrollController.offset +
-          lineOffset.dy -
-          (viewport.viewportDimension * 0.33);
+        final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
+        if (renderBox == null || !renderBox.hasSize) {
+          Future.delayed(const Duration(milliseconds: 50), () => attemptScroll(retryCount - 1));
+          return;
+        }
 
-      _scrollController.animateTo(
-        targetOffset.clamp(0.0, viewport.maxScrollExtent),
-        duration: _animDuration,
-        curve: _animCurve,
-      );
-    });
+        final viewport = _scrollController.position;
+        final storageContext = viewport.context.storageContext;
+        final scrollObject = storageContext.findRenderObject();
+        if (scrollObject == null) return;
+
+        final lineOffset = renderBox.localToGlobal(
+          Offset.zero,
+          ancestor: scrollObject,
+        );
+
+        final targetOffset =
+            _scrollController.offset +
+            lineOffset.dy -
+            (viewport.viewportDimension * 0.33);
+
+        _scrollController.animateTo(
+          targetOffset.clamp(0.0, viewport.maxScrollExtent),
+          duration: _animDuration,
+          curve: _animCurve,
+        );
+      });
+    }
+
+    attemptScroll(5); // Try up to 5 times (250ms total) to find the new layout
   }
 
   @override

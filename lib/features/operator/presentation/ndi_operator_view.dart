@@ -227,7 +227,10 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                   lines.isNotEmpty)
               ? _getSegmentPageIndex(
                 activeIndex,
-                segmented.segments.map((s) => s.lineCount).toList(),
+                segmented.segments
+                    .where((s) => !s.isHidden)
+                    .map((s) => s.lineCount)
+                    .toList(),
               )
               : 0,
     );
@@ -257,7 +260,10 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     } else if (style.displayLines == -1 && segmented.isSegmented) {
       final activeSegIdx = _getSegmentPageIndex(
         activeIndex,
-        segmented.segments.map((s) => s.lineCount).toList(),
+        segmented.segments
+            .where((s) => !s.isHidden)
+            .map((s) => s.lineCount)
+            .toList(),
       );
 
       if (_pageController.hasClients &&
@@ -385,7 +391,10 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                         lines.isNotEmpty)
                     ? _getSegmentPageIndex(
                       activeIndex,
-                      segmented.segments.map((s) => s.lineCount).toList(),
+                      segmented.segments
+                          .where((s) => !s.isHidden)
+                          .map((s) => s.lineCount)
+                          .toList(),
                     )
                     : 0,
           );
@@ -438,12 +447,14 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
             startIdx = pageIndex * styleState.displayLines;
             endIdx = startIdx + styleState.displayLines;
           } else {
-            // Segmented paging
+            // Segmented paging - only consider visible segments
+            final visibleSegments =
+                segmentedState.segments.where((s) => !s.isHidden).toList();
             startIdx = 0;
             for (int i = 0; i < pageIndex; i++) {
-              startIdx += segmentedState.segments[i].lineCount;
+              startIdx += visibleSegments[i].lineCount;
             }
-            endIdx = startIdx + segmentedState.segments[pageIndex].lineCount;
+            endIdx = startIdx + visibleSegments[pageIndex].lineCount;
           }
 
           if (endIdx > lines.length) endIdx = lines.length;
@@ -492,12 +503,13 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                         if (isAutoLargeSegment) {
                           final bool isActivePage =
                               pageIndex ==
-                              _getSegmentPageIndex(
-                                activeIndex,
-                                segmentedState.segments
-                                    .map((s) => s.lineCount)
-                                    .toList(),
-                              );
+                                _getSegmentPageIndex(
+                                  activeIndex,
+                                  segmentedState.segments
+                                      .where((s) => !s.isHidden)
+                                      .map((s) => s.lineCount)
+                                      .toList(),
+                                );
                           return ScrollConfiguration(
                             behavior: ScrollConfiguration.of(
                               context,
