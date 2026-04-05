@@ -203,7 +203,7 @@ class PresenterPanel extends ConsumerWidget {
                                       .read(presentationWindowProvider.notifier)
                                       .endLive();
                                 }
-                                ref.read(lyricsProvider.notifier).clear();
+                                ref.read(segmentedLyricsProvider.notifier).clearAll();
                               },
                       child: SvgPicture.asset(
                         'assets/vectors/SweepBrush.svg',

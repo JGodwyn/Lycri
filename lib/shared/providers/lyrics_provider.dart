@@ -173,6 +173,14 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     state = SegmentedLyricsState.initial();
   }
 
+  /// Completely wipes all lyrics, clears the cache, and returns to bare view.
+  void clearAll() {
+    _cachedSegments = null;
+    state = SegmentedLyricsState.initial();
+    _ref.read(lyricsProvider.notifier).clear();
+    _ref.read(activeLineProvider.notifier).jumpTo(0);
+  }
+
   /// Updates a specific segment's text and syncs back to global lyricsProvider.
   void updateSegment(String id, String newText) {
     final newSegments = [
