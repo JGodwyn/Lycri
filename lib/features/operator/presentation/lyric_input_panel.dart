@@ -145,7 +145,7 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                 ),
                 const Spacer(),
                 SizedBox(
-                  width: 140, // Space for 3 icons + spacing
+                  width: 180, // Space for 3 icons or a wider Cancel button
                   height: 40,
                   child: Stack(
                     alignment: Alignment.centerRight,
@@ -162,8 +162,12 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                           transitionBuilder: _headerActionTransition,
                           child:
                               isSegmented
-                                  ? const _SaveActionButton(
-                                    key: ValueKey('save_action_wrapper'),
+                                  ? _SaveActionButton(
+                                    key: const ValueKey('save_action_wrapper'),
+                                    isDirectSave: segmentedState.songId != null,
+                                    isEnabled:
+                                        !segmentedState.isSaved ||
+                                        segmentedState.hasChanges,
                                   )
                                   : const SizedBox.shrink(),
                         ),
@@ -183,7 +187,7 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                         ),
                       ),
 
-                      // Back Button (Always at 0.0 when present)
+                      // Back Button / Edit Button / Cancel Button
                       AnimatedPositioned(
                         duration: const Duration(milliseconds: 600),
                         curve: Curves.easeInOutCubic,
@@ -197,17 +201,42 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                               isSegmented
                                   ? _CircularIconButton(
                                     key: const ValueKey('back_btn'),
-                                    onTap:
-                                        () =>
-                                            ref
-                                                .read(
-                                                  segmentedLyricsProvider
-                                                      .notifier,
-                                                )
-                                                .reset(),
-                                    svgAsset: 'assets/vectors/Go-back.svg',
+                                    onTap: () {
+                                      if (segmentedState.isSaved) {
+                                        ref
+                                            .read(
+                                              segmentedLyricsProvider.notifier,
+                                            )
+                                            .editSavedLyric();
+                                      } else {
+                                        ref
+                                            .read(
+                                              segmentedLyricsProvider.notifier,
+                                            )
+                                            .reset();
+                                      }
+                                    },
+                                    svgAsset:
+                                        segmentedState.isSaved
+                                            ? 'assets/vectors/edit-pen.svg'
+                                            : 'assets/vectors/Go-back.svg',
                                   )
-                                  : const SizedBox.shrink(),
+                                  : (segmentedState.isEditing
+                                      ? LycriButton(
+                                        height: 32,
+                                        key: const ValueKey('cancel_btn'),
+                                        label: 'Cancel',
+                                        variant: LycriButtonVariant.secondary,
+                                        onPressed:
+                                            () =>
+                                                ref
+                                                    .read(
+                                                      segmentedLyricsProvider
+                                                          .notifier,
+                                                    )
+                                                    .cancelEdit(),
+                                      )
+                                      : const SizedBox.shrink()),
                         ),
                       ),
                     ],
@@ -311,12 +340,18 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                               const SizedBox(
                                                 width: AppSpacing.md,
                                               ),
-                                              Text(
-                                                segmentedState.songTitle!,
-                                                style: AppTypography.bodyLg
-                                                    .copyWith(
-                                                      color: AppColors.textBold,
-                                                    ),
+                                              Flexible(
+                                                child: Text(
+                                                  segmentedState.songTitle!,
+                                                  style: AppTypography.bodyLg
+                                                      .copyWith(
+                                                        color:
+                                                            AppColors.textBold,
+                                                      ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -369,31 +404,80 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: AppSpacing.xl,
                                       ),
-                                      child: TextField(
-                                        controller: _controller,
-                                        focusNode: _focusNode,
-                                        maxLines: null,
-                                        scrollPhysics:
-                                            const NeverScrollableScrollPhysics(),
-                                        textAlignVertical:
-                                            TextAlignVertical.top,
-                                        style: AppTypography.bodyLg.copyWith(
-                                          color: AppColors.textBold,
-                                          height: 1.5,
-                                        ),
-                                        decoration: const InputDecoration(
-                                          hintText:
-                                              'Start typing or paste your lyric here',
-                                          hintStyle: TextStyle(
-                                            color: AppColors.textMinimal,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          if (segmentedState.isEditing)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: AppSpacing.lg,
+                                              ),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: AppSpacing.xmd,
+                                                  vertical: AppSpacing.md,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.surfaceWarningLight,
+                                                  borderRadius: BorderRadius.circular(
+                                                    AppRadius.lg,
+                                                  ),
+                                                  border: Border.all(
+                                                    color: AppColors.borderWarning,
+                                                    width: AppStroke.sm,
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    const Padding(
+                                                      padding: EdgeInsets.only(top: 2.0),
+                                                      child: Icon(
+                                                        Icons.info_outline,
+                                                        color: AppColors.iconWarning,
+                                                        size: 20,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: AppSpacing.md),
+                                                    Expanded(
+                                                      child: Text(
+                                                        "Editing a saved lyric. Tap cancel to discard changes.",
+                                                        style: AppTypography.bodyLg.copyWith(
+                                                          color: AppColors.textWarning,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          TextField(
+                                            controller: _controller,
+                                            focusNode: _focusNode,
+                                            maxLines: null,
+                                            scrollPhysics:
+                                                const NeverScrollableScrollPhysics(),
+                                            textAlignVertical:
+                                                TextAlignVertical.top,
+                                            style: AppTypography.bodyLg.copyWith(
+                                              color: AppColors.textBold,
+                                              height: 1.5,
+                                            ),
+                                            decoration: const InputDecoration(
+                                              hintText:
+                                                  'Start typing or paste your lyric here',
+                                              hintStyle: TextStyle(
+                                                color: AppColors.textMinimal,
+                                              ),
+                                              hoverColor: Colors.transparent,
+                                              fillColor: Colors.transparent,
+                                              filled: false,
+                                              border: InputBorder.none,
+                                              enabledBorder: InputBorder.none,
+                                              focusedBorder: InputBorder.none,
+                                            ),
                                           ),
-                                          hoverColor: Colors.transparent,
-                                          fillColor: Colors.transparent,
-                                          filled: false,
-                                          border: InputBorder.none,
-                                          enabledBorder: InputBorder.none,
-                                          focusedBorder: InputBorder.none,
-                                        ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -531,7 +615,14 @@ class _CircularIconButtonState extends State<_CircularIconButton> {
 }
 
 class _SaveActionButton extends ConsumerStatefulWidget {
-  const _SaveActionButton({super.key});
+  final bool isDirectSave;
+  final bool isEnabled;
+
+  const _SaveActionButton({
+    super.key,
+    this.isDirectSave = false,
+    this.isEnabled = true,
+  });
 
   @override
   ConsumerState<_SaveActionButton> createState() => _SaveActionButtonState();
@@ -633,7 +724,7 @@ class _SaveActionButtonState extends ConsumerState<_SaveActionButton>
     if (mounted) setState(() => _isMenuOpen = false);
   }
 
-  Future<void> _confirmSave(String title) async {
+  Future<void> _confirmSave(String? title) async {
     _closeMenu();
 
     // Tiny delay to ensure menu closes before success animation starts
@@ -652,8 +743,6 @@ class _SaveActionButtonState extends ConsumerState<_SaveActionButton>
 
   @override
   Widget build(BuildContext context) {
-    final isSaved = ref.watch(segmentedLyricsProvider).isSaved;
-
     Widget child;
 
     if (_showSuccess) {
@@ -676,7 +765,7 @@ class _SaveActionButtonState extends ConsumerState<_SaveActionButton>
           ),
         ),
       );
-    } else if (isSaved) {
+    } else if (!widget.isEnabled) {
       child = Container(
         key: const ValueKey('saved'),
         width: 40,
@@ -701,7 +790,7 @@ class _SaveActionButtonState extends ConsumerState<_SaveActionButton>
         link: _layerLink,
         child: _CircularIconButton(
           key: const ValueKey('not_saved'),
-          onTap: _toggleMenu,
+          onTap: widget.isDirectSave ? () => _confirmSave(null) : _toggleMenu,
           svgAsset: 'assets/vectors/save.svg',
         ),
       );

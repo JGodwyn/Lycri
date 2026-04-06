@@ -61,6 +61,9 @@ class SegmentedLyricsState {
   final bool isLoading;
   final String? songTitle;
   final bool isSaved;
+  final String? songId;
+  final bool isEditing;
+  final List<LyricsSegment>? originalSegments;
 
   const SegmentedLyricsState({
     required this.segments,
@@ -68,15 +71,37 @@ class SegmentedLyricsState {
     this.isLoading = false,
     this.songTitle,
     this.isSaved = false,
+    this.songId,
+    this.isEditing = false,
+    this.originalSegments,
   });
 
   factory SegmentedLyricsState.initial() => const SegmentedLyricsState(
-    segments: [],
-    isSegmented: false,
-    isLoading: false,
-    songTitle: null,
-    isSaved: false,
-  );
+        segments: [],
+        isSegmented: false,
+        isLoading: false,
+        songTitle: null,
+        isSaved: false,
+        songId: null,
+        isEditing: false,
+        originalSegments: null,
+      );
+
+  bool get hasChanges {
+    if (originalSegments == null) return false;
+    // We ignore isHidden when comparing for changes.
+    // Length check first.
+    if (segments.length != originalSegments!.length) return true;
+
+    for (int i = 0; i < segments.length; i++) {
+      final a = segments[i];
+      final b = originalSegments![i];
+      if (a.text != b.text || a.type != b.type || a.number != b.number) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   SegmentedLyricsState copyWith({
     List<LyricsSegment>? segments,
@@ -84,6 +109,9 @@ class SegmentedLyricsState {
     bool? isLoading,
     String? songTitle,
     bool? isSaved,
+    String? songId,
+    bool? isEditing,
+    List<LyricsSegment>? originalSegments,
   }) {
     return SegmentedLyricsState(
       segments: segments ?? this.segments,
@@ -91,6 +119,9 @@ class SegmentedLyricsState {
       isLoading: isLoading ?? this.isLoading,
       songTitle: songTitle ?? this.songTitle,
       isSaved: isSaved ?? this.isSaved,
+      songId: songId ?? this.songId,
+      isEditing: isEditing ?? this.isEditing,
+      originalSegments: originalSegments ?? this.originalSegments,
     );
   }
 }

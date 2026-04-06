@@ -78,6 +78,7 @@ class AppColors {
   static const Color borderHover = orange100;
   static const Color borderBrand = orange400;
   static const Color borderInverse = gray0;
+  static const Color borderWarning = Color(0xFFE0A800);
 
   // ─── Button State Tokens (brand) ──────────────────────────────────────────
 
@@ -100,6 +101,7 @@ class AppColors {
   static const Color iconMinimal = gray200;
   static const Color iconInverse = gray0;
   static const Color iconBrand = orange400;
+  static const Color iconWarning = Color(0xFFC29100);
 
   // ─── Presentation Screen ──────────────────────────────────────────────────
 

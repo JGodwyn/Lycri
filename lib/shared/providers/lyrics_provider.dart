@@ -75,6 +75,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
         segments: merged,
         isSegmented: true,
         isLoading: false,
+        isEditing: false,
       );
       _syncToRaw();
       return;
@@ -88,6 +89,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       segments: segments,
       isSegmented: true,
       isLoading: false,
+      isEditing: false,
     );
   }
 
@@ -214,9 +216,12 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   }
 
   /// Saves the current lyric segments to the database.
-  Future<void> saveLyric(String title) async {
+  Future<void> saveLyric([String? title]) async {
     final rawText = _ref.read(lyricsProvider) ?? '';
     
+    final toSaveTitle = title ?? state.songTitle ?? 'Untitled';
+    final songId = state.songId ?? _uuid.v4();
+
     // Regenerate segment IDs to prevent UNIQUE constraint collisions
     // if the user re-saves or saves multiple times.
     final freshSegments = state.segments.map((s) {
@@ -226,8 +231,8 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     // We update the state to indicate it's saved. Save state doesn't need
     // loading indicators here; the UI handles the quick check transition.
     final model = SongDomainModel(
-      id: _uuid.v4(),
-      title: title,
+      id: songId,
+      title: toSaveTitle,
       originalText: rawText,
       segments: freshSegments,
       createdAt: DateTime.now(),
@@ -241,9 +246,60 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     // Also store the newly generated segment IDs back in memory.
     state = state.copyWith(
       segments: freshSegments,
-      songTitle: title,
+      songTitle: toSaveTitle,
       isSaved: true,
+      songId: songId,
+      originalSegments: freshSegments,
     );
+  }
+
+  /// Loads an existing lyric from the database and jumps directly to segmented view.
+  void loadSong(SongDomainModel song) {
+    _cachedSegments = List.from(song.segments);
+    state = SegmentedLyricsState(
+      segments: song.segments,
+      isSegmented: true,
+      isLoading: false,
+      songTitle: song.title,
+      isSaved: true,
+      songId: song.id,
+      isEditing: false,
+      originalSegments: song.segments,
+    );
+    _syncToRaw();
+    _ref.read(activeLineProvider.notifier).jumpTo(0);
+  }
+
+  /// Switches to raw-text editing mode for an already saved lyric.
+  void editSavedLyric() {
+    // Cache the segments (just like `reset()` does)
+    if (state.segments.isNotEmpty) {
+      _cachedSegments = List<LyricsSegment>.from(state.segments);
+    }
+    
+    // Ensure hidden text is visible in raw view
+    final hasHidden = state.segments.any((s) => s.isHidden);
+    if (hasHidden) {
+      final restored = [
+        for (final s in state.segments)
+          if (s.isHidden) s.copyWith(isHidden: false) else s,
+      ];
+      state = state.copyWith(segments: restored);
+      _syncToRaw();
+    }
+
+    // Go to un-segmented view but keep save info!
+    state = state.copyWith(
+      isSegmented: false,
+      isEditing: true,
+    );
+  }
+
+  /// Cancels editing mode. Leaves the current text in the view but 
+  /// disconnects it from the saved lyric by dropping all edit metadata.
+  void cancelEdit() {
+    _cachedSegments = null;
+    state = SegmentedLyricsState.initial();
   }
 
   /// Completely wipes all lyrics, clears the cache, and returns to bare view.
