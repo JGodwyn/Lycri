@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../features/operator/models/lyrics_segment.dart';
@@ -52,9 +53,16 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     final rawText = _ref.read(lyricsProvider);
     if (rawText == null || rawText.isEmpty) return;
 
+    // Pre-process: strip [Chorus], [Verse], etc. and clean up whitespace.
+    final cleanedText = _preprocessText(rawText);
+    if (cleanedText.isEmpty) return;
+
+    // Push the cleaned text back so the raw view shows stripped lyrics.
+    _ref.read(lyricsProvider.notifier).update(cleanedText);
+
     // If we have a cache, merge the (possibly edited) text into it.
     if (_cachedSegments != null && _cachedSegments!.isNotEmpty) {
-      final merged = _mergeWithCache(rawText);
+      final merged = _mergeWithCache(cleanedText);
       state = state.copyWith(
         segments: merged,
         isSegmented: true,
@@ -68,7 +76,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     state = state.copyWith(isLoading: true);
     await Future.delayed(const Duration(milliseconds: 1500));
 
-    final segments = _segmentLyrics(rawText);
+    final segments = _segmentLyrics(cleanedText);
     state = state.copyWith(
       segments: segments,
       isSegmented: true,
@@ -77,19 +85,24 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   }
 
   /// Merges new raw text into cached segments, preserving metadata
-  /// (isHidden, type, order) for blocks that still exist.
+  /// (isHidden, type) for blocks that match cached content.
+  /// Uses _segmentLyrics for smart splitting (including elastic snapping),
+  /// then overlays cached metadata on matched segments.
   List<LyricsSegment> _mergeWithCache(String newRawText) {
-    final newBlocks = _splitIntoBlocks(newRawText);
+    // Run full segmentation logic (elastic snapping, chorus detection, etc.).
+    final freshSegments = _segmentLyrics(newRawText);
+    if (freshSegments.isEmpty) return [];
+
     final usedCacheIndices = <int>{};
     final result = <LyricsSegment>[];
 
-    for (final block in newBlocks) {
+    for (final segment in freshSegments) {
       int bestIndex = -1;
       double bestScore = 0.0;
 
       for (int i = 0; i < _cachedSegments!.length; i++) {
         if (usedCacheIndices.contains(i)) continue;
-        final score = _textSimilarity(block, _cachedSegments![i].text);
+        final score = _textSimilarity(segment.text, _cachedSegments![i].text);
         if (score > bestScore && score > 0.4) {
           bestScore = score;
           bestIndex = i;
@@ -97,60 +110,80 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       }
 
       if (bestIndex != -1) {
-        // Matched — keep metadata (type, isHidden), update text.
+        // Matched — preserve cached metadata (type, isHidden), update text.
         usedCacheIndices.add(bestIndex);
-        result.add(_cachedSegments![bestIndex].copyWith(text: block));
+        result.add(_cachedSegments![bestIndex].copyWith(text: segment.text));
       } else {
-        // New block — create a fresh verse segment.
-        result.add(LyricsSegment(
-          id: _uuid.v4(),
-          text: block,
-          type: LyricsSegmentType.verse,
-          number: 1,
-        ));
+        // No cache match — keep the freshly-detected segment as-is.
+        result.add(segment);
       }
     }
 
     return result;
   }
 
-  /// Splits raw text into blocks separated by empty lines.
-  List<String> _splitIntoBlocks(String text) {
-    final blocks = <String>[];
-    final lines = text.split('\n');
-    final current = <String>[];
-
-    for (final line in lines) {
-      if (line.trim().isEmpty) {
-        if (current.isNotEmpty) {
-          blocks.add(current.join('\n'));
-          current.clear();
-        }
-      } else {
-        current.add(line);
-      }
-    }
-    if (current.isNotEmpty) {
-      blocks.add(current.join('\n'));
-    }
-    return blocks;
-  }
-
   /// Calculates similarity between two text blocks (0.0 – 1.0)
-  /// based on the proportion of shared non-empty lines.
+  /// using fuzzy line matching via normalized Levenshtein distance.
+  /// A line is considered a match if its edit distance ≤ 20% (per SMAP 2013).
   double _textSimilarity(String a, String b) {
     final linesA =
-        a.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+        a.split('\n').map((l) => _normalizeLine(l)).where((l) => l.isNotEmpty).toList();
     final linesB =
-        b.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+        b.split('\n').map((l) => _normalizeLine(l)).where((l) => l.isNotEmpty).toList();
     if (linesA.isEmpty && linesB.isEmpty) return 1.0;
     if (linesA.isEmpty || linesB.isEmpty) return 0.0;
 
-    final setB = linesB.toSet();
-    final matches = linesA.where((l) => setB.contains(l)).length;
-    // Proportion of the larger block that overlaps.
+    int matches = 0;
+    final usedB = <int>{};
+    for (final lineA in linesA) {
+      double bestDist = 1.0;
+      int bestIdx = -1;
+      for (int j = 0; j < linesB.length; j++) {
+        if (usedB.contains(j)) continue;
+        final dist = _normalizedLevenshtein(lineA, linesB[j]);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = j;
+        }
+      }
+      if (bestDist <= 0.2 && bestIdx != -1) {
+        matches++;
+        usedB.add(bestIdx);
+      }
+    }
     final maxLen = linesA.length > linesB.length ? linesA.length : linesB.length;
     return matches / maxLen;
+  }
+
+  /// Normalizes a line for comparison: lowercase, strip punctuation.
+  static String _normalizeLine(String line) {
+    return line.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s]'), '');
+  }
+
+  /// Normalized Levenshtein distance (0.0 = identical, 1.0 = completely different).
+  /// Standard DP edit-distance divided by the length of the longer string.
+  static double _normalizedLevenshtein(String a, String b) {
+    if (a == b) return 0.0;
+    if (a.isEmpty) return 1.0;
+    if (b.isEmpty) return 1.0;
+
+    final m = a.length;
+    final n = b.length;
+    // Use single-row DP for memory efficiency.
+    var prev = List<int>.generate(n + 1, (j) => j);
+    var curr = List<int>.filled(n + 1, 0);
+
+    for (int i = 1; i <= m; i++) {
+      curr[0] = i;
+      for (int j = 1; j <= n; j++) {
+        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+        curr[j] = min(min(curr[j - 1] + 1, prev[j] + 1), prev[j - 1] + cost);
+      }
+      final tmp = prev;
+      prev = curr;
+      curr = tmp;
+    }
+    return prev[n] / max(m, n);
   }
 
   /// Reverts back to raw text mode, caching the current segmented state.
@@ -382,11 +415,65 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     _ref.read(lyricsProvider.notifier).update(combined);
   }
 
+  /// Regex matching structural section tags: [Chorus], [Verse 1], (Bridge), etc.
+  /// Used both for label detection and for stripping from output text.
+  static final _sectionTagPattern = RegExp(
+    r'\[\s*(?:verse|chorus|hook|bridge|intro|outro|pre[- ]?chorus|refrain|lift|break|interlude|instrumental|solo|tag|coda|ad[- ]?lib)(?:\s*\d*)\s*\]'
+    r'|'
+    r'\(\s*(?:verse|chorus|hook|bridge|intro|outro|pre[- ]?chorus|refrain|lift|break|interlude|instrumental|solo|tag|coda|ad[- ]?lib)(?:\s*\d*)\s*\)',
+    caseSensitive: false,
+  );
+
+  /// Pre-processes raw lyrics text before segmentation:
+  /// 1. Strips all bracketed/parenthesized section tags ([Chorus], (Verse 2), etc.)
+  /// 2. Collapses runs of blank lines into a single blank line
+  /// 3. Trims trailing whitespace from each line
+  String _preprocessText(String rawText) {
+    // Strip section tags (both standalone and inline).
+    var cleaned = rawText.replaceAll(_sectionTagPattern, '');
+
+    // Normalize each line: trim trailing whitespace.
+    final lines = cleaned.split('\n').map((l) => l.trimRight()).toList();
+
+    // Collapse multiple consecutive blank lines into one.
+    final result = <String>[];
+    bool lastWasBlank = false;
+    for (final line in lines) {
+      if (line.trim().isEmpty) {
+        if (!lastWasBlank) {
+          result.add('');
+          lastWasBlank = true;
+        }
+      } else {
+        result.add(line);
+        lastWasBlank = false;
+      }
+    }
+
+    return result.join('\n').trim();
+  }
+
+  /// Calculates fuzzy block similarity (0.0 – 1.0) for chorus grouping.
+  /// Uses normalized Levenshtein on the full block text.
+  double _blockSimilarity(String a, String b) {
+    final na = _normalizeLine(a);
+    final nb = _normalizeLine(b);
+    if (na.isEmpty && nb.isEmpty) return 1.0;
+    if (na.isEmpty || nb.isEmpty) return 0.0;
+    return 1.0 - _normalizedLevenshtein(na, nb);
+  }
+
   /// Intelligent logic to split text into structured song sections.
+  /// Pre-processes text to strip section tags, then uses fuzzy
+  /// repetition detection (Levenshtein ≤ 20%) to auto-identify choruses.
   List<LyricsSegment> _segmentLyrics(String rawText) {
     if (rawText.trim().isEmpty) return [];
 
-    final lines = rawText.split('\n');
+    // Pre-process: strip [Chorus], [Verse], etc. and normalize whitespace.
+    final cleanedText = _preprocessText(rawText);
+    if (cleanedText.isEmpty) return [];
+
+    final lines = cleanedText.split('\n');
     final rawBlocks = <_RawBlock>[];
     var currentLines = <String>[];
     String? currentLabel;
@@ -403,7 +490,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       }
 
       // Check if line is an explicit structural label (e.g. [Chorus], (Verse 1))
-      // It MUST match the pattern AND contain a known section keyword to be a label.
+      // After pre-processing these should already be stripped, but handle edge cases.
       if (_isExplicitLabel(t)) {
         if (currentLines.isNotEmpty || currentLabel != null) {
           rawBlocks.addAll(_createLyricalBlocks(currentLines, currentLabel));
@@ -420,32 +507,46 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
 
     if (rawBlocks.isEmpty) return [];
 
-    final blockStrings = rawBlocks.map((b) => b.text.toLowerCase().trim()).toList();
-    final frequency = <String, int>{};
-    for (var s in blockStrings) {
-      frequency[s] = (frequency[s] ?? 0) + 1;
+    // --- Fuzzy chorus detection (SMAP 2013 approach) ---
+    // Group blocks by similarity: blocks with ≥ 80% similarity are in the
+    // same group. Groups with 2+ members are auto-tagged as choruses.
+    final chorusIndices = <int>{};
+    final grouped = <int>{}; // Tracks blocks already assigned to a group.
+
+    for (int i = 0; i < rawBlocks.length; i++) {
+      if (grouped.contains(i) || rawBlocks[i].explicitLabel != null) continue;
+      final group = <int>[i];
+      for (int j = i + 1; j < rawBlocks.length; j++) {
+        if (grouped.contains(j) || rawBlocks[j].explicitLabel != null) continue;
+        final sim = _blockSimilarity(rawBlocks[i].text, rawBlocks[j].text);
+        if (sim >= 0.8) {
+          group.add(j);
+        }
+      }
+      if (group.length >= 2) {
+        chorusIndices.addAll(group);
+        grouped.addAll(group);
+      }
     }
-    final chorusTexts = frequency.entries.where((e) => e.value > 1).map((e) => e.key).toSet();
 
     final segments = <LyricsSegment>[];
     final counts = <LyricsSegmentType, int>{};
 
     for (int i = 0; i < rawBlocks.length; i++) {
       final block = rawBlocks[i];
-      final normText = block.text.toLowerCase().trim();
       LyricsSegmentType type = LyricsSegmentType.verse;
 
       if (block.explicitLabel != null) {
         type = _labelToType(block.explicitLabel!);
-      } else if (chorusTexts.contains(normText)) {
+      } else if (chorusIndices.contains(i)) {
         type = LyricsSegmentType.chorus;
       } else if (i == 0 && block.lineCount <= 2) {
         type = LyricsSegmentType.intro;
       } else if (i == rawBlocks.length - 1 && block.lineCount <= 2) {
         type = LyricsSegmentType.outro;
       } else if (i < rawBlocks.length - 1 && 
-                 segments.length > 0 && 
-                 chorusTexts.contains(rawBlocks[i + 1].text.toLowerCase().trim())) {
+                 segments.isNotEmpty && 
+                 chorusIndices.contains(i + 1)) {
         type = block.lineCount <= 4 ? LyricsSegmentType.preChorus : LyricsSegmentType.bridge;
       }
 
@@ -460,52 +561,69 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     return segments;
   }
 
-  /// Elastic Snapping algorithm: Splits lines into blocks by finding the most "Lyrical" break points.
+  /// Elastic Snapping algorithm: Splits lines into blocks by finding the most
+  /// "lyrical" break points. Uses rhyme preservation, rhythmic balance, and
+  /// content-shift detection to find natural stanza boundaries.
   List<_RawBlock> _createLyricalBlocks(List<String> lines, String? explicitLabel) {
     if (lines.isEmpty) {
       return explicitLabel != null ? [_RawBlock(text: '', explicitLabel: explicitLabel)] : [];
     }
+
+    // Max stanza size for presentation (8 lines fits most screens well).
+    const maxStanza = 8;
 
     final blocks = <_RawBlock>[];
     int start = 0;
 
     while (start < lines.length) {
       final remaining = lines.length - start;
-      if (remaining <= 10) {
-        // Last block: no need to score, just take it all.
+      if (remaining <= maxStanza) {
+        // Last block: small enough to keep whole.
         final stanza = lines.sublist(start).join('\n');
         blocks.add(_RawBlock(text: stanza, explicitLabel: start == 0 ? explicitLabel : null));
         break;
       }
 
-      // Elastic Window: Scan potential split points between lines 4 and 10.
-      int bestSplitOffset = 8;
-      double bestScore = -1.0;
+      // Elastic Window: Score split points between lines 3 and maxStanza.
+      int bestSplitOffset = 4; // Default to couplet-aligned (4 lines).
+      double bestScore = -100.0;
 
-      for (int offset = 4; offset <= 10; offset++) {
+      for (int offset = 3; offset <= maxStanza; offset++) {
         final currentPoint = start + offset;
         if (currentPoint >= lines.length) break;
 
         double score = 0.0;
-        
-        // 1. Even line count bonus (rhythmic balance)
+
+        // 1. Even line count bonus (couplet-aligned / rhythmic balance).
         if (offset % 2 == 0) score += 2.0;
 
-        // 2. Rhyme Preservation (Highest Priority)
-        // Check if splitting AT the current point breaks a rhyme couplet (i-1 vs i)
-        // Or if it completes a verse on a strong rhyme (i-1 vs i-2).
+        // 2. Proximity to ideal stanza size (4 lines = one quatrain).
+        //    Biases toward 4-line stanzas but allows up to maxStanza.
+        score += (4.0 - (offset - 4).abs()) * 1.5;
+
+        // 3. Rhyme Preservation (Highest Priority)
         final lineBefore = lines[currentPoint - 1];
         final lineTwoBefore = currentPoint > 1 ? lines[currentPoint - 2] : null;
         final nextLine = lines[currentPoint];
 
         final isCoupletEnd = lineTwoBefore != null && _RhymeAnalyzer.isRhyme(lineBefore, lineTwoBefore);
         final breaksCouplet = _RhymeAnalyzer.isRhyme(lineBefore, nextLine);
-        
-        if (isCoupletEnd) score += 5.0; // Ends on a satisfying rhyme
+
+        if (isCoupletEnd) score += 5.0; // Ends on a satisfying rhyme.
         if (breaksCouplet) score -= 8.0; // DON'T split here if it breaks a rhyme!
 
-        // 3. Proximity to ideal size (8 lines)
-        score += (8 - (offset - 8).abs()).toDouble();
+        // 4. Content-shift signal: if the vocabulary between the line before
+        //    and the line after the split is very different, there's likely a
+        //    natural section change (e.g., verse → refrain). Reward that.
+        final wordsBefore = _normalizeLine(lineBefore).split(RegExp(r'\s+')).toSet();
+        final wordsAfter = _normalizeLine(nextLine).split(RegExp(r'\s+')).toSet();
+        if (wordsBefore.isNotEmpty && wordsAfter.isNotEmpty) {
+          final overlap = wordsBefore.intersection(wordsAfter).length;
+          final maxWords = max(wordsBefore.length, wordsAfter.length);
+          final similarity = overlap / maxWords;
+          // Low overlap → likely a section change → bonus.
+          if (similarity < 0.15) score += 3.0;
+        }
 
         if (score > bestScore) {
           bestScore = score;
