@@ -41,6 +41,13 @@ class SongRepository {
     return results;
   }
 
+  /// Check if a song exactly matches the given title (case-insensitive)
+  Future<bool> doesTitleExist(String title) async {
+    final query = _db.select(_db.songs)..where((t) => t.title.equals(title));
+    final result = await query.get();
+    return result.isNotEmpty;
+  }
+
   /// Save (insert or update) a song and its segments.
   Future<void> saveSong(SongDomainModel model) async {
     await _db.transaction(() async {

@@ -217,13 +217,19 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   Future<void> saveLyric(String title) async {
     final rawText = _ref.read(lyricsProvider) ?? '';
     
+    // Regenerate segment IDs to prevent UNIQUE constraint collisions
+    // if the user re-saves or saves multiple times.
+    final freshSegments = state.segments.map((s) {
+      return s.copyWith(id: '${_uuid.v4()}_${s.type.name}_${s.number}');
+    }).toList();
+
     // We update the state to indicate it's saved. Save state doesn't need
     // loading indicators here; the UI handles the quick check transition.
     final model = SongDomainModel(
       id: _uuid.v4(),
       title: title,
       originalText: rawText,
-      segments: state.segments,
+      segments: freshSegments,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -232,7 +238,12 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     await _ref.read(songRepositoryProvider).saveSong(model);
 
     // Update the local state to show it's saved with the given title
-    state = state.copyWith(songTitle: title, isSaved: true);
+    // Also store the newly generated segment IDs back in memory.
+    state = state.copyWith(
+      segments: freshSegments,
+      songTitle: title,
+      isSaved: true,
+    );
   }
 
   /// Completely wipes all lyrics, clears the cache, and returns to bare view.

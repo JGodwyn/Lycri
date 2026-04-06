@@ -88,8 +88,8 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
   @override
   Widget build(BuildContext context) {
     final segmentedState = ref.watch(segmentedLyricsProvider);
-    final isSegmented = segmentedState.isSegmented;
     final isLoading = segmentedState.isLoading;
+    final isSegmented = segmentedState.isSegmented;
 
     // Listen for loading state changes to trigger/stop animations correctly.
     ref.listen(segmentedLyricsProvider, (prev, next) {
@@ -249,20 +249,84 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                         key: const ValueKey('segmented'),
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (segmentedState.songTitle != null)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: AppSpacing.xl,
-                                right: AppSpacing.xl,
-                                bottom: AppSpacing.md,
-                              ),
-                              child: Text(
-                                segmentedState.songTitle!,
-                                style: AppTypography.headingSm.copyWith(
-                                  color: AppColors.textBold,
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            transitionBuilder: (child, animation) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: AnimatedBuilder(
+                                  animation: animation,
+                                  builder: (context, _) {
+                                    final blur = (1.0 - animation.value) * 12.0;
+                                    return ImageFiltered(
+                                      imageFilter: ImageFilter.blur(
+                                        sigmaX: blur,
+                                        sigmaY: blur,
+                                      ),
+                                      child: child,
+                                    );
+                                  },
                                 ),
-                              ),
-                            ),
+                              );
+                            },
+                            child:
+                                segmentedState.songTitle != null
+                                    ? Padding(
+                                      key: ValueKey(segmentedState.songTitle),
+                                      padding: const EdgeInsets.only(
+                                        left: AppSpacing.xl,
+                                        right: AppSpacing.xl,
+                                        bottom: AppSpacing.lg,
+                                      ),
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: AppSpacing.lg,
+                                            vertical: AppSpacing.sm,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.surface3,
+                                            borderRadius: BorderRadius.circular(
+                                              AppRadius.full,
+                                            ),
+                                            border: Border.all(
+                                              color: AppColors.borderMinimal,
+                                              width: AppStroke.md,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              SvgPicture.asset(
+                                                'assets/vectors/list-check.svg',
+                                                width: 16,
+                                                height: 16,
+                                                colorFilter:
+                                                    const ColorFilter.mode(
+                                                      AppColors.iconSubtle,
+                                                      BlendMode.srcIn,
+                                                    ),
+                                              ),
+                                              const SizedBox(
+                                                width: AppSpacing.md,
+                                              ),
+                                              Text(
+                                                segmentedState.songTitle!,
+                                                style: AppTypography.bodyLg
+                                                    .copyWith(
+                                                      color: AppColors.textBold,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    : const SizedBox.shrink(
+                                      key: ValueKey('empty_title'),
+                                    ),
+                          ),
                           const Expanded(child: SegmentedLyricsView()),
                         ],
                       )
