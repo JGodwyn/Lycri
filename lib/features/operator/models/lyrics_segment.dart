@@ -59,28 +59,38 @@ class SegmentedLyricsState {
   final List<LyricsSegment> segments;
   final bool isSegmented;
   final bool isLoading;
+  final String? songTitle;
+  final bool isSaved;
 
   const SegmentedLyricsState({
     required this.segments,
     required this.isSegmented,
     this.isLoading = false,
+    this.songTitle,
+    this.isSaved = false,
   });
 
   factory SegmentedLyricsState.initial() => const SegmentedLyricsState(
     segments: [],
     isSegmented: false,
     isLoading: false,
+    songTitle: null,
+    isSaved: false,
   );
 
   SegmentedLyricsState copyWith({
     List<LyricsSegment>? segments,
     bool? isSegmented,
     bool? isLoading,
+    String? songTitle,
+    bool? isSaved,
   }) {
     return SegmentedLyricsState(
       segments: segments ?? this.segments,
       isSegmented: isSegmented ?? this.isSegmented,
       isLoading: isLoading ?? this.isLoading,
+      songTitle: songTitle ?? this.songTitle,
+      isSaved: isSaved ?? this.isSaved,
     );
   }
 }

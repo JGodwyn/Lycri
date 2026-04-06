@@ -13,6 +13,7 @@ class LycriTextField extends StatelessWidget {
     super.key,
     this.controller,
     this.onChanged,
+    this.onSubmitted,
     this.hintText,
     this.prefixIcon,
     this.autoFocus = false,
@@ -21,6 +22,7 @@ class LycriTextField extends StatelessWidget {
 
   final TextEditingController? controller;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final String? hintText;
   final Widget? prefixIcon;
   final bool autoFocus;
@@ -29,7 +31,10 @@ class LycriTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xmd),
+      padding: EdgeInsets.only(
+        left: prefixIcon != null ? AppSpacing.xmd : AppSpacing.u2xs,
+        right: AppSpacing.xs,
+      ),
       height: 40,
       decoration: BoxDecoration(
         color: AppColors.surface3,
@@ -44,9 +49,10 @@ class LycriTextField extends StatelessWidget {
             child: TextField(
               controller: controller,
               onChanged: onChanged,
+              onSubmitted: onSubmitted,
               autofocus: autoFocus,
               textAlignVertical: TextAlignVertical.center,
-              style: AppTypography.bodyMd.copyWith(color: AppColors.textBold),
+              style: AppTypography.bodyLg.copyWith(color: AppColors.textBold),
               cursorColor: AppColors.textBrand,
               decoration: InputDecoration(
                 isDense: true,

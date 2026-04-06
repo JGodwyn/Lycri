@@ -64,7 +64,7 @@ class AppColors {
   // Semantic surfaces
   static const Color surfaceDanger = Color(0xFFBA0000);
   static const Color surfaceDangerLight = Color(0xFFFFE4E4);
-  static const Color surfaceSuccess = Color(0xFF008A00);
+  static const Color surfaceSuccess = Color(0xFF00A600);
   static const Color surfaceSuccessLight = Color(0xFFD5FFD5);
   static const Color surfaceWarning = Color(0xFFA37A00);
   static const Color surfaceWarningLight = Color(0xFFFFFADB);

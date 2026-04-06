@@ -2,6 +2,8 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../features/operator/models/lyrics_segment.dart';
+import '../../features/library/models/song_domain_model.dart';
+import '../../features/library/providers/database_provider.dart';
 import 'active_line_provider.dart';
 
 /// Shared lyrics state — `null` means no lyrics sent yet,
@@ -60,8 +62,14 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     // Push the cleaned text back so the raw view shows stripped lyrics.
     _ref.read(lyricsProvider.notifier).update(cleanedText);
 
+    // Always enter the loading state so the pulse animation fires
+    state = state.copyWith(isLoading: true);
+
     // If we have a cache, merge the (possibly edited) text into it.
     if (_cachedSegments != null && _cachedSegments!.isNotEmpty) {
+      // Brief delay to ensure the UI pulse animation actually runs and looks intentional
+      await Future.delayed(const Duration(milliseconds: 600));
+
       final merged = _mergeWithCache(cleanedText);
       state = state.copyWith(
         segments: merged,
@@ -73,7 +81,6 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     }
 
     // No cache — fresh segmentation.
-    state = state.copyWith(isLoading: true);
     await Future.delayed(const Duration(milliseconds: 1500));
 
     final segments = _segmentLyrics(cleanedText);
@@ -204,6 +211,28 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       _syncToRaw();
     }
     state = SegmentedLyricsState.initial();
+  }
+
+  /// Saves the current lyric segments to the database.
+  Future<void> saveLyric(String title) async {
+    final rawText = _ref.read(lyricsProvider) ?? '';
+    
+    // We update the state to indicate it's saved. Save state doesn't need
+    // loading indicators here; the UI handles the quick check transition.
+    final model = SongDomainModel(
+      id: _uuid.v4(),
+      title: title,
+      originalText: rawText,
+      segments: state.segments,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    // Persist to the local Drift database
+    await _ref.read(songRepositoryProvider).saveSong(model);
+
+    // Update the local state to show it's saved with the given title
+    state = state.copyWith(songTitle: title, isSaved: true);
   }
 
   /// Completely wipes all lyrics, clears the cache, and returns to bare view.

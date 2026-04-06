@@ -10,6 +10,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/widgets/lycri_button.dart';
 import 'widgets/segmented_lyrics_view.dart';
+import 'widgets/save_lyric_menu.dart';
 
 /// Left panel of the operator window.
 /// Contains the app title, a hint, and a lyrics text field.
@@ -63,18 +64,49 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
     if (mounted) setState(() {});
   }
 
+  Widget _headerActionTransition(Widget child, Animation<double> animation) {
+    return FadeTransition(
+      opacity: animation,
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          // Blur from 8.0 to 0.0 as it appears (animation.value 0 -> 1)
+          // Blur from 0.0 to 8.0 as it leaves (animation.value 1 -> 0)
+          final blurAmount = (1.0 - animation.value) * 8.0;
+          return ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: blurAmount,
+              sigmaY: blurAmount,
+            ),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final segmentedState = ref.watch(segmentedLyricsProvider);
     final isSegmented = segmentedState.isSegmented;
     final isLoading = segmentedState.isLoading;
 
-    if (isLoading) {
-      _pulseController.repeat(reverse: true);
-    } else {
-      _pulseController.stop();
-      _pulseController.value = 0;
-    }
+    // Listen for loading state changes to trigger/stop animations correctly.
+    ref.listen(segmentedLyricsProvider, (prev, next) {
+      final wasLoading = prev?.isLoading ?? false;
+      final isNowLoading = next.isLoading;
+
+      if (!wasLoading && isNowLoading) {
+        if (!_pulseController.isAnimating) {
+          _pulseController.repeat(reverse: true);
+        }
+      } else if (wasLoading && !isNowLoading) {
+        if (_pulseController.isAnimating) {
+          _pulseController.stop();
+          _pulseController.reset();
+        }
+      }
+    });
 
     // When lyrics are cleared externally or updated from segments,
     // sync the text field.
@@ -112,30 +144,74 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                   ),
                 ),
                 const Spacer(),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: AnimatedBuilder(
-                        animation: animation,
-                        builder: (context, _) {
-                          final blurAmount = (1.0 - animation.value) * 8.0;
-                          return ImageFiltered(
-                            imageFilter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
-                            child: child,
-                          );
-                        },
+                SizedBox(
+                  width: 140, // Space for 3 icons + spacing
+                  height: 40,
+                  child: Stack(
+                    alignment: Alignment.centerRight,
+                    children: [
+                      // Save Button (Appears 88px from right)
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeInOutCubic,
+                        right: isSegmented ? 88.0 : 0.0,
+                        top: 0,
+                        bottom: 0,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: _headerActionTransition,
+                          child:
+                              isSegmented
+                                  ? const _SaveActionButton(
+                                    key: ValueKey('save_action_wrapper'),
+                                  )
+                                  : const SizedBox.shrink(),
+                        ),
                       ),
-                    );
-                  },
-                  child: isSegmented
-                      ? _CircularIconButton(
-                          key: const ValueKey('back_btn'),
-                          onTap: () => ref.read(segmentedLyricsProvider.notifier).reset(),
-                          svgAsset: 'assets/vectors/Go-back.svg',
-                        )
-                      : const SizedBox.shrink(),
+
+                      // Search Button (Positions 44px from right if segmented, or at 0 if raw)
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeInOutCubic,
+                        right: isSegmented ? 44.0 : 0.0,
+                        top: 0,
+                        bottom: 0,
+                        child: _CircularIconButton(
+                          key: const ValueKey('search_btn'),
+                          onTap: () {}, // TODO: Implement search
+                          svgAsset: 'assets/vectors/magnifyingglass.svg',
+                        ),
+                      ),
+
+                      // Back Button (Always at 0.0 when present)
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeInOutCubic,
+                        right: 0.0,
+                        top: 0,
+                        bottom: 0,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: _headerActionTransition,
+                          child:
+                              isSegmented
+                                  ? _CircularIconButton(
+                                    key: const ValueKey('back_btn'),
+                                    onTap:
+                                        () =>
+                                            ref
+                                                .read(
+                                                  segmentedLyricsProvider
+                                                      .notifier,
+                                                )
+                                                .reset(),
+                                    svgAsset: 'assets/vectors/Go-back.svg',
+                                  )
+                                  : const SizedBox.shrink(),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -169,7 +245,27 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
               },
               child:
                   isSegmented
-                      ? const SegmentedLyricsView(key: ValueKey('segmented'))
+                      ? Column(
+                        key: const ValueKey('segmented'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (segmentedState.songTitle != null)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: AppSpacing.xl,
+                                right: AppSpacing.xl,
+                                bottom: AppSpacing.md,
+                              ),
+                              child: Text(
+                                segmentedState.songTitle!,
+                                style: AppTypography.headingSm.copyWith(
+                                  color: AppColors.textBold,
+                                ),
+                              ),
+                            ),
+                          const Expanded(child: SegmentedLyricsView()),
+                        ],
+                      )
                       : Column(
                         key: const ValueKey('raw_input'),
                         children: [
@@ -250,52 +346,65 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                 child: AnimatedBuilder(
                                   animation: animation,
                                   builder: (context, _) {
-                                    final blurAmount = (1.0 - animation.value) * 8.0;
+                                    final blurAmount =
+                                        (1.0 - animation.value) * 8.0;
                                     return ImageFiltered(
-                                      imageFilter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+                                      imageFilter: ImageFilter.blur(
+                                        sigmaX: blurAmount,
+                                        sigmaY: blurAmount,
+                                      ),
                                       child: child,
                                     );
                                   },
                                 ),
                               );
                             },
-                            child: (isSegmented || _controller.text.trim().isEmpty)
-                                ? const SizedBox.shrink()
-                                : AnimatedBuilder(
-                                    key: const ValueKey('clean_up_btn'),
-                                    animation: _pulseController,
-                                    builder: (context, child) {
-                                      final pulse = _pulseController.value;
-                                      final opacity = isLoading ? 0.6 : 1.0;
-                                      final blur = isLoading ? (pulse * 4.0) : 0.0;
-                                      
-                                      return Opacity(
-                                        opacity: opacity,
-                                        child: ImageFiltered(
-                                          imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                                          child: child!,
+                            child:
+                                (isSegmented || _controller.text.trim().isEmpty)
+                                    ? const SizedBox.shrink()
+                                    : AnimatedBuilder(
+                                      key: const ValueKey('clean_up_btn'),
+                                      animation: _pulseController,
+                                      builder: (context, child) {
+                                        final pulse = _pulseController.value;
+                                        final opacity = isLoading ? 0.6 : 1.0;
+                                        final blur =
+                                            isLoading ? (pulse * 4.0) : 0.0;
+
+                                        return Opacity(
+                                          opacity: opacity,
+                                          child: ImageFiltered(
+                                            imageFilter: ImageFilter.blur(
+                                              sigmaX: blur,
+                                              sigmaY: blur,
+                                            ),
+                                            child: child!,
+                                          ),
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: AppSpacing.xl,
                                         ),
-                                      );
-                                    },
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                                      child: LycriButton(
-                                        label: 'Clean up',
-                                        leadingSvg: 'assets/vectors/Magic-cap.svg',
-                                        fillWidth: true,
-                                        isLoading: isLoading,
-                                        onPressed: isLoading
-                                            ? null
-                                            : () =>
-                                                ref
-                                                    .read(
-                                                      segmentedLyricsProvider
-                                                          .notifier,
-                                                    )
-                                                    .cleanup(),
+                                        child: LycriButton(
+                                          label: 'Clean up',
+                                          leadingSvg:
+                                              'assets/vectors/Magic-cap.svg',
+                                          fillWidth: true,
+                                          isLoading: isLoading,
+                                          onPressed:
+                                              isLoading
+                                                  ? null
+                                                  : () =>
+                                                      ref
+                                                          .read(
+                                                            segmentedLyricsProvider
+                                                                .notifier,
+                                                          )
+                                                          .cleanup(),
+                                        ),
                                       ),
                                     ),
-                                  ),
                           ),
                         ],
                       ),
@@ -353,6 +462,190 @@ class _CircularIconButtonState extends State<_CircularIconButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SaveActionButton extends ConsumerStatefulWidget {
+  const _SaveActionButton({super.key});
+
+  @override
+  ConsumerState<_SaveActionButton> createState() => _SaveActionButtonState();
+}
+
+class _SaveActionButtonState extends ConsumerState<_SaveActionButton>
+    with TickerProviderStateMixin {
+  bool _showSuccess = false;
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  bool _isMenuOpen = false;
+
+  late final AnimationController _animController;
+  late final Animation<double> _scaleAnim;
+  late final Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+    final curved = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    );
+    _scaleAnim = Tween(begin: 0.92, end: 1.0).animate(curved);
+    _fadeAnim = Tween(begin: 0.0, end: 1.0).animate(curved);
+  }
+
+  @override
+  void dispose() {
+    _closeMenu();
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _toggleMenu() {
+    if (_isMenuOpen) {
+      _closeMenu();
+    } else {
+      _openMenu();
+    }
+  }
+
+  void _openMenu() {
+    _overlayEntry = OverlayEntry(
+      builder:
+          (context) => Stack(
+            children: [
+              // Tap-away barrier
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _closeMenu,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              // Positioned menu
+              Positioned(
+                width: 280,
+                child: CompositedTransformFollower(
+                  link: _layerLink,
+                  showWhenUnlinked: false,
+                  targetAnchor: Alignment.bottomLeft,
+                  followerAnchor: Alignment.topLeft,
+                  offset: const Offset(0, 4), // Directly below with a 4px gap
+                  child: Material(
+                    color: Colors.transparent,
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
+                      child: ScaleTransition(
+                        scale: _scaleAnim,
+                        child: SaveLyricMenu(
+                          onClose: _closeMenu,
+                          onSave: (title) => _confirmSave(title),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+    _animController.forward();
+    setState(() => _isMenuOpen = true);
+  }
+
+  void _closeMenu() {
+    if (!_isMenuOpen) return;
+    _animController.reverse().then((_) {
+      _overlayEntry?.remove();
+      _overlayEntry = null;
+    });
+    if (mounted) setState(() => _isMenuOpen = false);
+  }
+
+  Future<void> _confirmSave(String title) async {
+    _closeMenu();
+
+    // Tiny delay to ensure menu closes before success animation starts
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    await ref.read(segmentedLyricsProvider.notifier).saveLyric(title);
+
+    if (mounted) {
+      setState(() => _showSuccess = true);
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        setState(() => _showSuccess = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isSaved = ref.watch(segmentedLyricsProvider).isSaved;
+
+    Widget child;
+
+    if (_showSuccess) {
+      child = Container(
+        key: const ValueKey('success'),
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceSuccess,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          'assets/vectors/check-large.svg',
+          width: 20,
+          height: 20,
+          colorFilter: const ColorFilter.mode(
+            AppColors.iconInverse,
+            BlendMode.srcIn,
+          ),
+        ),
+      );
+    } else if (isSaved) {
+      child = Container(
+        key: const ValueKey('saved'),
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(
+          color: AppColors.surface3,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          'assets/vectors/save.svg',
+          width: 20,
+          height: 20,
+          colorFilter: const ColorFilter.mode(
+            AppColors.iconMinimal,
+            BlendMode.srcIn,
+          ),
+        ),
+      );
+    } else {
+      child = CompositedTransformTarget(
+        link: _layerLink,
+        child: _CircularIconButton(
+          key: const ValueKey('not_saved'),
+          onTap: _toggleMenu,
+          svgAsset: 'assets/vectors/save.svg',
+        ),
+      );
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: child,
     );
   }
 }
