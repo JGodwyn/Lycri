@@ -88,9 +88,15 @@ class SongRepository {
 
   /// Delete a song and its segments.
   Future<void> deleteSong(String songId) async {
-    await (_db.delete(_db.songs)..where((t) => t.id.equals(songId))).go();
-    // We already have Cascade Delete referenced, but handling manual cleanup for safety.
-    await (_db.delete(_db.lyricsSegments)..where((t) => t.songId.equals(songId))).go();
+    await _db.transaction(() async {
+      // 1. Delete associated segments first to avoid foreign key violation
+      await (_db.delete(_db.lyricsSegments)
+            ..where((t) => t.songId.equals(songId)))
+          .go();
+
+      // 2. Now delete the song
+      await (_db.delete(_db.songs)..where((t) => t.id.equals(songId))).go();
+    });
   }
 
   // ==== Internals ====

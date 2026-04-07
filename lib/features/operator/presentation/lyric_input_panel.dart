@@ -7,8 +7,11 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../shared/providers/lyrics_provider.dart';
+import 'package:lycri_lyrics/shared/providers/lyrics_provider.dart';
+import 'package:lycri_lyrics/shared/utils/dialog_utils.dart';
 import '../../../shared/widgets/lycri_button.dart';
+import 'package:lycri_lyrics/features/operator/presentation/widgets/lyric_search_dialog.dart';
+import 'package:lycri_lyrics/features/operator/presentation/widgets/save_lyric_dialog.dart';
 import 'widgets/segmented_lyrics_view.dart';
 import 'widgets/save_lyric_menu.dart';
 
@@ -182,7 +185,12 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                         bottom: 0,
                         child: _CircularIconButton(
                           key: const ValueKey('search_btn'),
-                          onTap: () {}, // TODO: Implement search
+                          onTap: () {
+                            showLycriDialog(
+                              context: context,
+                              builder: (context) => const LyricSearchDialog(),
+                            );
+                          },
                           svgAsset: 'assets/vectors/magnifyingglass.svg',
                         ),
                       ),
