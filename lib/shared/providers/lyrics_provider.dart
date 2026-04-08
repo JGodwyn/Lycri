@@ -253,6 +253,23 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     );
   }
 
+  /// Called when the currently loaded song is deleted from the database.
+  /// We keep the text but mark it as unsaved and remove its identity.
+  void handleCurrentSongDeleted() {
+    // We cannot use copyWith here because copyWith's `??` logic prevents 
+    // setting fields to null.
+    state = SegmentedLyricsState(
+      segments: state.segments,
+      isSegmented: state.isSegmented,
+      isLoading: false,
+      songTitle: null,
+      isSaved: false,
+      songId: null,
+      isEditing: state.isEditing,
+      originalSegments: null,
+    );
+  }
+
   /// Loads an existing lyric from the database and jumps directly to segmented view.
   void loadSong(SongDomainModel song) {
     _cachedSegments = List.from(song.segments);

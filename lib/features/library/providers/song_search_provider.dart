@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lycri_lyrics/features/library/models/song_domain_model.dart';
 import 'package:lycri_lyrics/features/library/providers/database_provider.dart';
+import 'package:lycri_lyrics/shared/providers/lyrics_provider.dart';
 
 /// Notifier to handle search query and results for the library.
 class SongSearchNotifier extends StateNotifier<AsyncValue<List<SongDomainModel>>> {
@@ -14,7 +15,13 @@ class SongSearchNotifier extends StateNotifier<AsyncValue<List<SongDomainModel>>
   /// Search for songs matching the query.
   Future<void> search(String query) async {
     _lastQuery = query;
-    state = const AsyncValue.loading();
+    
+    // Only show full loading state on first load so we don't wipe out the
+    // AnimatedList during search or deletion, which preserves animations.
+    if (!state.hasValue) {
+      state = const AsyncValue.loading();
+    }
+    
     try {
       final repo = _ref.read(songRepositoryProvider);
       final results = query.isEmpty 
@@ -33,6 +40,13 @@ class SongSearchNotifier extends StateNotifier<AsyncValue<List<SongDomainModel>>
   Future<void> deleteSong(String songId) async {
     try {
       final repo = _ref.read(songRepositoryProvider);
+      
+      // Before deleting, check if this is the currently loaded song
+      final currentSegmented = _ref.read(segmentedLyricsProvider);
+      if (currentSegmented.songId == songId) {
+        _ref.read(segmentedLyricsProvider.notifier).handleCurrentSongDeleted();
+      }
+
       await repo.deleteSong(songId);
       // Refresh results
       await search(_lastQuery);

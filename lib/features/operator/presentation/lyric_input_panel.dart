@@ -11,7 +11,6 @@ import 'package:lycri_lyrics/shared/providers/lyrics_provider.dart';
 import 'package:lycri_lyrics/shared/utils/dialog_utils.dart';
 import '../../../shared/widgets/lycri_button.dart';
 import 'package:lycri_lyrics/features/operator/presentation/widgets/lyric_search_dialog.dart';
-import 'package:lycri_lyrics/features/operator/presentation/widgets/save_lyric_dialog.dart';
 import 'widgets/segmented_lyrics_view.dart';
 import 'widgets/save_lyric_menu.dart';
 
@@ -413,7 +412,8 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                         horizontal: AppSpacing.xl,
                                       ),
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           if (segmentedState.isEditing)
                                             Padding(
@@ -422,37 +422,48 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                               ),
                                               child: Container(
                                                 padding: const EdgeInsets.symmetric(
-                                                  horizontal: AppSpacing.xmd,
+                                                  horizontal:
+                                                      AppSpacing
+                                                          .lg, // padding for the banner
                                                   vertical: AppSpacing.md,
                                                 ),
                                                 decoration: BoxDecoration(
-                                                  color: AppColors.surfaceWarningLight,
-                                                  borderRadius: BorderRadius.circular(
-                                                    AppRadius.lg,
-                                                  ),
+                                                  color:
+                                                      AppColors
+                                                          .surfaceWarningLight,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        AppRadius.lg,
+                                                      ),
                                                   border: Border.all(
-                                                    color: AppColors.borderWarning,
+                                                    color:
+                                                        AppColors.borderWarning,
                                                     width: AppStroke.sm,
                                                   ),
                                                 ),
                                                 child: Row(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
                                                   children: [
-                                                    const Padding(
-                                                      padding: EdgeInsets.only(top: 2.0),
-                                                      child: Icon(
-                                                        Icons.info_outline,
-                                                        color: AppColors.iconWarning,
-                                                        size: 20,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: AppSpacing.md),
+                                                    // const Padding(
+                                                    //   padding: EdgeInsets.only(top: 2.0),
+                                                    //   child: Icon(
+                                                    //     Icons.info_outline,
+                                                    //     color: AppColors.iconWarning,
+                                                    //     size: 20,
+                                                    //   ),
+                                                    // ),
+                                                    // const SizedBox(width: AppSpacing.md),
                                                     Expanded(
                                                       child: Text(
                                                         "Editing a saved lyric. Tap cancel to discard changes.",
-                                                        style: AppTypography.bodyLg.copyWith(
-                                                          color: AppColors.textWarning,
-                                                        ),
+                                                        style: AppTypography
+                                                            .bodyLg
+                                                            .copyWith(
+                                                              color:
+                                                                  AppColors
+                                                                      .textWarning,
+                                                            ),
                                                       ),
                                                     ),
                                                   ],
@@ -467,10 +478,11 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                                 const NeverScrollableScrollPhysics(),
                                             textAlignVertical:
                                                 TextAlignVertical.top,
-                                            style: AppTypography.bodyLg.copyWith(
-                                              color: AppColors.textBold,
-                                              height: 1.5,
-                                            ),
+                                            style: AppTypography.bodyLg
+                                                .copyWith(
+                                                  color: AppColors.textBold,
+                                                  height: 1.5,
+                                                ),
                                             decoration: const InputDecoration(
                                               hintText:
                                                   'Start typing or paste your lyric here',
