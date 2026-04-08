@@ -253,6 +253,34 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     );
   }
 
+  /// Updates the song title in the current state and persists to database if already saved.
+  /// Automatically resolves title collisions by appending/incrementing a number.
+  Future<void> updateTitle(String newTitle) async {
+    final trimmedTitle = newTitle.trim();
+    if (trimmedTitle.isEmpty || state.songTitle == trimmedTitle) return;
+
+    final repo = _ref.read(songRepositoryProvider);
+    String candidate = trimmedTitle;
+    int count = 1;
+
+    // Resolve collisions with existing entries in the database.
+    // If we're renaming an already saved song, we don't collision check against itself.
+    while (await repo.doesTitleExist(candidate)) {
+      // If the candidate matches our CURRENT name, we stop here (no real collision)
+      if (candidate == state.songTitle) break;
+      
+      candidate = "$trimmedTitle $count";
+      count++;
+    }
+
+    state = state.copyWith(songTitle: candidate);
+
+    // Auto-save if it's already an identified song in the library
+    if (state.songId != null) {
+      await saveLyric(candidate);
+    }
+  }
+
   /// Called when the currently loaded song is deleted from the database.
   /// We keep the text but mark it as unsaved and remove its identity.
   void handleCurrentSongDeleted() {

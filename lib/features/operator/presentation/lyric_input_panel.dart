@@ -29,8 +29,11 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
+  final _titleFocusNode = FocusNode();
+  final _titleController = TextEditingController();
   late final AnimationController _pulseController;
   bool _clearing = false;
+  bool _isEditingTitle = false;
 
   @override
   void initState() {
@@ -40,6 +43,7 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
       vsync: this,
       duration: const Duration(seconds: 1),
     );
+    _titleFocusNode.addListener(_onTitleFocusChanged);
     // Initialize controller with current lyrics if any
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final current = ref.read(lyricsProvider);
@@ -55,8 +59,40 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _titleFocusNode.dispose();
+    _titleController.dispose();
     _pulseController.dispose();
     super.dispose();
+  }
+
+  void _onTitleFocusChanged() {
+    if (!_titleFocusNode.hasFocus && _isEditingTitle) {
+      _finishEditingTitle();
+    }
+  }
+
+  void _startEditingTitle(String currentTitle) {
+    _titleController.text = currentTitle;
+    setState(() {
+      _isEditingTitle = true;
+    });
+    // Request focus after the text field is rendered
+    Future.delayed(const Duration(milliseconds: 50), () {
+      _titleFocusNode.requestFocus();
+    });
+  }
+
+  void _finishEditingTitle() {
+    if (!_isEditingTitle) return;
+
+    final newTitle = _titleController.text.trim();
+    if (newTitle.isNotEmpty) {
+      ref.read(segmentedLyricsProvider.notifier).updateTitle(newTitle);
+    }
+
+    setState(() {
+      _isEditingTitle = false;
+    });
   }
 
   void _onTextChanged() {
@@ -182,15 +218,27 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                         right: isSegmented ? 44.0 : 0.0,
                         top: 0,
                         bottom: 0,
-                        child: _CircularIconButton(
-                          key: const ValueKey('search_btn'),
-                          onTap: () {
-                            showLycriDialog(
-                              context: context,
-                              builder: (context) => const LyricSearchDialog(),
-                            );
-                          },
-                          svgAsset: 'assets/vectors/magnifyingglass.svg',
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: _headerActionTransition,
+                          child:
+                              segmentedState.isEditing
+                                  ? const SizedBox.shrink(
+                                    key: ValueKey('search_hidden'),
+                                  )
+                                  : _CircularIconButton(
+                                    key: const ValueKey('search_btn'),
+                                    onTap: () {
+                                      showLycriDialog(
+                                        context: context,
+                                        builder:
+                                            (context) =>
+                                                const LyricSearchDialog(),
+                                      );
+                                    },
+                                    svgAsset:
+                                        'assets/vectors/magnifyingglass.svg',
+                                  ),
                         ),
                       ),
 
@@ -331,36 +379,85 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                               width: AppStroke.md,
                                             ),
                                           ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              SvgPicture.asset(
-                                                'assets/vectors/list-check.svg',
-                                                width: 16,
-                                                height: 16,
-                                                colorFilter:
-                                                    const ColorFilter.mode(
-                                                      AppColors.iconSubtle,
-                                                      BlendMode.srcIn,
-                                                    ),
-                                              ),
-                                              const SizedBox(
-                                                width: AppSpacing.md,
-                                              ),
-                                              Flexible(
-                                                child: Text(
+                                          child: GestureDetector(
+                                            onDoubleTap:
+                                                () => _startEditingTitle(
                                                   segmentedState.songTitle!,
-                                                  style: AppTypography.bodyLg
-                                                      .copyWith(
-                                                        color:
-                                                            AppColors.textBold,
-                                                      ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  maxLines: 1,
                                                 ),
-                                              ),
-                                            ],
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                SvgPicture.asset(
+                                                  'assets/vectors/list-check.svg',
+                                                  width: 16,
+                                                  height: 16,
+                                                  colorFilter:
+                                                      const ColorFilter.mode(
+                                                        AppColors.iconSubtle,
+                                                        BlendMode.srcIn,
+                                                      ),
+                                                ),
+                                                const SizedBox(
+                                                  width: AppSpacing.md,
+                                                ),
+                                                Flexible(
+                                                  child:
+                                                      _isEditingTitle
+                                                          ? IntrinsicWidth(
+                                                            child: TextField(
+                                                              controller:
+                                                                  _titleController,
+                                                              focusNode:
+                                                                  _titleFocusNode,
+                                                              style: AppTypography
+                                                                  .bodyLg
+                                                                  .copyWith(
+                                                                    color:
+                                                                        AppColors
+                                                                            .textBold,
+                                                                  ),
+                                                              cursorColor:
+                                                                  AppColors
+                                                                      .textBold,
+                                                              decoration: const InputDecoration(
+                                                                isDense: true,
+                                                                filled: false,
+                                                                contentPadding:
+                                                                    EdgeInsets
+                                                                        .zero,
+                                                                border:
+                                                                    InputBorder
+                                                                        .none,
+                                                                enabledBorder:
+                                                                    InputBorder
+                                                                        .none,
+                                                                focusedBorder:
+                                                                    InputBorder
+                                                                        .none,
+                                                              ),
+                                                              onSubmitted:
+                                                                  (_) =>
+                                                                      _finishEditingTitle(),
+                                                            ),
+                                                          )
+                                                          : Text(
+                                                            segmentedState
+                                                                .songTitle!,
+                                                            style: AppTypography
+                                                                .bodyLg
+                                                                .copyWith(
+                                                                  color:
+                                                                      AppColors
+                                                                          .textBold,
+                                                                ),
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                            maxLines: 1,
+                                                          ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -485,7 +582,7 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                                 ),
                                             decoration: const InputDecoration(
                                               hintText:
-                                                  'Start typing or paste your lyric here',
+                                                  'Start typing, \nPaste your lyric, \nSearch for a saved lyric or, \nUpload a lyric file',
                                               hintStyle: TextStyle(
                                                 color: AppColors.textMinimal,
                                               ),

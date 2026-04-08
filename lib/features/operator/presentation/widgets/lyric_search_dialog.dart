@@ -47,8 +47,11 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
         final removedItem = _items.removeAt(i);
         _listKey.currentState?.removeItem(
           i,
-          (context, animation) =>
-              _buildItem(removedItem, animation, showDivider: i < _items.length),
+          (context, animation) => _buildItem(
+            removedItem,
+            animation,
+            showDivider: i < _items.length,
+          ),
           duration: const Duration(milliseconds: 250),
         );
       }
