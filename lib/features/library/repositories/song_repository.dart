@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:lycri_lyrics/core/database/app_database.dart';
 import 'package:lycri_lyrics/features/library/models/song_domain_model.dart';
 import 'package:lycri_lyrics/features/operator/models/lyrics_segment.dart';
+import 'package:uuid/uuid.dart';
 
 class SongRepository {
   final AppDatabase _db;
@@ -136,5 +138,60 @@ class SongRepository {
   Future<SongDomainModel?> parseFileToSong(String filePath) async {
     // To be implemented when UI is ready
     return null;
+  }
+
+  /// Exports all songs into a JSON string formatted for external backup.
+  Future<String> exportLibraryToJson() async {
+    final songs = await getAllSongs();
+    final jsonList = songs.map((s) => s.toJson()).toList();
+    return jsonEncode(jsonList);
+  }
+
+  /// Imports a JSON string backup, auto-incrementing duplicate titles.
+  /// Returns the number of songs successfully imported.
+  Future<int> importLibraryFromJson(String jsonStr) async {
+    try {
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is! List) return 0;
+      
+      final uuid = const Uuid();
+      int importedCount = 0;
+
+      for (final item in decoded) {
+        if (item is! Map<String, dynamic>) continue;
+        
+        final tempSong = SongDomainModel.fromJson(item);
+        
+        // Handle name collisions
+        String candidate = tempSong.title.trim();
+        if (candidate.isEmpty) candidate = "Untitled";
+        
+        int count = 1;
+        while (await doesTitleExist(candidate)) {
+          candidate = "${tempSong.title.trim()} $count";
+          count++;
+        }
+        
+        // Generate entirely new IDs so we don't conflict with existing DB keys (append logic)
+        final newSongId = uuid.v4();
+        
+        final freshSegments = tempSong.segments.map((s) {
+          return s.copyWith(id: '${uuid.v4()}_${s.type.name}_${s.number}');
+        }).toList();
+
+        final finalSong = tempSong.copyWith(
+          id: newSongId,
+          title: candidate,
+          segments: freshSegments,
+        );
+
+        await saveSong(finalSong);
+        importedCount++;
+      }
+      return importedCount;
+    } catch (e) {
+      // In a real app we might log this error.
+      return 0;
+    }
   }
 }

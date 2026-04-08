@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:lycri_lyrics/core/theme/app_colors.dart';
 import 'package:lycri_lyrics/core/theme/app_radius.dart';
 import 'package:lycri_lyrics/core/theme/app_spacing.dart';
@@ -8,6 +10,7 @@ import 'package:lycri_lyrics/core/theme/app_stroke.dart';
 import 'package:lycri_lyrics/core/theme/app_typography.dart';
 import 'package:lycri_lyrics/features/library/models/song_domain_model.dart';
 import 'package:lycri_lyrics/features/library/providers/song_search_provider.dart';
+import 'package:lycri_lyrics/features/library/providers/database_provider.dart';
 import 'package:lycri_lyrics/shared/providers/lyrics_provider.dart';
 import 'package:lycri_lyrics/shared/widgets/lycri_text_field.dart';
 
@@ -70,6 +73,35 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
     }
   }
 
+  Future<void> _handleExport() async {
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Export Library',
+      fileName: 'lycri_library_export.json',
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (path != null) {
+      final jsonStr = await ref.read(songRepositoryProvider).exportLibraryToJson();
+      final file = File(path);
+      await file.writeAsString(jsonStr);
+    }
+  }
+
+  Future<void> _handleImport() async {
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Import Library',
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
+      final jsonStr = await file.readAsString();
+      await ref.read(songRepositoryProvider).importLibraryFromJson(jsonStr);
+      // Refresh the list to show newly imported lyrics smoothly
+      ref.read(songSearchProvider.notifier).search(_searchController.text);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final searchResults = ref.watch(songSearchProvider);
@@ -114,15 +146,51 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
                           color: AppColors.textBold,
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: AppColors.iconSubtle,
-                          size: 20,
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        splashRadius: 18,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: _handleImport,
+                            icon: SvgPicture.asset(
+                              'assets/vectors/Import-down.svg',
+                              width: 18,
+                              height: 18,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.iconSubtle,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            tooltip: 'Import Library',
+                            visualDensity: VisualDensity.compact,
+                            splashRadius: 18,
+                          ),
+                          IconButton(
+                            onPressed: _handleExport,
+                            icon: SvgPicture.asset(
+                              'assets/vectors/Export-up.svg',
+                              width: 18,
+                              height: 18,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.iconSubtle,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            tooltip: 'Export Library',
+                            visualDensity: VisualDensity.compact,
+                            splashRadius: 18,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: AppColors.iconSubtle,
+                              size: 20,
+                            ),
+                            visualDensity: VisualDensity.compact,
+                            splashRadius: 18,
+                          ),
+                        ],
                       ),
                     ],
                   ),

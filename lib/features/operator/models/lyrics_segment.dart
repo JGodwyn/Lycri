@@ -31,6 +31,29 @@ class LyricsSegment {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'text': text,
+      'type': type.name,
+      'number': number,
+      'isHidden': isHidden,
+    };
+  }
+
+  factory LyricsSegment.fromJson(Map<String, dynamic> json) {
+    return LyricsSegment(
+      id: json['id'] as String,
+      text: json['text'] as String,
+      type: LyricsSegmentType.values.firstWhere(
+        (e) => e.name == json['type'],
+        orElse: () => LyricsSegmentType.verse, // fallback
+      ),
+      number: json['number'] as int,
+      isHidden: json['isHidden'] as bool? ?? false,
+    );
+  }
+
   /// Calculates the number of non-empty lines in this segment.
   int get lineCount =>
       text.split('\n').where((l) => l.trim().isNotEmpty).length;
