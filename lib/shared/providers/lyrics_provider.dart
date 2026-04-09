@@ -91,6 +91,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       isLoading: false,
       isEditing: false,
     );
+    _syncToRaw();
   }
 
   /// Merges new raw text into cached segments, preserving metadata

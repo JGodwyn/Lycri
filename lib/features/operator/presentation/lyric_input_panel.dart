@@ -582,7 +582,7 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                                                 ),
                                             decoration: const InputDecoration(
                                               hintText:
-                                                  'Start typing, \nPaste your lyric, \nSearch for a saved lyric or, \nUpload a lyric file',
+                                                  'Start typing, \nPaste your lyric or, \nSearch for a saved lyric',
                                               hintStyle: TextStyle(
                                                 color: AppColors.textMinimal,
                                               ),
