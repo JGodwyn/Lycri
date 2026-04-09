@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lycri_lyrics/core/theme/app_spacing.dart';
 import 'app_colors.dart';
 import 'app_typography.dart';
 import 'app_radius.dart';
@@ -135,7 +136,29 @@ class AppTheme {
         mainAxisMargin: 2.0,
         minThumbLength: 48.0,
       ),
+
+      // ─── Tooltips ──────────────────────────────────────────────────────────
+      tooltipTheme: TooltipThemeData(
+        padding: EdgeInsets.only(
+          top: AppSpacing.sm,
+          bottom: AppSpacing.md,
+          left: AppSpacing.lg,
+          right: AppSpacing.lg,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceInverse,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        textStyle: AppTypography.bodyMd.copyWith(color: AppColors.textInverse),
+        waitDuration: const Duration(milliseconds: 500),
+      ),
     );
   }
 }
-

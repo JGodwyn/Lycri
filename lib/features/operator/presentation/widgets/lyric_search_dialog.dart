@@ -81,7 +81,8 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
       allowedExtensions: ['json'],
     );
     if (path != null) {
-      final jsonStr = await ref.read(songRepositoryProvider).exportLibraryToJson();
+      final jsonStr =
+          await ref.read(songRepositoryProvider).exportLibraryToJson();
       final file = File(path);
       await file.writeAsString(jsonStr);
     }
@@ -160,7 +161,7 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
                                 BlendMode.srcIn,
                               ),
                             ),
-                            tooltip: 'Import Library',
+                            tooltip: 'Import songs to library',
                             visualDensity: VisualDensity.compact,
                             splashRadius: 18,
                           ),
@@ -175,7 +176,7 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
                                 BlendMode.srcIn,
                               ),
                             ),
-                            tooltip: 'Export Library',
+                            tooltip: 'Export songs in library',
                             visualDensity: VisualDensity.compact,
                             splashRadius: 18,
                           ),
