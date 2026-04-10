@@ -24,6 +24,7 @@ class LyricSearchDialog extends ConsumerStatefulWidget {
 class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
   final _searchController = TextEditingController();
   final _listKey = GlobalKey<AnimatedListState>();
+  final _scrollController = ScrollController();
   final List<SongDomainModel> _items = [];
 
   @override
@@ -36,6 +37,7 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -116,14 +118,16 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
     });
 
     return Dialog(
-      backgroundColor: AppColors.surface3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-      ),
+      backgroundColor: Colors.transparent,
       elevation: 0,
       child: Container(
         width: 480,
         height: 560,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: AppColors.surface3,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+        ),
         constraints: const BoxConstraints(maxHeight: 600),
         child: Column(
           children: [
@@ -133,7 +137,7 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
                 AppSpacing.lg,
                 AppSpacing.xl,
                 AppSpacing.lg,
-                AppSpacing.lg,
+                AppSpacing.md,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -219,77 +223,105 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
 
             // --- List Area ---
             Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeOut,
-                child: searchResults.when(
-                  data: (songs) {
-                    if (songs.isEmpty) {
-                      return _buildEmptyState(key: const ValueKey('empty'));
-                    }
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  bottom: AppSpacing.lg,
+                  top: AppSpacing.md,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeOut,
+                    child: searchResults.when(
+                      data: (songs) {
+                        if (songs.isEmpty) {
+                          return _buildEmptyState(key: const ValueKey('empty'));
+                        }
 
-                    return Align(
-                      key: const ValueKey('data'),
-                      alignment: Alignment.topCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg,
-                          0,
-                          AppSpacing.lg,
-                          AppSpacing.lg,
-                        ),
-                        child: AnimatedSize(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOutCubic,
-                          alignment: Alignment.topCenter,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.surface4,
-                              borderRadius: BorderRadius.circular(AppRadius.xl),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: AnimatedList(
-                              key: _listKey,
-                              initialItemCount: _items.length,
-                              shrinkWrap: true,
-                              physics: const ClampingScrollPhysics(),
-                              padding: EdgeInsets.zero,
-                              itemBuilder: (context, index, animation) {
-                                // Double check index safety due to async syncing
-                                if (index >= _items.length) {
-                                  return const SizedBox.shrink();
-                                }
-                                final song = _items[index];
-                                return _buildItem(
-                                  song,
-                                  animation,
-                                  showDivider: index < _items.length - 1,
-                                );
-                              },
+                        return Scrollbar(
+                          key: const ValueKey('data'),
+                          controller: _scrollController,
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.lg,
+                              ),
+                              child: AnimatedSize(
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeInOutCubic,
+                                alignment: Alignment.topCenter,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface4,
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadius.xl,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.05,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: ScrollConfiguration(
+                                    behavior: ScrollConfiguration.of(
+                                      context,
+                                    ).copyWith(scrollbars: false),
+                                    child: AnimatedList(
+                                      key: _listKey,
+                                      controller: _scrollController,
+                                      initialItemCount: _items.length,
+                                      shrinkWrap: true,
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      padding: EdgeInsets.zero,
+                                      itemBuilder: (context, index, animation) {
+                                        // Double check index safety due to async syncing
+                                        if (index >= _items.length) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        final song = _items[index];
+                                        return _buildItem(
+                                          song,
+                                          animation,
+                                          showDivider:
+                                              index < _items.length - 1,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                  loading:
-                      () => const Center(
-                        key: ValueKey('loading'),
-                        child: CircularProgressIndicator(
-                          color: AppColors.surfaceBrand,
-                        ),
-                      ),
-                  error:
-                      (e, _) => Center(
-                        key: const ValueKey('error'),
-                        child: Text(
-                          "Error: $e",
-                          style: AppTypography.bodySm.copyWith(
-                            color: AppColors.textDanger,
+                        );
+                      },
+                      loading:
+                          () => const Center(
+                            key: ValueKey('loading'),
+                            child: CircularProgressIndicator(
+                              color: AppColors.surfaceBrand,
+                            ),
                           ),
-                        ),
-                      ),
+                      error:
+                          (e, _) => Center(
+                            key: const ValueKey('error'),
+                            child: Text(
+                              "Error: $e",
+                              style: AppTypography.bodySm.copyWith(
+                                color: AppColors.textDanger,
+                              ),
+                            ),
+                          ),
+                    ),
+                  ),
                 ),
               ),
             ),

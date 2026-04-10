@@ -17,8 +17,6 @@ import '../../../shared/widgets/lycri_color_picker.dart';
 import '../../../shared/widgets/lycri_dropdown.dart';
 import '../../../shared/widgets/video_thumbnail_widget.dart';
 
-
-
 /// Right panel of the operator window.
 /// Hosts the lyric style editor — currently the Text section controls.
 /// Background section will be added in a future iteration.
@@ -53,7 +51,9 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
       lyricsStyleProvider.select((s) => s.displayLines),
     );
     final selectedLineCountStr =
-        displayLines == -1 ? 'Auto' : (displayLines == 0 ? 'All' : displayLines.toString());
+        displayLines == -1
+            ? 'Auto'
+            : (displayLines == 0 ? 'All' : displayLines.toString());
 
     final currentBackgroundType = ref.watch(
       lyricsStyleProvider.select((s) => s.backgroundType),
@@ -94,11 +94,53 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Title ──────────────────────────────────────────────────────
-              Text(
-                'Editor',
-                style: AppTypography.headingSm.copyWith(
-                  color: AppColors.textSubtle,
-                ),
+              Row(
+                children: [
+                  Text(
+                    'Editor',
+                    style: AppTypography.headingSm.copyWith(
+                      color: AppColors.textSubtle,
+                    ),
+                  ),
+                  const Spacer(),
+                  _CircularIconButton(
+                    onTap: () {},
+                    svgAsset: 'assets/vectors/save.svg',
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Container(
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface3,
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Preset',
+                          style: AppTypography.bodyLg.copyWith(
+                            color: AppColors.textSubtle,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        SvgPicture.asset(
+                          'assets/vectors/unfold-more.svg',
+                          width: 16,
+                          height: 16,
+                          colorFilter: const ColorFilter.mode(
+                            AppColors.iconSubtle,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
 
               const SizedBox(height: AppSpacing.xl),
@@ -162,7 +204,8 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                 items: _lineCounts,
                 selected: selectedLineCountStr,
                 onSelected: (v) {
-                  final count = v == 'Auto' ? -1 : (v == 'All' ? 0 : int.parse(v));
+                  final count =
+                      v == 'Auto' ? -1 : (v == 'All' ? 0 : int.parse(v));
                   ref.read(lyricsStyleProvider.notifier).setDisplayLines(count);
                 },
               ),
@@ -532,7 +575,6 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                     videoPath: path,
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
-
             ),
           ],
         );
@@ -1401,6 +1443,56 @@ class _VideoBackgroundSelector extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// A circular icon button with hover and click feedback.
+class _CircularIconButton extends StatefulWidget {
+  final VoidCallback onTap;
+  final String svgAsset;
+
+  const _CircularIconButton({
+    super.key,
+    required this.onTap,
+    required this.svgAsset,
+  });
+
+  @override
+  State<_CircularIconButton> createState() => _CircularIconButtonState();
+}
+
+class _CircularIconButtonState extends State<_CircularIconButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: _isHovered ? AppColors.surface2 : AppColors.surface3,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: SvgPicture.asset(
+            widget.svgAsset,
+            width: 20,
+            height: 20,
+            colorFilter: const ColorFilter.mode(
+              AppColors.iconSubtle,
+              BlendMode.srcIn,
+            ),
+          ),
+        ),
       ),
     );
   }
