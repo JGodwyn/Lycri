@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 import 'package:lycri_lyrics/core/database/app_database.dart';
@@ -9,10 +10,10 @@ class PresetRepository {
 
   PresetRepository(this._db);
 
-  /// Returns all presets ordered by name.
+  /// Returns all presets ordered by time added (newest first).
   Future<List<PresetDomainModel>> getAllPresets() async {
     final query = _db.select(_db.presets)
-      ..orderBy([(p) => OrderingTerm(expression: p.name)]);
+      ..orderBy([(p) => OrderingTerm(expression: p.createdAt, mode: OrderingMode.desc)]);
     final entries = await query.get();
 
     return entries.map((e) => PresetDomainModel(
@@ -28,7 +29,7 @@ class PresetRepository {
   Future<List<PresetDomainModel>> searchPresets(String queryStr) async {
     final query = _db.select(_db.presets)
       ..where((p) => p.name.like('%$queryStr%'))
-      ..orderBy([(p) => OrderingTerm(expression: p.name)]);
+      ..orderBy([(p) => OrderingTerm(expression: p.createdAt, mode: OrderingMode.desc)]);
     
     final entries = await query.get();
 
@@ -78,5 +79,44 @@ class PresetRepository {
   /// Deletes a preset by id.
   Future<void> deletePreset(String id) async {
     await (_db.delete(_db.presets)..where((p) => p.id.equals(id))).go();
+  }
+
+  /// Exports all presets into a JSON string formatted for external backup.
+  Future<String> exportPresetsToJson() async {
+    final presets = await getAllPresets();
+    final jsonList = presets.map((p) => p.toJson()).toList();
+    return jsonEncode(jsonList);
+  }
+
+  /// Imports a JSON string backup, auto-incrementing duplicate titles.
+  Future<int> importPresetsFromJson(String jsonStr) async {
+    try {
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is! List) return 0;
+      
+      int importedCount = 0;
+
+      for (final item in decoded) {
+        if (item is! Map<String, dynamic>) continue;
+        
+        final tempPreset = PresetDomainModel.fromJson(item);
+        
+        // Handle name collisions
+        String candidate = tempPreset.name.trim();
+        if (candidate.isEmpty) candidate = "Untitled Preset";
+        
+        int count = 1;
+        while (await doesNameExist(candidate)) {
+          candidate = "${tempPreset.name.trim()} $count";
+          count++;
+        }
+        
+        await savePreset(candidate, tempPreset.data);
+        importedCount++;
+      }
+      return importedCount;
+    } catch (e) {
+      return 0;
+    }
   }
 }

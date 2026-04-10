@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lycri_lyrics/features/library/models/preset_domain_model.dart';
 import 'package:lycri_lyrics/features/library/providers/database_provider.dart';
+import 'package:lycri_lyrics/features/operator/providers/preset_state_provider.dart';
 
 class PresetSearchNotifier extends StateNotifier<AsyncValue<List<PresetDomainModel>>> {
   final Ref _ref;
@@ -27,6 +28,13 @@ class PresetSearchNotifier extends StateNotifier<AsyncValue<List<PresetDomainMod
   Future<void> deletePreset(String id) async {
     try {
       await _ref.read(presetRepositoryProvider).deletePreset(id);
+
+      // If the deleted preset is the currently active one, clear it
+      final activePreset = _ref.read(presetStateProvider).currentPreset;
+      if (activePreset?.id == id) {
+        _ref.read(presetStateProvider.notifier).clearPreset();
+      }
+
       // Re-fetch current data
       state.whenData((currentList) {
         final newList = currentList.where((p) => p.id != id).toList();

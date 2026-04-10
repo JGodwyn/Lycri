@@ -202,7 +202,7 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
                   const SizedBox(height: AppSpacing.lg),
                   LycriTextField(
                     controller: _searchController,
-                    hintText: 'Search lyrics here',
+                    hintText: 'Search lyrics by name or content',
                     autoFocus: true,
                     onChanged:
                         (val) =>

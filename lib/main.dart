@@ -44,7 +44,7 @@ Future<void> main(List<String> args) async {
 
   const WindowOptions windowOptions = WindowOptions(
     size: Size(1400, 1100),
-    minimumSize: Size(960, 600),
+    minimumSize: Size(1400, 1100),
     center: true,
     title: 'Lycri',
     titleBarStyle: TitleBarStyle.normal,

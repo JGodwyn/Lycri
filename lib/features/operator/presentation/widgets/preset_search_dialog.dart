@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:lycri_lyrics/core/theme/app_colors.dart';
 import 'package:lycri_lyrics/core/theme/app_radius.dart';
 import 'package:lycri_lyrics/core/theme/app_spacing.dart';
@@ -11,6 +12,7 @@ import 'package:lycri_lyrics/features/library/models/preset_domain_model.dart';
 import 'package:lycri_lyrics/features/library/providers/preset_search_provider.dart';
 import 'package:lycri_lyrics/shared/providers/lyrics_style_provider.dart';
 import 'package:lycri_lyrics/features/operator/providers/preset_state_provider.dart';
+import 'package:lycri_lyrics/features/library/providers/database_provider.dart';
 import 'package:lycri_lyrics/shared/widgets/lycri_text_field.dart';
 
 class PresetSearchDialog extends ConsumerStatefulWidget {
@@ -67,6 +69,35 @@ class _PresetSearchDialogState extends ConsumerState<PresetSearchDialog> {
     }
   }
 
+  Future<void> _handleExport() async {
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Export Presets',
+      fileName: 'lycri_presets_export.json',
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (path != null) {
+      final jsonStr =
+          await ref.read(presetRepositoryProvider).exportPresetsToJson();
+      final file = File(path);
+      await file.writeAsString(jsonStr);
+    }
+  }
+
+  Future<void> _handleImport() async {
+    final result = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Import Presets',
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
+      final jsonStr = await file.readAsString();
+      await ref.read(presetRepositoryProvider).importPresetsFromJson(jsonStr);
+      ref.read(presetSearchProvider.notifier).search(_searchController.text);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final searchResults = ref.watch(presetSearchProvider);
@@ -114,6 +145,37 @@ class _PresetSearchDialogState extends ConsumerState<PresetSearchDialog> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          IconButton(
+                            onPressed: _handleImport,
+                            icon: SvgPicture.asset(
+                              'assets/vectors/Import-down.svg',
+                              width: 18,
+                              height: 18,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.iconSubtle,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            tooltip: 'Import presets',
+                            visualDensity: VisualDensity.compact,
+                            splashRadius: 18,
+                          ),
+                          IconButton(
+                            onPressed: _handleExport,
+                            icon: SvgPicture.asset(
+                              'assets/vectors/Export-up.svg',
+                              width: 18,
+                              height: 18,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.iconSubtle,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            tooltip: 'Export presets',
+                            visualDensity: VisualDensity.compact,
+                            splashRadius: 18,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
                           IconButton(
                             onPressed: () => Navigator.of(context).pop(),
                             icon: const Icon(
