@@ -16,6 +16,10 @@ import '../../../shared/providers/system_fonts_provider.dart';
 import '../../../shared/widgets/lycri_color_picker.dart';
 import '../../../shared/widgets/lycri_dropdown.dart';
 import '../../../shared/widgets/video_thumbnail_widget.dart';
+import '../../../shared/utils/dialog_utils.dart';
+import '../providers/preset_state_provider.dart';
+import 'widgets/preset_search_dialog.dart';
+import 'widgets/save_preset_menu.dart';
 
 /// Right panel of the operator window.
 /// Hosts the lyric style editor — currently the Text section controls.
@@ -54,6 +58,13 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
         displayLines == -1
             ? 'Auto'
             : (displayLines == 0 ? 'All' : displayLines.toString());
+
+    final presetState = ref.watch(presetStateProvider);
+    final isDirty = presetState.isDirty;
+    final rawPresetName = presetState.currentPreset?.name ?? 'Preset';
+    final presetDisplayName = rawPresetName.length > 10
+        ? '${rawPresetName.substring(0, 10)}...'
+        : rawPresetName;
 
     final currentBackgroundType = ref.watch(
       lyricsStyleProvider.select((s) => s.backgroundType),
@@ -103,41 +114,53 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
                     ),
                   ),
                   const Spacer(),
-                  _CircularIconButton(
-                    onTap: () {},
-                    svgAsset: 'assets/vectors/save.svg',
-                  ),
+                  _SavePresetActionButton(isEnabled: isDirty),
                   const SizedBox(width: AppSpacing.md),
-                  Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
-                      vertical: AppSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface3,
-                      borderRadius: BorderRadius.circular(AppRadius.full),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Preset',
-                          style: AppTypography.bodyLg.copyWith(
-                            color: AppColors.textSubtle,
-                          ),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () {
+                         showLycriDialog(
+                           context: context,
+                           builder: (context) => const PresetSearchDialog(),
+                         );
+                      },
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.sm,
                         ),
-                        const SizedBox(width: AppSpacing.sm),
-                        SvgPicture.asset(
-                          'assets/vectors/unfold-more.svg',
-                          width: 16,
-                          height: 16,
-                          colorFilter: const ColorFilter.mode(
-                            AppColors.iconSubtle,
-                            BlendMode.srcIn,
-                          ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface3,
+                          borderRadius: BorderRadius.circular(AppRadius.full),
                         ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                presetDisplayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.bodyLg.copyWith(
+                                  color: AppColors.textBold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            SvgPicture.asset(
+                              'assets/vectors/unfold-more.svg',
+                              width: 16,
+                              height: 16,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.iconSubtle,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1494,6 +1517,192 @@ class _CircularIconButtonState extends State<_CircularIconButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SavePresetActionButton extends ConsumerStatefulWidget {
+  final bool isEnabled;
+
+  const _SavePresetActionButton({
+    super.key,
+    this.isEnabled = true,
+  });
+
+  @override
+  ConsumerState<_SavePresetActionButton> createState() => _SavePresetActionButtonState();
+}
+
+class _SavePresetActionButtonState extends ConsumerState<_SavePresetActionButton>
+    with TickerProviderStateMixin {
+  bool _showSuccess = false;
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  bool _isMenuOpen = false;
+
+  late final AnimationController _animController;
+  late final Animation<double> _scaleAnim;
+  late final Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+    final curved = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    );
+    _scaleAnim = Tween(begin: 0.92, end: 1.0).animate(curved);
+    _fadeAnim = Tween(begin: 0.0, end: 1.0).animate(curved);
+  }
+
+  @override
+  void dispose() {
+    _closeMenu();
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _toggleMenu() {
+    if (!widget.isEnabled) return;
+    if (_isMenuOpen) {
+      _closeMenu();
+    } else {
+      _openMenu();
+    }
+  }
+
+  void _openMenu() {
+    _overlayEntry = OverlayEntry(
+      builder:
+          (context) => Stack(
+            children: [
+              // Tap-away barrier
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _closeMenu,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              // Positioned menu
+              Positioned(
+                width: 280,
+                child: CompositedTransformFollower(
+                  link: _layerLink,
+                  showWhenUnlinked: false,
+                  targetAnchor: Alignment.bottomRight,
+                  followerAnchor: Alignment.topRight,
+                  offset: const Offset(0, 4), // Directly below with a 4px gap
+                  child: Material(
+                    color: Colors.transparent,
+                    child: FadeTransition(
+                      opacity: _fadeAnim,
+                      child: ScaleTransition(
+                        scale: _scaleAnim,
+                        child: SavePresetMenu(
+                          onClose: _closeMenu,
+                          onSave: (title) => _confirmSave(title),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+    _animController.forward();
+    setState(() => _isMenuOpen = true);
+  }
+
+  void _closeMenu() {
+    if (!_isMenuOpen) return;
+    _animController.reverse().then((_) {
+      _overlayEntry?.remove();
+      _overlayEntry = null;
+    });
+    if (mounted) setState(() => _isMenuOpen = false);
+  }
+
+  Future<void> _confirmSave(String title) async {
+    _closeMenu();
+
+    final data = ref.read(lyricsStyleProvider.notifier).exportPresetData();
+    await ref.read(presetStateProvider.notifier).saveCurrentAsPreset(title, data);
+
+    if (mounted) {
+      setState(() => _showSuccess = true);
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        setState(() => _showSuccess = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget child;
+
+    if (_showSuccess) {
+      child = Container(
+        key: const ValueKey('success'),
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceSuccess,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          'assets/vectors/check-large.svg',
+          width: 20,
+          height: 20,
+          colorFilter: const ColorFilter.mode(
+            AppColors.iconInverse,
+            BlendMode.srcIn,
+          ),
+        ),
+      );
+    } else if (!widget.isEnabled) {
+      child = Container(
+        key: const ValueKey('saved'),
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(
+          color: AppColors.surface3,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: SvgPicture.asset(
+          'assets/vectors/save.svg',
+          width: 20,
+          height: 20,
+          colorFilter: const ColorFilter.mode(
+            AppColors.iconMinimal,
+            BlendMode.srcIn,
+          ),
+        ),
+      );
+    } else {
+      child = CompositedTransformTarget(
+        link: _layerLink,
+        child: _CircularIconButton(
+          key: const ValueKey('not_saved'),
+          onTap: _toggleMenu,
+          svgAsset: 'assets/vectors/save.svg',
+        ),
+      );
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: child,
     );
   }
 }

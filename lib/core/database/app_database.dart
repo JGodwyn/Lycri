@@ -9,22 +9,28 @@ import 'package:sqlite3_flutter_libs/sqlite3_flutter_libs.dart';
 
 import 'package:lycri_lyrics/core/database/tables/songs.dart';
 import 'package:lycri_lyrics/core/database/tables/lyrics_segments.dart';
+import 'package:lycri_lyrics/core/database/tables/presets.dart';
 import 'package:lycri_lyrics/features/operator/models/lyrics_segment.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [Songs, LyricsSegments])
+@DriftDatabase(tables: [Songs, LyricsSegments, Presets])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        if (from < 2) {
+          await m.createTable(presets);
+        }
       },
       beforeOpen: (details) async {
         await customStatement('PRAGMA foreign_keys = ON');

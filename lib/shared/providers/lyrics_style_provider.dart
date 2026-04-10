@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
+import 'package:lycri_lyrics/features/operator/providers/preset_state_provider.dart';
 import 'recent_backgrounds_provider.dart';
 
 /// The type of background used for the presentation.
@@ -98,13 +100,15 @@ class LyricsStyleState {
 final lyricsStyleProvider =
     StateNotifierProvider<LyricsStyleNotifier, LyricsStyleState>((ref) {
       final prefs = ref.watch(sharedPrefsProvider);
-      return LyricsStyleNotifier(prefs);
+      return LyricsStyleNotifier(prefs, ref);
     });
 
 class LyricsStyleNotifier extends StateNotifier<LyricsStyleState> {
   final SharedPreferences _prefs;
+  final Ref _ref;
+  bool _isApplyingPreset = false;
 
-  LyricsStyleNotifier(this._prefs) : super(const LyricsStyleState()) {
+  LyricsStyleNotifier(this._prefs, this._ref) : super(const LyricsStyleState()) {
     _loadFromPrefs();
   }
 
@@ -167,6 +171,60 @@ class LyricsStyleNotifier extends StateNotifier<LyricsStyleState> {
     } else {
       _prefs.remove(_keyBackgroundVideoPath);
     }
+    
+    if (!_isApplyingPreset) {
+      _ref.read(presetStateProvider.notifier).markDirty();
+    }
+  }
+
+  void applyPresetData(String data) {
+    _isApplyingPreset = true;
+    try {
+      final map = jsonDecode(data);
+      final fontFamily = map['fontFamily'] as String?;
+      final displayLines = map['displayLines'] as int?;
+      final textAlignIdx = map['textAlign'] as int?;
+      final fontColorValue = map['fontColor'] as int?;
+      final bgTypeIdx = map['backgroundType'] as int?;
+      final gradTypeIdx = map['gradientType'] as int?;
+      final bgColorValue = map['backgroundColor'] as int?;
+      final gradColorsList = (map['gradientColors'] as List<dynamic>?)?.map((e) => e as int).toList();
+      final bgImagePath = map['backgroundImagePath'] as String?;
+      final bgVideoPath = map['backgroundVideoPath'] as String?;
+
+      state = state.copyWith(
+        fontFamily: fontFamily,
+        displayLines: displayLines,
+        textAlign: textAlignIdx != null ? TextAlign.values[textAlignIdx] : null,
+        fontColor: fontColorValue != null ? Color(fontColorValue) : null,
+        backgroundType: bgTypeIdx != null ? BackgroundType.values[bgTypeIdx] : null,
+        gradientType: gradTypeIdx != null ? GradientType.values[gradTypeIdx] : null,
+        backgroundColor: bgColorValue != null ? Color(bgColorValue) : null,
+        gradientColors: gradColorsList?.map((c) => Color(c)).toList(),
+        backgroundImagePath: bgImagePath,
+        clearBackgroundImage: bgImagePath == null,
+        backgroundVideoPath: bgVideoPath,
+        clearBackgroundVideo: bgVideoPath == null,
+      );
+      _saveToPrefs();
+    } finally {
+      _isApplyingPreset = false;
+    }
+  }
+
+  String exportPresetData() {
+    return jsonEncode({
+      'fontFamily': state.fontFamily,
+      'displayLines': state.displayLines,
+      'textAlign': state.textAlign.index,
+      'fontColor': state.fontColor.toARGB32(),
+      'backgroundType': state.backgroundType.index,
+      'gradientType': state.gradientType.index,
+      'backgroundColor': state.backgroundColor.toARGB32(),
+      'gradientColors': state.gradientColors.map((c) => c.toARGB32()).toList(),
+      'backgroundImagePath': state.backgroundImagePath,
+      'backgroundVideoPath': state.backgroundVideoPath,
+    });
   }
 
   /// Updates the font family used to render lyrics.
