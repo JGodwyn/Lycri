@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
@@ -84,8 +85,10 @@ class _LycriDropdownState<T> extends State<LycriDropdown<T>>
     with SingleTickerProviderStateMixin {
   final LayerLink _layerLink = LayerLink();
   final GlobalKey _triggerKey = GlobalKey();
+  final GlobalKey<_DropdownOverlayState<T>> _overlayKey = GlobalKey();
   OverlayEntry? _overlayEntry;
   bool _isOpen = false;
+  bool _isClosing = false;
 
   late final AnimationController _chevronController;
   late final Animation<double> _chevronTurns;
@@ -127,6 +130,7 @@ class _LycriDropdownState<T> extends State<LycriDropdown<T>>
     _overlayEntry = OverlayEntry(
       builder:
           (_) => _DropdownOverlay<T>(
+            key: _overlayKey,
             items: widget.items,
             selectedValue: widget.selectedValue,
             triggerWidth: triggerWidth,
@@ -147,13 +151,21 @@ class _LycriDropdownState<T> extends State<LycriDropdown<T>>
     setState(() => _isOpen = true);
   }
 
-  void _removeOverlay() {
+  Future<void> _removeOverlay() async {
+    if (_isClosing || !_isOpen) return;
+    _isClosing = true;
+
+    // Trigger exit animation in the overlay
+    await _overlayKey.currentState?.animateOut();
+
     _overlayEntry?.remove();
     _overlayEntry = null;
-    if (_isOpen) {
-      _chevronController.reverse();
-      setState(() => _isOpen = false);
-    }
+
+    _chevronController.reverse();
+    setState(() {
+      _isOpen = false;
+      _isClosing = false;
+    });
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
@@ -234,6 +246,7 @@ class _LycriDropdownState<T> extends State<LycriDropdown<T>>
 /// anchored at top-center so it appears to grow from the trigger button.
 class _DropdownOverlay<T> extends StatefulWidget {
   const _DropdownOverlay({
+    super.key,
     required this.items,
     required this.selectedValue,
     required this.triggerWidth,
@@ -309,6 +322,11 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
     _animController.forward();
   }
 
+  /// Triggers the exit animation and returns when complete.
+  Future<void> animateOut() async {
+    await _animController.reverse();
+  }
+
   void _onSearchChanged(String query) {
     setState(() {
       if (query.isEmpty) {
@@ -351,90 +369,111 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
           link: widget.layerLink,
           showWhenUnlinked: false,
           offset: const Offset(0, 52),
-          child: FadeTransition(
-            opacity: _fadeAnim,
-            child: ScaleTransition(
-              scale: _scaleAnim,
-              alignment: Alignment.topCenter,
-              child: Material(
-                type: MaterialType.transparency,
-                child: Container(
-                  width: widget.triggerWidth,
-                  constraints: BoxConstraints(maxHeight: widget.maxHeight),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface4,
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(
-                      color: AppColors.borderSubtle,
-                      width: AppStroke.md,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+          child: AnimatedBuilder(
+            animation: _animController,
+            builder: (context, child) {
+              final blurAmount = (1.0 - _animController.value) * 8.0;
+
+              Widget transitionChild = FadeTransition(
+                opacity: _fadeAnim,
+                child: ScaleTransition(
+                  scale: _scaleAnim,
+                  alignment: Alignment.topCenter,
+                  child: child,
+                ),
+              );
+
+              if (blurAmount <= 0.05) return transitionChild;
+
+              return ImageFiltered(
+                imageFilter: ImageFilter.blur(
+                  sigmaX: blurAmount,
+                  sigmaY: blurAmount,
+                ),
+                child: transitionChild,
+              );
+            },
+            child: Material(
+              type: MaterialType.transparency,
+              child: Container(
+                width: widget.triggerWidth,
+                constraints: BoxConstraints(maxHeight: widget.maxHeight),
+                decoration: BoxDecoration(
+                  color: AppColors.surface4,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  border: Border.all(
+                    color: AppColors.borderSubtle,
+                    width: AppStroke.md,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (widget.showSearch)
-                        Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xmd),
-                          child: LycriTextField(
-                            controller: _searchController,
-                            autoFocus: true,
-                            hintText: widget.searchHint,
-                            onChanged: _onSearchChanged,
-                            prefixIcon: SvgPicture.asset(
-                              "assets/vectors/magnifyingglass.svg",
-                              width: 20,
-                              height: 20,
-                              colorFilter: ColorFilter.mode(
-                                AppColors.iconMinimal,
-                                BlendMode.srcIn,
-                              ),
+                    if (widget.showSearch)
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.xmd),
+                        child: LycriTextField(
+                          controller: _searchController,
+                          autoFocus: true,
+                          hintText: widget.searchHint,
+                          onChanged: _onSearchChanged,
+                          prefixIcon: SvgPicture.asset(
+                            "assets/vectors/magnifyingglass.svg",
+                            width: 20,
+                            height: 20,
+                            colorFilter: ColorFilter.mode(
+                              AppColors.iconMinimal,
+                              BlendMode.srcIn,
                             ),
-                          ),
-                        ),
-                      Flexible(
-                        child: Scrollbar(
-                          controller: _scrollController,
-                          thumbVisibility: true,
-                          radius: const Radius.circular(AppRadius.full),
-                          child: ListView.separated(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.sm,
-                            ),
-                            shrinkWrap: true,
-                            itemCount: _filteredItems.length,
-                            separatorBuilder:
-                                (_, __) => Divider(
-                                  height: 1,
-                                  thickness: AppStroke.sm,
-                                  color: AppColors.borderMinimal,
-                                  indent: AppSpacing.lg,
-                                  endIndent: AppSpacing.lg,
-                                ),
-                            itemBuilder: (_, index) {
-                              final item = _filteredItems[index];
-                              final isSelected =
-                                  item.value == widget.selectedValue;
-
-                              return _DropdownMenuItem(
-                                label: item.label,
-                                fontFamily: item.fontFamily,
-                                isSelected: isSelected,
-                                onTap: () => widget.onSelected(item.value),
-                              );
-                            },
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    Flexible(
+                      child: Scrollbar(
+                        controller: _scrollController,
+                        thumbVisibility: true,
+                        radius: const Radius.circular(AppRadius.full),
+                        child: ListView.separated(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.only(
+                            bottom: AppSpacing.sm,
+                          ),
+                          shrinkWrap: true,
+                          itemCount: _filteredItems.length,
+                          separatorBuilder:
+                              (_, __) => Divider(
+                                height: 1,
+                                thickness: AppStroke.sm,
+                                color: AppColors.borderMinimal,
+                                indent: AppSpacing.lg,
+                                endIndent: AppSpacing.lg,
+                              ),
+                          itemBuilder: (_, index) {
+                            final item = _filteredItems[index];
+                            final isSelected =
+                                item.value == widget.selectedValue;
+
+                            return _DropdownMenuItem(
+                              label: item.label,
+                              fontFamily: item.fontFamily,
+                              isSelected: isSelected,
+                              onTap: () => widget.onSelected(item.value),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 ),
               ),
             ),

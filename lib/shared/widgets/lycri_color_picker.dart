@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
@@ -30,7 +31,9 @@ class LycriColorField extends StatefulWidget {
 
 class _LycriColorFieldState extends State<LycriColorField> {
   final LayerLink _layerLink = LayerLink();
+  final GlobalKey<_LycriColorPickerPopupState> _pickerKey = GlobalKey();
   OverlayEntry? _overlayEntry;
+  bool _isClosing = false;
 
   void _toggleOverlay() {
     if (_overlayEntry != null) {
@@ -56,8 +59,7 @@ class _LycriColorFieldState extends State<LycriColorField> {
         final screenSize = MediaQuery.of(overlayContext).size;
 
         const popupWidth = 260.0;
-        // Estimate popup height (SV area + hue slider + hex row + padding).
-        const popupHeight = 270.0;
+        const popupHeight = 288.0;
         const gap = AppSpacing.sm;
 
         // ── Vertical: prefer below, flip above if clipped ──────────────
@@ -73,8 +75,8 @@ class _LycriColorFieldState extends State<LycriColorField> {
                 ? -(popupHeight + gap) // above the field
                 : fieldSize.height + gap; // below the field
 
-        // ── Horizontal: right-align to field, but clamp to screen ──────
-        double dx = fieldSize.width - popupWidth; // right-aligned default
+        // ── Horizontal: left-align to field, but clamp to screen ──────
+        double dx = 0.0; // Left-aligned default
 
         final double popupLeft = fieldGlobal.dx + dx;
         final double popupRight = popupLeft + popupWidth;
@@ -104,9 +106,11 @@ class _LycriColorFieldState extends State<LycriColorField> {
               child: Material(
                 color: Colors.transparent,
                 child: _LycriColorPickerPopup(
+                  key: _pickerKey,
                   initialColor: widget.color,
                   onColorChanged: widget.onColorChanged,
                   onColorFinal: widget.onColorFinal,
+                  showAbove: showAbove,
                 ),
 
               ),
@@ -119,11 +123,17 @@ class _LycriColorFieldState extends State<LycriColorField> {
     Overlay.of(context).insert(_overlayEntry!);
   }
 
-  void _closeOverlay() {
-    if (_overlayEntry != null) {
+  Future<void> _closeOverlay() async {
+    if (_overlayEntry != null && !_isClosing) {
+      _isClosing = true;
       widget.onPickerDismissed?.call(widget.color);
+
+      // Trigger exit animation
+      await _pickerKey.currentState?.animateOut();
+
       _overlayEntry?.remove();
       _overlayEntry = null;
+      _isClosing = false;
     }
   }
 
@@ -200,11 +210,14 @@ class _LycriColorPickerPopup extends StatefulWidget {
   final Color initialColor;
   final ValueChanged<Color> onColorChanged;
   final ValueChanged<Color>? onColorFinal;
+  final bool showAbove;
 
   const _LycriColorPickerPopup({
+    super.key,
     required this.initialColor,
     required this.onColorChanged,
     this.onColorFinal,
+    this.showAbove = false,
   });
 
 
@@ -212,7 +225,12 @@ class _LycriColorPickerPopup extends StatefulWidget {
   State<_LycriColorPickerPopup> createState() => _LycriColorPickerPopupState();
 }
 
-class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
+class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+  late final Animation<double> _scaleAnim;
+  late final Animation<double> _fadeAnim;
+
   late HSVColor hsvColor;
   late final TextEditingController _hexController;
   late final FocusNode _focusNode;
@@ -228,12 +246,32 @@ class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
             _updateFromHex(_hexController.text);
           }
         });
+
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    final curved = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    );
+
+    _scaleAnim = Tween(begin: 0.92, end: 1.0).animate(curved);
+    _fadeAnim = Tween(begin: 0.0, end: 1.0).animate(curved);
+
+    _animController.forward();
+  }
+
+  Future<void> animateOut() async {
+    await _animController.reverse();
   }
 
   @override
   void dispose() {
     _hexController.dispose();
     _focusNode.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
@@ -274,91 +312,113 @@ class _LycriColorPickerPopupState extends State<_LycriColorPickerPopup> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 260,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface4,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.borderSubtle, width: AppStroke.md),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // HSV Area
-          SizedBox(
-            height: 150,
-            width: double.infinity,
-            child: _SVArea(
-              hsvColor: hsvColor,
-              onColorChanged: _handleColorChanged,
-              onInteractionEnd: _handleInteractionEnd,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          // Hue Slider
-          SizedBox(
-            height: 24,
-            width: double.infinity,
-            child: _HueSlider(
-              hsvColor: hsvColor,
-              onColorChanged: _handleColorChanged,
-              onInteractionEnd: _handleInteractionEnd,
-            ),
-          ),
+    return AnimatedBuilder(
+      animation: _animController,
+      builder: (context, child) {
+        final blurAmount = (1.0 - _animController.value) * 8.0;
 
-          const SizedBox(height: AppSpacing.lg),
-          // Hex & Swatch Output
-          Container(
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.surface3,
-              borderRadius: BorderRadius.circular(AppRadius.full),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _hexController,
-                    focusNode: _focusNode,
-                    decoration: const InputDecoration(
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    style: AppTypography.bodyMd.copyWith(
-                      color: AppColors.textBold,
-                    ),
-                    onSubmitted: _updateFromHex,
-                  ),
-                ),
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: hsvColor.toColor(),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.borderSubtle,
-                      width: AppStroke.sm,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+        Widget transitionChild = FadeTransition(
+          opacity: _fadeAnim,
+          child: ScaleTransition(
+            scale: _scaleAnim,
+            alignment: widget.showAbove ? Alignment.bottomCenter : Alignment.topCenter,
+            child: child,
           ),
-        ],
+        );
+
+        if (blurAmount <= 0.05) return transitionChild;
+
+        return ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+          child: transitionChild,
+        );
+      },
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          color: AppColors.surface4,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: AppColors.borderSubtle, width: AppStroke.md),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // HSV Area
+            SizedBox(
+              height: 150,
+              width: double.infinity,
+              child: _SVArea(
+                hsvColor: hsvColor,
+                onColorChanged: _handleColorChanged,
+                onInteractionEnd: _handleInteractionEnd,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            // Hue Slider
+            SizedBox(
+              height: 24,
+              width: double.infinity,
+              child: _HueSlider(
+                hsvColor: hsvColor,
+                onColorChanged: _handleColorChanged,
+                onInteractionEnd: _handleInteractionEnd,
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.lg),
+            // Hex & Swatch Output
+            Container(
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: AppColors.surface3,
+                borderRadius: BorderRadius.circular(AppRadius.full),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _hexController,
+                      focusNode: _focusNode,
+                      decoration: const InputDecoration(
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      style: AppTypography.bodyMd.copyWith(
+                        color: AppColors.textBold,
+                      ),
+                      onSubmitted: _updateFromHex,
+                    ),
+                  ),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: hsvColor.toColor(),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.borderSubtle,
+                        width: AppStroke.sm,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
