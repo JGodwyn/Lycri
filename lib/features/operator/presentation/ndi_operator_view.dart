@@ -65,13 +65,7 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
       final boundary =
           _repaintBoundaryKey.currentContext?.findRenderObject()
               as RenderRepaintBoundary?;
-      if (boundary == null) {
-        _isCapturing = false;
-        return;
-      }
-
-      // If the boundary is not yet laid out, wait.
-      if (!boundary.attached || boundary.debugNeedsPaint) {
+      if (boundary == null || !boundary.attached) {
         _isCapturing = false;
         return;
       }
@@ -86,9 +80,9 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
             .read(ndiServiceProvider.notifier)
             .updateFrameBuffer(byteData.buffer.asUint8List());
       }
-      image.dispose(); // Important to dispose image to avoid memory leaks
+      image.dispose();
     } catch (e) {
-      // Silently fail if frame isn't ready
+      print('NDI: Frame capture error: $e');
     } finally {
       _isCapturing = false;
     }

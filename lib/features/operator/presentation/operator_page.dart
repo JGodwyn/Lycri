@@ -16,6 +16,12 @@ class OperatorPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.surface3,
       body: Stack(
+        // Clip.none is required so the NdiOperatorView's offscreen
+        // RepaintBoundary (at -2000,-2000) is still painted in release
+        // mode. With the default Clip.hardEdge, Flutter may skip
+        // painting content outside the clip region as an optimization,
+        // causing toImage() to return blank (black) frames.
+        clipBehavior: Clip.none,
         children: [
           Padding(
             padding: const EdgeInsets.all(AppSpacing.md),
