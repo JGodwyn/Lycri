@@ -661,18 +661,26 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                         if (isAutoLargeSegment) {
                           final bool isActivePage =
                               pageIndex == _getSegmentPageIndex(_activeLine);
+                          // Center the content if it fits within the
+                          // available height; only scroll when it overflows.
                           return ScrollConfiguration(
                             behavior: ScrollConfiguration.of(
                               context,
                             ).copyWith(scrollbars: false),
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: AppSpacing.x2l,
-                              ),
-                              // Only attach the main scroll controller to the active page
+                            child: CustomScrollView(
                               controller:
                                   isActivePage ? _scrollController : null,
-                              child: lineList,
+                              slivers: [
+                                SliverFillRemaining(
+                                  hasScrollBody: false,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: AppSpacing.x2l,
+                                    ),
+                                    child: Center(child: lineList),
+                                  ),
+                                ),
+                              ],
                             ),
                           );
                         }

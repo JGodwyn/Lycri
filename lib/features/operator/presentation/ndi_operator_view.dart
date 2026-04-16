@@ -504,17 +504,26 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                                       .map((s) => s.lineCount)
                                       .toList(),
                                 );
+                          // Center the content if it fits within the
+                          // available height; only scroll when it overflows.
                           return ScrollConfiguration(
                             behavior: ScrollConfiguration.of(
                               context,
                             ).copyWith(scrollbars: false),
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: AppSpacing.x2l,
-                              ),
+                            child: CustomScrollView(
                               controller:
                                   isActivePage ? _scrollController : null,
-                              child: lineList,
+                              slivers: [
+                                SliverFillRemaining(
+                                  hasScrollBody: false,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: AppSpacing.x2l,
+                                    ),
+                                    child: Center(child: lineList),
+                                  ),
+                                ),
+                              ],
                             ),
                           );
                         }
