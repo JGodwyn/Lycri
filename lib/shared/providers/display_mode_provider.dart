@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
@@ -66,22 +67,27 @@ final StateProvider<DisplayOutput> displayModeProvider =
 
 /// Provider that fetches all available displays and updates via native notifications.
 final displaysProvider = FutureProvider<List<Display>>((ref) async {
-  // Use custom native channel for real-time plug/unplug events because
-  // screen_retriever@0.1.9 on macOS doesn't currently emit events.
-  const eventChannel = MethodChannel('lycri/system_events');
+  // On macOS we use a custom native channel for real-time plug/unplug events
+  // because screen_retriever@0.1.9 doesn't currently emit events.
+  // On Windows, screen_retriever handles events natively, so the channel
+  // listener is macOS-only. We still fall back to polling the display list.
+  if (Platform.isMacOS) {
+    const eventChannel = MethodChannel('lycri/system_events');
 
-  // Register only if it's the first time this provider is initialized.
-  // We keep the listener alive locally to the provider.
-  eventChannel.setMethodCallHandler((call) async {
-    if (call.method == 'onScreensChanged') {
-      // Re-trigger the future to fetch new display list.
-      ref.invalidateSelf();
-    }
-  });
+    // Register only if it's the first time this provider is initialized.
+    eventChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onScreensChanged') {
+        // Re-trigger the future to fetch new display list.
+        ref.invalidateSelf();
+      }
+    });
 
-  ref.onDispose(() {
-    eventChannel.setMethodCallHandler(null);
-  });
+    ref.onDispose(() {
+      eventChannel.setMethodCallHandler(null);
+    });
+  }
+  // TODO: On Windows, add a similar listener using the windows/ runner
+  // or rely on screen_retriever events once supported.
 
   return await ScreenRetriever.instance.getAllDisplays();
 });

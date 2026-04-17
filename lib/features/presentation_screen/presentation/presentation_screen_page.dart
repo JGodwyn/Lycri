@@ -95,7 +95,10 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     super.initState();
 
     // Ensure this window's process does not nap during presentation.
-    const MethodChannel('lycri/app_nap').invokeMethod('disableAppNap');
+    // App Nap is macOS-only; skip on other platforms.
+    if (Platform.isMacOS) {
+      const MethodChannel('lycri/app_nap').invokeMethod('disableAppNap');
+    }
 
     // Initial orientation/placement.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -248,6 +251,14 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     // causing a fatal crash (WindowManager.swift:60). Instead, we use the
     // 'lycri/window_setup' native channel registered in MainFlutterWindow.swift
     // which holds a direct, safe reference to this sub-window's NSWindow.
+    //
+    // On Windows, the equivalent C++ handler will be registered in the
+    // windows/ runner. Until that's implemented, this is a no-op.
+    if (!Platform.isMacOS) {
+      // TODO: Implement lycri/window_setup for Windows.
+      return;
+    }
+
     const setupChannel = MethodChannel('lycri/window_setup');
 
     try {
@@ -308,8 +319,11 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         return null;
 
       case 'closeWindow':
-        const setupChannel = MethodChannel('lycri/window_setup');
-        await setupChannel.invokeMethod('close');
+        if (Platform.isMacOS) {
+          const setupChannel = MethodChannel('lycri/window_setup');
+          await setupChannel.invokeMethod('close');
+        }
+        // TODO: Implement close for Windows.
         return null;
 
       case 'updateLyrics':

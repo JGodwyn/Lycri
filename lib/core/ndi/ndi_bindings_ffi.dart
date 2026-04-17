@@ -1,4 +1,5 @@
 import 'dart:ffi';
+import 'dart:io';
 import 'package:ffi/ffi.dart';
 
 // --- NDI Type Definitions ---
@@ -108,7 +109,7 @@ class NDIBindings {
 
   bool setup() {
     try {
-      _dylib = DynamicLibrary.open('/usr/local/lib/libndi.dylib');
+      _dylib = _openNdiLibrary();
       initialize = _dylib.lookupFunction<NDIlib_initialize_func, NDIlib_initialize_dart>('NDIlib_initialize');
       destroy = _dylib.lookupFunction<NDIlib_destroy_func, NDIlib_destroy_dart>('NDIlib_destroy');
       sendCreate = _dylib.lookupFunction<NDIlib_send_create_func, NDIlib_send_create_dart>('NDIlib_send_create');
@@ -116,8 +117,27 @@ class NDIBindings {
       sendSendVideo = _dylib.lookupFunction<NDIlib_send_send_video_v2_func, NDIlib_send_send_video_v2_dart>('NDIlib_send_send_video_v2');
       return true;
     } catch (e) {
-      print('Failed to load libndi.dylib: $e');
+      print('NDI: Failed to load NDI library: $e');
       return false;
+    }
+  }
+
+  /// Opens the NDI dynamic library for the current platform.
+  ///
+  /// - **macOS**: Looks for `libndi.dylib` at `/usr/local/lib/` (NDI Runtime
+  ///   standard install location).
+  /// - **Windows**: Looks for `Processing.NDI.Lib.x64.dll`. The NDI Runtime
+  ///   installer adds its directory to the system PATH, so
+  ///   `DynamicLibrary.open` resolves it automatically.
+  static DynamicLibrary _openNdiLibrary() {
+    if (Platform.isMacOS) {
+      return DynamicLibrary.open('/usr/local/lib/libndi.dylib');
+    } else if (Platform.isWindows) {
+      return DynamicLibrary.open('Processing.NDI.Lib.x64.dll');
+    } else {
+      throw UnsupportedError(
+        'NDI is not supported on ${Platform.operatingSystem}',
+      );
     }
   }
 }
