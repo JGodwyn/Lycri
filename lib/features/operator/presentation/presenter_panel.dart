@@ -175,13 +175,16 @@ class PresenterPanel extends ConsumerWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Presenter',
-                style: AppTypography.titleLg.copyWith(
-                  color: AppColors.textSubtle,
+              Flexible(
+                child: Text(
+                  'Presenter',
+                  style: AppTypography.titleLg.copyWith(
+                    color: AppColors.textSubtle,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: AppSpacing.md),
               const _ScreenSelector(),
               const SizedBox(width: AppSpacing.lg),
 
