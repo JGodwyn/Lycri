@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:lycri_lyrics/shared/providers/last_directory_provider.dart';
 import 'package:lycri_lyrics/core/theme/app_colors.dart';
 import 'package:lycri_lyrics/core/theme/app_radius.dart';
 import 'package:lycri_lyrics/core/theme/app_spacing.dart';
@@ -70,13 +71,16 @@ class _PresetSearchDialogState extends ConsumerState<PresetSearchDialog> {
   }
 
   Future<void> _handleExport() async {
+    final lastDir = ref.read(lastPickerDirectoryProvider);
     final path = await FilePicker.platform.saveFile(
       dialogTitle: 'Export Presets',
       fileName: 'lycri_presets_export.json',
       type: FileType.custom,
       allowedExtensions: ['json'],
+      initialDirectory: lastDir,
     );
     if (path != null) {
+      ref.read(lastPickerDirectoryProvider.notifier).update(path);
       final jsonStr =
           await ref.read(presetRepositoryProvider).exportPresetsToJson();
       final file = File(path);
@@ -85,13 +89,17 @@ class _PresetSearchDialogState extends ConsumerState<PresetSearchDialog> {
   }
 
   Future<void> _handleImport() async {
+    final lastDir = ref.read(lastPickerDirectoryProvider);
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: 'Import Presets',
       type: FileType.custom,
       allowedExtensions: ['json'],
+      initialDirectory: lastDir,
     );
     if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
+      final path = result.files.single.path!;
+      ref.read(lastPickerDirectoryProvider.notifier).update(path);
+      final file = File(path);
       final jsonStr = await file.readAsString();
       await ref.read(presetRepositoryProvider).importPresetsFromJson(jsonStr);
       ref.read(presetSearchProvider.notifier).search(_searchController.text);

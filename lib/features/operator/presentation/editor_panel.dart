@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../../../shared/providers/last_directory_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -506,12 +507,15 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             _ImageBackgroundSelector(
               imagePath: style.backgroundImagePath,
               onSelect: () async {
+                final lastDir = ref.read(lastPickerDirectoryProvider);
                 final result = await FilePicker.platform.pickFiles(
                   type: FileType.image,
                   allowMultiple: false,
+                  initialDirectory: lastDir,
                 );
                 if (result != null && result.files.single.path != null) {
                   final path = result.files.single.path!;
+                  ref.read(lastPickerDirectoryProvider.notifier).update(path);
                   ref
                       .read(lyricsStyleProvider.notifier)
                       .setBackgroundImagePath(path);
@@ -566,17 +570,21 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
             _VideoBackgroundSelector(
               videoPath: style.backgroundVideoPath,
               onSelect: () async {
+                final lastDir = ref.read(lastPickerDirectoryProvider);
                 final result = await FilePicker.platform.pickFiles(
                   type: FileType.video,
                   allowMultiple: false,
+                  initialDirectory: lastDir,
                 );
                 if (result != null && result.files.single.path != null) {
+                  final path = result.files.single.path!;
+                  ref.read(lastPickerDirectoryProvider.notifier).update(path);
                   ref
                       .read(lyricsStyleProvider.notifier)
-                      .setBackgroundVideoPath(result.files.single.path);
+                      .setBackgroundVideoPath(path);
                   ref
                       .read(recentBackgroundsProvider.notifier)
-                      .addVideoPath(result.files.single.path!);
+                      .addVideoPath(path);
                 }
               },
               onRemove: () {

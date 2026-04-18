@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:lycri_lyrics/shared/providers/last_directory_provider.dart';
 import 'package:lycri_lyrics/core/theme/app_colors.dart';
 import 'package:lycri_lyrics/core/theme/app_radius.dart';
 import 'package:lycri_lyrics/core/theme/app_spacing.dart';
@@ -76,13 +77,16 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
   }
 
   Future<void> _handleExport() async {
+    final lastDir = ref.read(lastPickerDirectoryProvider);
     final path = await FilePicker.platform.saveFile(
       dialogTitle: 'Export Library',
       fileName: 'lycri_library_export.json',
       type: FileType.custom,
       allowedExtensions: ['json'],
+      initialDirectory: lastDir,
     );
     if (path != null) {
+      ref.read(lastPickerDirectoryProvider.notifier).update(path);
       final jsonStr =
           await ref.read(songRepositoryProvider).exportLibraryToJson();
       final file = File(path);
@@ -91,13 +95,17 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
   }
 
   Future<void> _handleImport() async {
+    final lastDir = ref.read(lastPickerDirectoryProvider);
     final result = await FilePicker.platform.pickFiles(
       dialogTitle: 'Import Library',
       type: FileType.custom,
       allowedExtensions: ['json'],
+      initialDirectory: lastDir,
     );
     if (result != null && result.files.single.path != null) {
-      final file = File(result.files.single.path!);
+      final path = result.files.single.path!;
+      ref.read(lastPickerDirectoryProvider.notifier).update(path);
+      final file = File(path);
       final jsonStr = await file.readAsString();
       await ref.read(songRepositoryProvider).importLibraryFromJson(jsonStr);
       // Refresh the list to show newly imported lyrics smoothly
