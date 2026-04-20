@@ -71,7 +71,7 @@ final displaysProvider = FutureProvider<List<Display>>((ref) async {
   // because screen_retriever@0.1.9 doesn't currently emit events.
   // On Windows, screen_retriever handles events natively, so the channel
   // listener is macOS-only. We still fall back to polling the display list.
-  if (Platform.isMacOS) {
+  if (Platform.isMacOS || Platform.isWindows) {
     const eventChannel = MethodChannel('lycri/system_events');
 
     // Register only if it's the first time this provider is initialized.
