@@ -42,10 +42,16 @@ Future<void> main(List<String> args) async {
   // Window Manager
   await windowManager.ensureInitialized();
 
-  const WindowOptions windowOptions = WindowOptions(
-    size: Size(1200, 900),
-    minimumSize: Size(1200, 700),
-    center: true,
+  // Retrieve saved window state
+  final double savedWidth = sharedPrefs.getDouble('window_width') ?? 1400.0;
+  final double savedHeight = sharedPrefs.getDouble('window_height') ?? 900.0;
+  final double? savedX = sharedPrefs.getDouble('window_x');
+  final double? savedY = sharedPrefs.getDouble('window_y');
+
+  final WindowOptions windowOptions = WindowOptions(
+    size: Size(savedWidth, savedHeight),
+    minimumSize: const Size(1200, 700),
+    center: savedX == null || savedY == null,
     title: 'Lycri',
     titleBarStyle: TitleBarStyle.normal,
     backgroundColor: Colors.transparent,
@@ -53,9 +59,15 @@ Future<void> main(List<String> args) async {
   );
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
+    if (savedX != null && savedY != null) {
+      await windowManager.setPosition(Offset(savedX, savedY));
+    }
     await windowManager.show();
     await windowManager.focus();
   });
+
+  // Register window persistence listener
+  windowManager.addListener(_WindowPersistenceListener(sharedPrefs));
 
   // Supabase
   await Supabase.initialize(
@@ -69,4 +81,25 @@ Future<void> main(List<String> args) async {
       child: const LycriApp(),
     ),
   );
+}
+
+/// A listener that persists window size and position to [SharedPreferences].
+class _WindowPersistenceListener extends WindowListener {
+  final SharedPreferences prefs;
+
+  _WindowPersistenceListener(this.prefs);
+
+  @override
+  void onWindowResized() async {
+    final size = await windowManager.getSize();
+    await prefs.setDouble('window_width', size.width);
+    await prefs.setDouble('window_height', size.height);
+  }
+
+  @override
+  void onWindowMoved() async {
+    final pos = await windowManager.getPosition();
+    await prefs.setDouble('window_x', pos.dx);
+    await prefs.setDouble('window_y', pos.dy);
+  }
 }

@@ -58,16 +58,18 @@ class PresenterPanel extends ConsumerWidget {
 
       if (ref.read(presentationWindowProvider)) {
         final segmentedState = ref.read(segmentedLyricsProvider);
-        ref.read(presentationWindowProvider.notifier).syncLyrics(
-          next,
-          activeLine: ref.read(activeLineProvider),
-          isSegmented: segmentedState.isSegmented,
-          segmentLineCounts:
-              segmentedState.segments
-                  .where((s) => !s.isHidden)
-                  .map((s) => s.lineCount)
-                  .toList(),
-        );
+        ref
+            .read(presentationWindowProvider.notifier)
+            .syncLyrics(
+              next,
+              activeLine: ref.read(activeLineProvider),
+              isSegmented: segmentedState.isSegmented,
+              segmentLineCounts:
+                  segmentedState.segments
+                      .where((s) => !s.isHidden)
+                      .map((s) => s.lineCount)
+                      .toList(),
+            );
         ref
             .read(presentationWindowProvider.notifier)
             .syncActiveLine(ref.read(activeLineProvider));
@@ -84,16 +86,18 @@ class PresenterPanel extends ConsumerWidget {
     // Sync segmentation info to the presentation window.
     ref.listen<SegmentedLyricsState>(segmentedLyricsProvider, (prev, next) {
       if (ref.read(presentationWindowProvider)) {
-        ref.read(presentationWindowProvider.notifier).syncLyrics(
-          ref.read(lyricsProvider),
-          activeLine: ref.read(activeLineProvider),
-          isSegmented: next.isSegmented,
-          segmentLineCounts:
-              next.segments
-                  .where((s) => !s.isHidden)
-                  .map((s) => s.lineCount)
-                  .toList(),
-        );
+        ref
+            .read(presentationWindowProvider.notifier)
+            .syncLyrics(
+              ref.read(lyricsProvider),
+              activeLine: ref.read(activeLineProvider),
+              isSegmented: next.isSegmented,
+              segmentLineCounts:
+                  next.segments
+                      .where((s) => !s.isHidden)
+                      .map((s) => s.lineCount)
+                      .toList(),
+            );
       }
     });
 
@@ -173,9 +177,9 @@ class PresenterPanel extends ConsumerWidget {
             ),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
+              // ── "Presenter" label — fills remaining space, truncates if needed
+              Expanded(
                 child: Text(
                   'Presenter',
                   style: AppTypography.titleLg.copyWith(
@@ -184,13 +188,15 @@ class PresenterPanel extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              const _ScreenSelector(),
-              const SizedBox(width: AppSpacing.lg),
 
+              // ── Controls block — always right-aligned, natural width ────────
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── Clear (sweep brush) ─────────────────────────────────
+                  const _ScreenSelector(),
+                  const SizedBox(width: AppSpacing.lg),
+
+                  // ── Clear (sweep brush) ───────────────────────────────────
                   MouseRegion(
                     cursor:
                         lyrics != null
@@ -224,7 +230,7 @@ class PresenterPanel extends ConsumerWidget {
 
                   const SizedBox(width: AppSpacing.lg),
 
-                  // ── Left arrow button ──────────────────────────────────
+                  // ── Left arrow ────────────────────────────────────────────
                   _ArrowButton(
                     icon: Icons.chevron_left,
                     onPressed:
@@ -240,7 +246,7 @@ class PresenterPanel extends ConsumerWidget {
 
                   const SizedBox(width: AppSpacing.sm),
 
-                  // ── Right arrow button ─────────────────────────────────
+                  // ── Right arrow ───────────────────────────────────────────
                   _ArrowButton(
                     icon: Icons.chevron_right,
                     onPressed:
@@ -258,7 +264,7 @@ class PresenterPanel extends ConsumerWidget {
 
                   const SizedBox(width: AppSpacing.lg),
 
-                  // ── Go Live / End Live button ──────────────────────────
+                  // ── Go Live / End Live ────────────────────────────────────
                   LycriButton(
                     label: isLive ? 'End Live' : 'Go Live',
                     onPressed: () {
@@ -267,27 +273,25 @@ class PresenterPanel extends ConsumerWidget {
                       } else {
                         final style = ref.read(lyricsStyleProvider);
                         final segmentedState = ref.read(segmentedLyricsProvider);
-                        ref
-                            .read(presentationWindowProvider.notifier)
-                            .goLive(
-                              lyrics,
-                              ref.read(activeLineProvider),
-                              style.fontFamily,
-                              style.displayLines,
-                              style.textAlign,
-                              style.fontColor,
-                              style.backgroundColor,
-                              style.backgroundType,
-                              style.gradientType,
-                              style.gradientColors,
-                              style.backgroundImagePath,
-                              style.backgroundVideoPath,
-                              segmentedState.isSegmented,
-                              segmentedState.segments
-                                  .where((s) => !s.isHidden)
-                                  .map((s) => s.lineCount)
-                                  .toList(),
-                            );
+                        ref.read(presentationWindowProvider.notifier).goLive(
+                          lyrics,
+                          ref.read(activeLineProvider),
+                          style.fontFamily,
+                          style.displayLines,
+                          style.textAlign,
+                          style.fontColor,
+                          style.backgroundColor,
+                          style.backgroundType,
+                          style.gradientType,
+                          style.gradientColors,
+                          style.backgroundImagePath,
+                          style.backgroundVideoPath,
+                          segmentedState.isSegmented,
+                          segmentedState.segments
+                              .where((s) => !s.isHidden)
+                              .map((s) => s.lineCount)
+                              .toList(),
+                        );
                       }
                     },
                     fillWidth: false,
@@ -543,13 +547,19 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
         if (key == null || key.currentContext == null) {
           // If the key isn't found, the UI likely haven't rebuilt with the new lines yet.
           // Retry after a short delay.
-          Future.delayed(const Duration(milliseconds: 50), () => attemptScroll(retryCount - 1));
+          Future.delayed(
+            const Duration(milliseconds: 50),
+            () => attemptScroll(retryCount - 1),
+          );
           return;
         }
 
         final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
         if (renderBox == null || !renderBox.hasSize) {
-          Future.delayed(const Duration(milliseconds: 50), () => attemptScroll(retryCount - 1));
+          Future.delayed(
+            const Duration(milliseconds: 50),
+            () => attemptScroll(retryCount - 1),
+          );
           return;
         }
 
@@ -970,18 +980,23 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                       ),
                     ),
                     const SizedBox(width: AppSpacing.md),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 40),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder:
-                          (child, animation) =>
-                              FadeTransition(opacity: animation, child: child),
-                      child: Text(
-                        currentOutput.label,
-                        key: ValueKey(currentOutput),
-                        style: AppTypography.titleMd.copyWith(
-                          color: AppColors.textSubtle,
+                    Flexible(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 40),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder:
+                            (child, animation) => FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            ),
+                        child: Text(
+                          currentOutput.label,
+                          key: ValueKey(currentOutput),
+                          style: AppTypography.titleMd.copyWith(
+                            color: AppColors.textSubtle,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
