@@ -73,7 +73,7 @@ class NdiService extends _$NdiService {
     _ndiFrame!.ref.frame_rate_D = 1000;
     _ndiFrame!.ref.picture_aspect_ratio = _width / _height;
     _ndiFrame!.ref.frame_format_type = NDIlibFrameFormatType.progressive;
-    _ndiFrame!.ref.timecode = 0; // Or current time
+    _ndiFrame!.ref.timecode = 0x7FFFFFFFFFFFFFFF; // NDIlib_send_timecode_synthesize
     _ndiFrame!.ref.p_data = _frameBuffer!;
     _ndiFrame!.ref.line_stride_in_bytes = _width * _bytesPerPixel;
     _ndiFrame!.ref.timestamp = 0;
@@ -114,9 +114,15 @@ class NdiService extends _$NdiService {
     state = false;
   }
 
+  int _frameUpdateCount = 0;
   void updateFrameBuffer(Uint8List newBytes) {
     if (!state || _frameBuffer == null) return;
     
+    _frameUpdateCount++;
+    if (_frameUpdateCount % 30 == 0) {
+      print('NDI: updateFrameBuffer called (frame $_frameUpdateCount), size: ${newBytes.length}');
+    }
+
     // Very fast copy from Uint8List to native Pointer
     final nativeBytes = _frameBuffer!.asTypedList(newBytes.length);
     nativeBytes.setAll(0, newBytes);

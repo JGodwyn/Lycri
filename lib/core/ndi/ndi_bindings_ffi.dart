@@ -133,7 +133,21 @@ class NDIBindings {
     if (Platform.isMacOS) {
       return DynamicLibrary.open('/usr/local/lib/libndi.dylib');
     } else if (Platform.isWindows) {
-      return DynamicLibrary.open('Processing.NDI.Lib.x64.dll');
+      try {
+        return DynamicLibrary.open('Processing.NDI.Lib.x64.dll');
+      } catch (_) {
+        for (final version in ['V6', 'V5', 'V4', 'V3', 'V2']) {
+          final envVar = 'NDI_RUNTIME_DIR_$version';
+          final ndiPath = Platform.environment[envVar];
+          if (ndiPath != null) {
+            final dllPath = '$ndiPath\\Processing.NDI.Lib.x64.dll';
+            if (File(dllPath).existsSync()) {
+              return DynamicLibrary.open(dllPath);
+            }
+          }
+        }
+        rethrow;
+      }
     } else {
       throw UnsupportedError(
         'NDI is not supported on ${Platform.operatingSystem}',
