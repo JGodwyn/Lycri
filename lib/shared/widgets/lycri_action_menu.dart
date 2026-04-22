@@ -34,16 +34,16 @@ class LycriActionMenu extends StatefulWidget {
   final Widget child;
 
   @override
-  State<LycriActionMenu> createState() => _LycriActionMenuState();
+  State<LycriActionMenu> createState() => LycriActionMenuState();
 }
 
-class _LycriActionMenuState extends State<LycriActionMenu>
+class LycriActionMenuState extends State<LycriActionMenu>
     with SingleTickerProviderStateMixin {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
   bool _isOpen = false;
 
-  void _toggleMenu() {
+  void toggleMenu() {
     if (_isOpen) {
       _hideMenu();
     } else {
@@ -61,13 +61,16 @@ class _LycriActionMenuState extends State<LycriActionMenu>
 
         const double menuWidth = 200.0;
         // Estimate menu height based on number of actions + dividers + padding
-        final double menuHeight = (widget.actions.length * 48.0) + (widget.actions.length - 1) + 32.0;
+        final double menuHeight =
+            (widget.actions.length * 48.0) + (widget.actions.length - 1) + 32.0;
         const double gap = AppSpacing.sm;
 
-        final double spaceBelow = screenSize.height - (offset.dy + renderBox.size.height + gap);
+        final double spaceBelow =
+            screenSize.height - (offset.dy + renderBox.size.height + gap);
         final double spaceAbove = offset.dy - gap;
 
-        final bool showAbove = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+        final bool showAbove =
+            spaceBelow < menuHeight && spaceAbove > spaceBelow;
 
         // Calculate horizontal offset (left-align by default)
         double dx = 0.0;
@@ -116,9 +119,11 @@ class _LycriActionMenuState extends State<LycriActionMenu>
     return CompositedTransformTarget(
       link: _layerLink,
       child: GestureDetector(
-        onTap: () {}, // Consume tap to prevent parent card selection
+        onTap:
+            () {}, // Swallows the tap to prevent propagation to parent widgets (like cards)
+        behavior: HitTestBehavior.opaque,
         child: Listener(
-          onPointerDown: (_) => _toggleMenu(),
+          onPointerDown: (_) => toggleMenu(),
           behavior: HitTestBehavior.opaque,
           child: widget.child,
         ),
@@ -193,14 +198,20 @@ class _LycriMenuOverlayState extends State<_LycriMenuOverlay>
         CompositedTransformFollower(
           link: widget.layerLink,
           showWhenUnlinked: false,
-          targetAnchor: widget.showAbove ? Alignment.topLeft : Alignment.bottomLeft,
-          followerAnchor: widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
-          offset: Offset(widget.dx, widget.showAbove ? -AppSpacing.sm : AppSpacing.sm),
+          targetAnchor:
+              widget.showAbove ? Alignment.topLeft : Alignment.bottomLeft,
+          followerAnchor:
+              widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
+          offset: Offset(
+            widget.dx,
+            widget.showAbove ? -AppSpacing.sm : AppSpacing.sm,
+          ),
           child: FadeTransition(
             opacity: _fadeAnim,
             child: ScaleTransition(
               scale: _scaleAnim,
-              alignment: widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
+              alignment:
+                  widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
               child: Material(
                 type: MaterialType.transparency,
                 child: Container(
