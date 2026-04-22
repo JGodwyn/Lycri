@@ -34,16 +34,16 @@ class LycriActionMenu extends StatefulWidget {
   final Widget child;
 
   @override
-  State<LycriActionMenu> createState() => _LycriActionMenuState();
+  State<LycriActionMenu> createState() => LycriActionMenuState();
 }
 
-class _LycriActionMenuState extends State<LycriActionMenu>
+class LycriActionMenuState extends State<LycriActionMenu>
     with SingleTickerProviderStateMixin {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
   bool _isOpen = false;
 
-  void _toggleMenu() {
+  void toggleMenu() {
     if (_isOpen) {
       _hideMenu();
     } else {
@@ -116,9 +116,10 @@ class _LycriActionMenuState extends State<LycriActionMenu>
     return CompositedTransformTarget(
       link: _layerLink,
       child: GestureDetector(
-        onTap: () {}, // Consume tap to prevent parent card selection
+        onTap: () {}, // Swallows the tap to prevent propagation to parent widgets (like cards)
+        behavior: HitTestBehavior.opaque,
         child: Listener(
-          onPointerDown: (_) => _toggleMenu(),
+          onPointerDown: (_) => toggleMenu(),
           behavior: HitTestBehavior.opaque,
           child: widget.child,
         ),
