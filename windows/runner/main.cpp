@@ -4,6 +4,8 @@
 
 #include "flutter_window.h"
 #include "utils.h"
+#include "flutter/generated_plugin_registrant.h"
+#include <desktop_multi_window/desktop_multi_window_plugin.h>
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
@@ -23,6 +25,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
       GetCommandLineArguments();
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
+
+  DesktopMultiWindowSetWindowCreatedCallback([](void* controller) {
+    auto* flutter_controller = reinterpret_cast<flutter::FlutterViewController*>(controller);
+    RegisterPlugins(flutter_controller->engine());
+  });
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:video_player/video_player.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
@@ -254,8 +255,41 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     //
     // On Windows, the equivalent C++ handler will be registered in the
     // windows/ runner. Until that's implemented, this is a no-op.
+    if (Platform.isWindows) {
+      try {
+        final targetDisplay = args['targetDisplay'];
+        final bool goFullScreen = args['goFullScreen'] as bool? ?? true;
+
+        if (targetDisplay == null) return;
+
+        final double x = (targetDisplay['x'] as num).toDouble();
+        final double y = (targetDisplay['y'] as num).toDouble();
+        final double w = (targetDisplay['width'] as num).toDouble();
+        final double h = (targetDisplay['height'] as num).toDouble();
+
+        await windowManager.ensureInitialized();
+
+        if (goFullScreen) {
+          await windowManager.setBounds(Rect.fromLTWH(x, y, w, h));
+          await windowManager.setFullScreen(true);
+        } else {
+          const double overlayW = 1280;
+          const double overlayH = 720;
+          await windowManager.setBounds(Rect.fromLTWH(
+            x + (w - overlayW) / 2,
+            y + (h - overlayH) / 2,
+            overlayW,
+            overlayH,
+          ));
+          await windowManager.setFullScreen(false);
+        }
+      } catch (e) {
+        debugPrint('window_manager setup error: $e');
+      }
+      return;
+    }
+
     if (!Platform.isMacOS) {
-      // TODO: Implement lycri/window_setup for Windows.
       return;
     }
 
@@ -322,8 +356,10 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         if (Platform.isMacOS) {
           const setupChannel = MethodChannel('lycri/window_setup');
           await setupChannel.invokeMethod('close');
+        } else if (Platform.isWindows) {
+          await windowManager.ensureInitialized();
+          await windowManager.close();
         }
-        // TODO: Implement close for Windows.
         return null;
 
       case 'updateLyrics':

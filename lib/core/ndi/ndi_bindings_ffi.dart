@@ -96,6 +96,10 @@ typedef NDIlib_send_destroy_dart = void Function(NDIlib_send_instance_t);
 typedef NDIlib_send_send_video_v2_func = Void Function(NDIlib_send_instance_t, Pointer<NDIlib_video_frame_v2_t>);
 typedef NDIlib_send_send_video_v2_dart = void Function(NDIlib_send_instance_t, Pointer<NDIlib_video_frame_v2_t>);
 
+// void NDIlib_send_send_video_async_v2(NDIlib_send_instance_t p_instance, const NDIlib_video_frame_v2_t* p_video_data);
+typedef NDIlib_send_send_video_async_v2_func = Void Function(NDIlib_send_instance_t, Pointer<NDIlib_video_frame_v2_t>);
+typedef NDIlib_send_send_video_async_v2_dart = void Function(NDIlib_send_instance_t, Pointer<NDIlib_video_frame_v2_t>);
+
 // --- NDI Bindings Wrapper ---
 
 class NDIBindings {
@@ -106,6 +110,7 @@ class NDIBindings {
   late NDIlib_send_create_dart sendCreate;
   late NDIlib_send_destroy_dart sendDestroy;
   late NDIlib_send_send_video_v2_dart sendSendVideo;
+  late NDIlib_send_send_video_async_v2_dart sendSendVideoAsync;
 
   bool setup() {
     try {
@@ -115,6 +120,12 @@ class NDIBindings {
       sendCreate = _dylib.lookupFunction<NDIlib_send_create_func, NDIlib_send_create_dart>('NDIlib_send_create');
       sendDestroy = _dylib.lookupFunction<NDIlib_send_destroy_func, NDIlib_send_destroy_dart>('NDIlib_send_destroy');
       sendSendVideo = _dylib.lookupFunction<NDIlib_send_send_video_v2_func, NDIlib_send_send_video_v2_dart>('NDIlib_send_send_video_v2');
+      try {
+        sendSendVideoAsync = _dylib.lookupFunction<NDIlib_send_send_video_async_v2_func, NDIlib_send_send_video_async_v2_dart>('NDIlib_send_send_video_async_v2');
+      } catch (_) {
+        // Fallback to sync if async is not available in an older DLL
+        sendSendVideoAsync = sendSendVideo;
+      }
       return true;
     } catch (e) {
       print('NDI: Failed to load NDI library: $e');
@@ -133,7 +144,21 @@ class NDIBindings {
     if (Platform.isMacOS) {
       return DynamicLibrary.open('/usr/local/lib/libndi.dylib');
     } else if (Platform.isWindows) {
-      return DynamicLibrary.open('Processing.NDI.Lib.x64.dll');
+      try {
+        return DynamicLibrary.open('Processing.NDI.Lib.x64.dll');
+      } catch (_) {
+        for (final version in ['V6', 'V5', 'V4', 'V3', 'V2']) {
+          final envVar = 'NDI_RUNTIME_DIR_$version';
+          final ndiPath = Platform.environment[envVar];
+          if (ndiPath != null) {
+            final dllPath = '$ndiPath\\Processing.NDI.Lib.x64.dll';
+            if (File(dllPath).existsSync()) {
+              return DynamicLibrary.open(dllPath);
+            }
+          }
+        }
+        rethrow;
+      }
     } else {
       throw UnsupportedError(
         'NDI is not supported on ${Platform.operatingSystem}',

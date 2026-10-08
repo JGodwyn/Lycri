@@ -12,5 +12,5 @@ final keepAliveManagerProvider = Provider<void>((ref) {
 
   // Per user request, the app should NEVER sleep or nap, regardless of state.
   // This ensures all live feeds (Presentation, NDI, windowed) are always smooth.
-  napService.disableAppNap();
+  Future.microtask(() => napService.disableAppNap());
 });
