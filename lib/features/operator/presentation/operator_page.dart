@@ -24,22 +24,22 @@ class OperatorPage extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Padding(
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(AppPadding.lg),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // ── Left: lyric input sidebar ──────────────────────────────────
                 SizedBox(width: 320, child: const LyricInputPanel()),
 
-                const SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.lg),
 
                 // ── Center: presenter preview ────────────────────────────────
                 Expanded(flex: 3, child: const PresenterPanel()),
 
-                const SizedBox(width: AppSpacing.md),
+                const SizedBox(width: AppSpacing.lg),
 
                 // ── Right: style editor ──────────────────────────────────────
-                SizedBox(width: 368, child: const EditorPanel()),
+                SizedBox(width: 333, child: const EditorPanel()),
               ],
             ),
           ),

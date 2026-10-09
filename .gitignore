@@ -49,3 +49,7 @@ app.*.map.json
 
 # Distribution
 /dist/
+
+# Figma Bridge exports
+design-sync/
+design-sync/

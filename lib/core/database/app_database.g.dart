@@ -477,6 +477,15 @@ class $LyricsSegmentsTable extends LyricsSegments
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isHiddenMeta = const VerificationMeta(
     'isHidden',
   );
@@ -510,6 +519,7 @@ class $LyricsSegmentsTable extends LyricsSegments
     textContent,
     type,
     segmentNumber,
+    label,
     isHidden,
     orderIndex,
   ];
@@ -560,6 +570,12 @@ class $LyricsSegmentsTable extends LyricsSegments
     } else if (isInserting) {
       context.missing(_segmentNumberMeta);
     }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    }
     if (data.containsKey('is_hidden')) {
       context.handle(
         _isHiddenMeta,
@@ -609,6 +625,10 @@ class $LyricsSegmentsTable extends LyricsSegments
             DriftSqlType.int,
             data['${effectivePrefix}segment_number'],
           )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      ),
       isHidden:
           attachedDatabase.typeMapping.read(
             DriftSqlType.bool,
@@ -638,6 +658,9 @@ class LyricsSegmentEntry extends DataClass
   final String textContent;
   final LyricsSegmentType type;
   final int segmentNumber;
+
+  /// User-set name (e.g. "Tag"); null shows the default "Verse 2" style.
+  final String? label;
   final bool isHidden;
   final int orderIndex;
   const LyricsSegmentEntry({
@@ -646,6 +669,7 @@ class LyricsSegmentEntry extends DataClass
     required this.textContent,
     required this.type,
     required this.segmentNumber,
+    this.label,
     required this.isHidden,
     required this.orderIndex,
   });
@@ -661,6 +685,9 @@ class LyricsSegmentEntry extends DataClass
       );
     }
     map['segment_number'] = Variable<int>(segmentNumber);
+    if (!nullToAbsent || label != null) {
+      map['label'] = Variable<String>(label);
+    }
     map['is_hidden'] = Variable<bool>(isHidden);
     map['order_index'] = Variable<int>(orderIndex);
     return map;
@@ -673,6 +700,8 @@ class LyricsSegmentEntry extends DataClass
       textContent: Value(textContent),
       type: Value(type),
       segmentNumber: Value(segmentNumber),
+      label:
+          label == null && nullToAbsent ? const Value.absent() : Value(label),
       isHidden: Value(isHidden),
       orderIndex: Value(orderIndex),
     );
@@ -691,6 +720,7 @@ class LyricsSegmentEntry extends DataClass
         serializer.fromJson<int>(json['type']),
       ),
       segmentNumber: serializer.fromJson<int>(json['segmentNumber']),
+      label: serializer.fromJson<String?>(json['label']),
       isHidden: serializer.fromJson<bool>(json['isHidden']),
       orderIndex: serializer.fromJson<int>(json['orderIndex']),
     );
@@ -706,6 +736,7 @@ class LyricsSegmentEntry extends DataClass
         $LyricsSegmentsTable.$convertertype.toJson(type),
       ),
       'segmentNumber': serializer.toJson<int>(segmentNumber),
+      'label': serializer.toJson<String?>(label),
       'isHidden': serializer.toJson<bool>(isHidden),
       'orderIndex': serializer.toJson<int>(orderIndex),
     };
@@ -717,6 +748,7 @@ class LyricsSegmentEntry extends DataClass
     String? textContent,
     LyricsSegmentType? type,
     int? segmentNumber,
+    Value<String?> label = const Value.absent(),
     bool? isHidden,
     int? orderIndex,
   }) => LyricsSegmentEntry(
@@ -725,6 +757,7 @@ class LyricsSegmentEntry extends DataClass
     textContent: textContent ?? this.textContent,
     type: type ?? this.type,
     segmentNumber: segmentNumber ?? this.segmentNumber,
+    label: label.present ? label.value : this.label,
     isHidden: isHidden ?? this.isHidden,
     orderIndex: orderIndex ?? this.orderIndex,
   );
@@ -739,6 +772,7 @@ class LyricsSegmentEntry extends DataClass
           data.segmentNumber.present
               ? data.segmentNumber.value
               : this.segmentNumber,
+      label: data.label.present ? data.label.value : this.label,
       isHidden: data.isHidden.present ? data.isHidden.value : this.isHidden,
       orderIndex:
           data.orderIndex.present ? data.orderIndex.value : this.orderIndex,
@@ -753,6 +787,7 @@ class LyricsSegmentEntry extends DataClass
           ..write('textContent: $textContent, ')
           ..write('type: $type, ')
           ..write('segmentNumber: $segmentNumber, ')
+          ..write('label: $label, ')
           ..write('isHidden: $isHidden, ')
           ..write('orderIndex: $orderIndex')
           ..write(')'))
@@ -766,6 +801,7 @@ class LyricsSegmentEntry extends DataClass
     textContent,
     type,
     segmentNumber,
+    label,
     isHidden,
     orderIndex,
   );
@@ -778,6 +814,7 @@ class LyricsSegmentEntry extends DataClass
           other.textContent == this.textContent &&
           other.type == this.type &&
           other.segmentNumber == this.segmentNumber &&
+          other.label == this.label &&
           other.isHidden == this.isHidden &&
           other.orderIndex == this.orderIndex);
 }
@@ -788,6 +825,7 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
   final Value<String> textContent;
   final Value<LyricsSegmentType> type;
   final Value<int> segmentNumber;
+  final Value<String?> label;
   final Value<bool> isHidden;
   final Value<int> orderIndex;
   final Value<int> rowid;
@@ -797,6 +835,7 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
     this.textContent = const Value.absent(),
     this.type = const Value.absent(),
     this.segmentNumber = const Value.absent(),
+    this.label = const Value.absent(),
     this.isHidden = const Value.absent(),
     this.orderIndex = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -807,6 +846,7 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
     required String textContent,
     required LyricsSegmentType type,
     required int segmentNumber,
+    this.label = const Value.absent(),
     this.isHidden = const Value.absent(),
     required int orderIndex,
     this.rowid = const Value.absent(),
@@ -822,6 +862,7 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
     Expression<String>? textContent,
     Expression<int>? type,
     Expression<int>? segmentNumber,
+    Expression<String>? label,
     Expression<bool>? isHidden,
     Expression<int>? orderIndex,
     Expression<int>? rowid,
@@ -832,6 +873,7 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
       if (textContent != null) 'text_content': textContent,
       if (type != null) 'type': type,
       if (segmentNumber != null) 'segment_number': segmentNumber,
+      if (label != null) 'label': label,
       if (isHidden != null) 'is_hidden': isHidden,
       if (orderIndex != null) 'order_index': orderIndex,
       if (rowid != null) 'rowid': rowid,
@@ -844,6 +886,7 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
     Value<String>? textContent,
     Value<LyricsSegmentType>? type,
     Value<int>? segmentNumber,
+    Value<String?>? label,
     Value<bool>? isHidden,
     Value<int>? orderIndex,
     Value<int>? rowid,
@@ -854,6 +897,7 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
       textContent: textContent ?? this.textContent,
       type: type ?? this.type,
       segmentNumber: segmentNumber ?? this.segmentNumber,
+      label: label ?? this.label,
       isHidden: isHidden ?? this.isHidden,
       orderIndex: orderIndex ?? this.orderIndex,
       rowid: rowid ?? this.rowid,
@@ -880,6 +924,9 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
     if (segmentNumber.present) {
       map['segment_number'] = Variable<int>(segmentNumber.value);
     }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
     if (isHidden.present) {
       map['is_hidden'] = Variable<bool>(isHidden.value);
     }
@@ -900,6 +947,7 @@ class LyricsSegmentsCompanion extends UpdateCompanion<LyricsSegmentEntry> {
           ..write('textContent: $textContent, ')
           ..write('type: $type, ')
           ..write('segmentNumber: $segmentNumber, ')
+          ..write('label: $label, ')
           ..write('isHidden: $isHidden, ')
           ..write('orderIndex: $orderIndex, ')
           ..write('rowid: $rowid')
@@ -1615,6 +1663,7 @@ typedef $$LyricsSegmentsTableCreateCompanionBuilder =
       required String textContent,
       required LyricsSegmentType type,
       required int segmentNumber,
+      Value<String?> label,
       Value<bool> isHidden,
       required int orderIndex,
       Value<int> rowid,
@@ -1626,6 +1675,7 @@ typedef $$LyricsSegmentsTableUpdateCompanionBuilder =
       Value<String> textContent,
       Value<LyricsSegmentType> type,
       Value<int> segmentNumber,
+      Value<String?> label,
       Value<bool> isHidden,
       Value<int> orderIndex,
       Value<int> rowid,
@@ -1693,6 +1743,11 @@ class $$LyricsSegmentsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get isHidden => $composableBuilder(
     column: $table.isHidden,
     builder: (column) => ColumnFilters(column),
@@ -1756,6 +1811,11 @@ class $$LyricsSegmentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isHidden => $composableBuilder(
     column: $table.isHidden,
     builder: (column) => ColumnOrderings(column),
@@ -1814,6 +1874,9 @@ class $$LyricsSegmentsTableAnnotationComposer
     column: $table.segmentNumber,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
 
   GeneratedColumn<bool> get isHidden =>
       $composableBuilder(column: $table.isHidden, builder: (column) => column);
@@ -1886,6 +1949,7 @@ class $$LyricsSegmentsTableTableManager
                 Value<String> textContent = const Value.absent(),
                 Value<LyricsSegmentType> type = const Value.absent(),
                 Value<int> segmentNumber = const Value.absent(),
+                Value<String?> label = const Value.absent(),
                 Value<bool> isHidden = const Value.absent(),
                 Value<int> orderIndex = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -1895,6 +1959,7 @@ class $$LyricsSegmentsTableTableManager
                 textContent: textContent,
                 type: type,
                 segmentNumber: segmentNumber,
+                label: label,
                 isHidden: isHidden,
                 orderIndex: orderIndex,
                 rowid: rowid,
@@ -1906,6 +1971,7 @@ class $$LyricsSegmentsTableTableManager
                 required String textContent,
                 required LyricsSegmentType type,
                 required int segmentNumber,
+                Value<String?> label = const Value.absent(),
                 Value<bool> isHidden = const Value.absent(),
                 required int orderIndex,
                 Value<int> rowid = const Value.absent(),
@@ -1915,6 +1981,7 @@ class $$LyricsSegmentsTableTableManager
                 textContent: textContent,
                 type: type,
                 segmentNumber: segmentNumber,
+                label: label,
                 isHidden: isHidden,
                 orderIndex: orderIndex,
                 rowid: rowid,

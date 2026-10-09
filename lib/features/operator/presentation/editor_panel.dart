@@ -16,15 +16,20 @@ import '../../../shared/providers/system_fonts_provider.dart';
 
 import '../../../shared/widgets/lycri_color_picker.dart';
 import '../../../shared/widgets/lycri_dropdown.dart';
+import '../../../shared/widgets/lycri_pill_group.dart';
+import '../../../shared/widgets/lycri_segmented_tray.dart';
+import '../../../shared/widgets/lycri_value_chip.dart';
+import '../../../shared/widgets/scroll_fade_mask.dart';
 import '../../../shared/widgets/video_thumbnail_widget.dart';
 import '../../../shared/utils/dialog_utils.dart';
 import '../providers/preset_state_provider.dart';
 import 'widgets/preset_search_dialog.dart';
+import '../../../shared/widgets/fade_text.dart';
 import 'widgets/save_preset_menu.dart';
 
-/// Right panel of the operator window.
-/// Hosts the lyric style editor — currently the Text section controls.
-/// Background section will be added in a future iteration.
+/// Right panel of the operator window (Figma: "EditorWindow1–3").
+/// Sections: LYRIC (font, colour, lines, alignment), BACKGROUND (type plus
+/// per-type controls) and RECENTLY USED, separated by dashed rules.
 class EditorPanel extends ConsumerStatefulWidget {
   const EditorPanel({super.key});
 
@@ -32,16 +37,28 @@ class EditorPanel extends ConsumerStatefulWidget {
   ConsumerState<EditorPanel> createState() => _EditorPanelState();
 }
 
-class _EditorPanelState extends ConsumerState<EditorPanel> {
+class _EditorPanelState extends ConsumerState<EditorPanel>
+    with SingleTickerProviderStateMixin {
   static const List<String> _lineCounts = ['Auto', '1', '2', '3', '4', 'All'];
+
+  /// Width of the label column in the background rows (Figma: 112).
+  static const double _labelColumn = 112;
 
   /// Track previous background type to determine push direction.
   BackgroundType? _prevBackgroundType;
 
   final ScrollController _scrollController = ScrollController();
 
+  /// Runs for one background-type switch; drives the edge fade on the
+  /// per-type controls area while the panels slide.
+  late final AnimationController _switchFade = AnimationController(
+    vsync: this,
+    duration: _switchDuration,
+  );
+
   @override
   void dispose() {
+    _switchFade.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -49,37 +66,23 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
   @override
   Widget build(BuildContext context) {
     final fontsAsync = ref.watch(systemFontsProvider);
-    final selectedFont = ref.watch(
-      lyricsStyleProvider.select((s) => s.fontFamily),
-    );
-    final displayLines = ref.watch(
-      lyricsStyleProvider.select((s) => s.displayLines),
-    );
+    final style = ref.watch(lyricsStyleProvider);
+    final recents = ref.watch(recentBackgroundsProvider);
     final selectedLineCountStr =
-        displayLines == -1
+        style.displayLines == -1
             ? 'Auto'
-            : (displayLines == 0 ? 'All' : displayLines.toString());
+            : (style.displayLines == 0 ? 'All' : style.displayLines.toString());
 
     final presetState = ref.watch(presetStateProvider);
-    final isDirty = presetState.isDirty;
-    final rawPresetName = presetState.currentPreset?.name ?? 'Preset';
-    final presetDisplayName = rawPresetName.length > 10
-        ? '${rawPresetName.substring(0, 10)}...'
-        : rawPresetName;
+    final presetName = presetState.currentPreset?.name ?? 'Presets';
 
-    final currentBackgroundType = ref.watch(
-      lyricsStyleProvider.select((s) => s.backgroundType),
-    );
+    final currentBackgroundType = style.backgroundType;
 
     // Determine direction for push transition.
     final bool isForward =
         _prevBackgroundType == null ||
         currentBackgroundType.index >= _prevBackgroundType!.index;
 
-    // Use a post frame callback to avoid updating state during build when
-    // initial value is set, but since we are just tracking for the NEXT build,
-    // we can update it at the end of build or in a listener.
-    // ref.listen is cleaner.
     ref.listen<BackgroundType>(
       lyricsStyleProvider.select((s) => s.backgroundType),
       (prev, next) {
@@ -87,250 +90,354 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
           setState(() {
             _prevBackgroundType = prev;
           });
+          _switchFade.forward(from: 0);
         }
       },
     );
 
+    final recentChips = _recentChips(style.backgroundType, recents);
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface4,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.borderMinimal, width: AppStroke.md),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(
+          color: AppColors.borderSubtle,
+          width: AppStroke.sm,
+          strokeAlign: BorderSide.strokeAlignOutside,
+        ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20),
+        ],
       ),
       child: Scrollbar(
         controller: _scrollController,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Title ──────────────────────────────────────────────────────
-              Row(
-                children: [
-                  Text(
-                    'Editor',
-                    style: AppTypography.headingSm.copyWith(
-                      color: AppColors.textSubtle,
-                    ),
-                  ),
-                  const Spacer(),
-                  _SavePresetActionButton(isEnabled: isDirty),
-                  const SizedBox(width: AppSpacing.md),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () {
-                         showLycriDialog(
-                           context: context,
-                           builder: (context) => const PresetSearchDialog(),
-                         );
-                      },
-                      child: Container(
-                        height: 40,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.lg,
-                          vertical: AppSpacing.sm,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface3,
-                          borderRadius: BorderRadius.circular(AppRadius.full),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                presetDisplayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.bodyLg.copyWith(
-                                  color: AppColors.textBold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                            SvgPicture.asset(
-                              'assets/vectors/unfold-more.svg',
-                              width: 16,
-                              height: 16,
-                              colorFilter: const ColorFilter.mode(
-                                AppColors.iconSubtle,
-                                BlendMode.srcIn,
-                              ),
-                            ),
-                          ],
+        child: ScrollFadeMask(
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(AppPadding.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ── Header ───────────────────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Editor'.toUpperCase(),
+                        style: AppTypography.headingSm.copyWith(
+                          color: AppColors.textSubtle,
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // ── Text section ───────────────────────────────────────────────
-              const _SectionHeader(label: 'Text'),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              // ── Font Family ────────────────────────────────────────────────
-              _buildLabel('Font Family'),
-              const SizedBox(height: AppSpacing.sm),
-              fontsAsync.when(
-                data:
-                    (fonts) => LycriDropdown<String>(
-                      items:
-                          fonts
-                              .map(
-                                (f) => LycriDropdownItem(
-                                  value: f,
-                                  label: f,
-                                  fontFamily: f,
-                                ),
-                              )
-                              .toList(),
-                      selectedValue: selectedFont,
-                      onChanged:
-                          (font) => ref
-                              .read(lyricsStyleProvider.notifier)
-                              .setFontFamily(font),
-                      leadingIcon: Icons.text_format,
-                      showSearch: true,
-                      searchHint: 'Search fonts here',
+                    _EditorHeaderActions(
+                      canSave: presetState.isDirty,
+                      presetName: presetName,
+                      onOpenPresets:
+                          () => showLycriDialog(
+                            context: context,
+                            builder: (context) => const PresetSearchDialog(),
+                          ),
                     ),
-                loading:
-                    () => const SizedBox(
-                      height: 48,
-                      child: Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    ),
-                error:
-                    (_, __) => Text(
-                      'Failed to load fonts',
-                      style: AppTypography.bodySm.copyWith(
-                        color: AppColors.textDanger,
-                      ),
-                    ),
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // ── Lyrics to display at a time ────────────────────────────────
-              _buildLabel('Lyrics to display at a time'),
-              const SizedBox(height: AppSpacing.sm),
-              _ChipRow(
-                items: _lineCounts,
-                selected: selectedLineCountStr,
-                onSelected: (v) {
-                  final count =
-                      v == 'Auto' ? -1 : (v == 'All' ? 0 : int.parse(v));
-                  ref.read(lyricsStyleProvider.notifier).setDisplayLines(count);
-                },
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // ── Alignment ──────────────────────────────────────────────────
-              _buildLabel('Alignment'),
-              const SizedBox(height: AppSpacing.sm),
-              _AlignmentSelector(
-                selectedActiveToken: ref.watch(lyricsStyleProvider).textAlign,
-                onSelected:
-                    (v) =>
-                        ref.read(lyricsStyleProvider.notifier).setTextAlign(v),
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // ── Font color ─────────────────────────────────────────────────
-              _buildLabel('Font color'),
-              const SizedBox(height: AppSpacing.sm),
-              LycriColorField(
-                color: ref.watch(lyricsStyleProvider).fontColor,
-                onColorChanged:
-                    (c) =>
-                        ref.read(lyricsStyleProvider.notifier).setFontColor(c),
-              ),
-
-              const SizedBox(height: AppSpacing.x3l),
-
-              // ── Background section ──────────────────────────────────────
-              const _SectionHeader(label: 'Background'),
-
-              const SizedBox(height: AppSpacing.lg),
-
-              // ── Background type ───────────────────────────────────────────
-              _buildLabel('Background type'),
-              const SizedBox(height: AppSpacing.sm),
-              _BackgroundTypeSelector(
-                selected: ref.watch(lyricsStyleProvider).backgroundType,
-                onSelected:
-                    (type) => ref
-                        .read(lyricsStyleProvider.notifier)
-                        .setBackgroundType(type),
-                backgroundColor: ref.watch(lyricsStyleProvider).backgroundColor,
-                gradientColors: ref.watch(lyricsStyleProvider).gradientColors,
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // ── Conditional sub-controls ──────────────────────────────────
-              ClipRect(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 350),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  layoutBuilder: (
-                    Widget? currentChild,
-                    List<Widget> previousChildren,
-                  ) {
-                    return Stack(
-                      alignment: Alignment.topLeft,
-                      children: <Widget>[
-                        ...previousChildren,
-                        if (currentChild != null) currentChild,
-                      ],
-                    );
-                  },
-                  transitionBuilder: (child, animation) {
-                    // If it's the child that's coming in (it matches currentBackgroundType)
-                    final bool isIncoming =
-                        (child.key as ValueKey<String>?)?.value ==
-                        _getBackgroundKey(currentBackgroundType);
-
-                    // Offset based on direction.
-                    // Forward: In from (1,0), Out to (-1,0)
-                    // Backward: In from (-1,0), Out to (1,0)
-                    final Offset beginOffset =
-                        isIncoming
-                            ? (isForward
-                                ? const Offset(1, 0)
-                                : const Offset(-1, 0))
-                            : (isForward
-                                ? const Offset(-1, 0)
-                                : const Offset(1, 0));
-
-                    return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: beginOffset,
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: FadeTransition(opacity: animation, child: child),
-                    );
-                  },
-                  child: _buildBackgroundSubControls(ref),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.xl),
+
+                // ── Lyric ────────────────────────────────────────────────────
+                _Section(
+                  title: 'Lyric',
+                  children: [
+                    _StackedField(
+                      label: 'Font Family',
+                      child: fontsAsync.when(
+                        data:
+                            (fonts) => LycriDropdown<String>(
+                              items: [
+                                for (final f in fonts)
+                                  LycriDropdownItem(
+                                    value: f,
+                                    label: f,
+                                    fontFamily: f,
+                                  ),
+                              ],
+                              selectedValue: style.fontFamily,
+                              onChanged:
+                                  (font) => ref
+                                      .read(lyricsStyleProvider.notifier)
+                                      .setFontFamily(font),
+                              leadingSvg: 'assets/vectors/format-font-size.svg',
+                              showSearch: true,
+                              searchHint: 'Search fonts here',
+                            ),
+                        loading:
+                            () => const SizedBox(
+                              height: 40,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        error:
+                            (_, _) => Text(
+                              'Failed to load fonts',
+                              style: AppTypography.bodySm.copyWith(
+                                color: AppColors.textDanger,
+                              ),
+                            ),
+                      ),
+                    ),
+                    _InlineField(
+                      label: 'Font color',
+                      child: LycriColorField(
+                        compact: true,
+                        color: style.fontColor,
+                        onColorChanged:
+                            (c) => ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setFontColor(c),
+                      ),
+                    ),
+                    _StackedField(
+                      label: 'Lyrics to display at a time',
+                      info:
+                          'How many lines show on screen at once. Auto fits '
+                          'as many as the screen allows; All shows every line.',
+                      child: LycriSegmentedTray<String>(
+                        options: [
+                          for (final c in _lineCounts)
+                            LycriTrayOption(value: c, label: c),
+                        ],
+                        selected: selectedLineCountStr,
+                        onSelected: (v) {
+                          final count =
+                              v == 'Auto'
+                                  ? -1
+                                  : (v == 'All' ? 0 : int.parse(v));
+                          ref
+                              .read(lyricsStyleProvider.notifier)
+                              .setDisplayLines(count);
+                        },
+                      ),
+                    ),
+                    _StackedField(
+                      label: 'Alignment',
+                      child: LycriSegmentedTray<TextAlign>(
+                        options: [
+                          for (final (value, label, icon) in const [
+                            (TextAlign.left, 'Left', 'format-align-left'),
+                            (TextAlign.center, 'Center', 'format-align-center'),
+                            (TextAlign.right, 'Right', 'format-align-right'),
+                          ])
+                            LycriTrayOption(
+                              value: value,
+                              label: label,
+                              iconBuilder: (color, _) => _svgIcon(icon, color),
+                            ),
+                        ],
+                        selected: style.textAlign,
+                        onSelected:
+                            (v) => ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setTextAlign(v),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const _Divider(),
+
+                // ── Background ───────────────────────────────────────────────
+                _Section(
+                  title: 'Background',
+                  children: [
+                    _StackedField(
+                      label: 'Background type',
+                      child: LycriSegmentedTray<BackgroundType>(
+                        options: [
+                          LycriTrayOption(
+                            value: BackgroundType.solidColor,
+                            label: 'Color',
+                            iconBuilder:
+                                (_, selected) => _TypeSwatch(
+                                  color:
+                                      selected
+                                          ? AppColors.gray0
+                                          : AppColors.gray400,
+                                ),
+                          ),
+                          const LycriTrayOption(
+                            value: BackgroundType.gradient,
+                            label: 'Gradient',
+                            iconBuilder: _gradientTypeSwatch,
+                          ),
+                          LycriTrayOption(
+                            value: BackgroundType.image,
+                            label: 'Image',
+                            iconBuilder:
+                                (color, _) => _svgIcon('ImageVector', color),
+                          ),
+                          LycriTrayOption(
+                            value: BackgroundType.video,
+                            label: 'Video',
+                            iconBuilder:
+                                (color, _) => _svgIcon('videoVector', color),
+                          ),
+                        ],
+                        selected: currentBackgroundType,
+                        onSelected:
+                            (type) => ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setBackgroundType(type),
+                      ),
+                    ),
+
+                    // ── Per-type controls ─────────────────────────────────────
+                    // Height follows the incoming controls straight away and
+                    // animates, so the divider and everything below glide
+                    // rather than waiting for the outgoing controls to leave.
+                    // The area itself stays put: it fades its left/right edges
+                    // while a switch runs and clips horizontally exactly where
+                    // that fade is fully transparent — so sliding panels
+                    // dissolve at the edge instead of running past the editor.
+                    _SwitchEdgeFade(
+                      animation: _switchFade,
+                      child: AnimatedSize(
+                        duration: _resizeDuration,
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.topCenter,
+                        clipBehavior: Clip.none,
+                        child: AnimatedSwitcher(
+                          duration: _switchDuration,
+                          reverseDuration: const Duration(milliseconds: 200),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          layoutBuilder: _sizeToCurrent,
+                          transitionBuilder: (child, animation) {
+                            final isIncoming =
+                                (child.key as ValueKey<String>?)?.value ==
+                                _getBackgroundKey(currentBackgroundType);
+                            final beginOffset =
+                                isIncoming
+                                    ? Offset(isForward ? 1 : -1, 0)
+                                    : Offset(isForward ? -1 : 1, 0);
+                            return SlideTransition(
+                              position: Tween<Offset>(
+                                begin: beginOffset,
+                                end: Offset.zero,
+                              ).animate(animation),
+                              // Outgoing controls fade in the first half so
+                              // they're gone before the content below moves
+                              // up underneath them.
+                              child: FadeTransition(
+                                opacity:
+                                    isIncoming
+                                        ? animation
+                                        : CurvedAnimation(
+                                          parent: animation,
+                                          curve: const Interval(0.5, 1),
+                                        ),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: _buildBackgroundSubControls(style),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // ── Recently used ────────────────────────────────────────────
+                AnimatedSize(
+                  duration: _resizeDuration,
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  clipBehavior: Clip.none,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    layoutBuilder: _sizeToCurrent,
+                    child: Column(
+                      // Only appearing/disappearing swaps this block; the
+                      // divider and title stay put between types.
+                      key: ValueKey(recentChips.isEmpty),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (recentChips.isNotEmpty) ...[
+                          const _Divider(),
+                          _Section(
+                            title: 'Recently used',
+                            children: [
+                              // Chips cross-fade when the background type
+                              // changes; height is animated by AnimatedSize.
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                layoutBuilder: _sizeToCurrent,
+                                child: LayoutBuilder(
+                                  key: ValueKey(currentBackgroundType),
+                                  builder: (context, constraints) {
+                                    const columns = 3;
+                                    final width =
+                                        (constraints.maxWidth -
+                                            AppSpacing.md * (columns - 1)) /
+                                        columns;
+                                    return Wrap(
+                                      spacing: AppSpacing.md,
+                                      runSpacing: AppSpacing.md,
+                                      children: [
+                                        for (final chip in recentChips)
+                                          SizedBox(width: width, child: chip),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  static const _resizeDuration = Duration(milliseconds: 220);
+  static const _switchDuration = Duration(milliseconds: 350);
+
+  /// AnimatedSwitcher layout that sizes to the incoming child only: outgoing
+  /// children are positioned (they don't hold the height open), so a
+  /// wrapping [AnimatedSize] starts resizing immediately.
+  static Widget _sizeToCurrent(
+    Widget? currentChild,
+    List<Widget> previousChildren,
+  ) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topLeft,
+      children: [
+        for (final child in previousChildren)
+          Positioned(top: 0, left: 0, right: 0, child: child),
+        if (currentChild != null) currentChild,
+      ],
+    );
+  }
+
+  Widget _svgIcon(String name, Color color) {
+    return SvgPicture.asset(
+      'assets/vectors/$name.svg',
+      width: 20,
+      height: 20,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     );
   }
 
@@ -348,353 +455,468 @@ class _EditorPanelState extends ConsumerState<EditorPanel> {
     }
   }
 
-  /// Builds a small label above each control group.
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: AppTypography.bodyLg.copyWith(color: AppColors.textSubtle),
+  static String _fileName(String path) =>
+      path.split(Platform.pathSeparator).last;
+
+  Future<void> _pickFile(BackgroundType type) async {
+    final isImage = type == BackgroundType.image;
+    final lastDir = ref.read(lastPickerDirectoryProvider);
+    final result = await FilePicker.platform.pickFiles(
+      type: isImage ? FileType.image : FileType.video,
+      allowMultiple: false,
+      initialDirectory: lastDir,
     );
+    final path = result?.files.single.path;
+    if (path == null) return;
+    ref.read(lastPickerDirectoryProvider.notifier).update(path);
+    final style = ref.read(lyricsStyleProvider.notifier);
+    final recents = ref.read(recentBackgroundsProvider.notifier);
+    if (isImage) {
+      style.setBackgroundImagePath(path);
+      recents.addImagePath(path);
+    } else {
+      style.setBackgroundVideoPath(path);
+      recents.addVideoPath(path);
+    }
   }
 
-  /// Builds the sub-controls shown below the background type selector,
-  /// dependent on the currently selected [BackgroundType].
-  Widget _buildBackgroundSubControls(WidgetRef ref) {
-    final style = ref.watch(lyricsStyleProvider);
+  /// Controls under the background type selector, per [BackgroundType].
+  Widget _buildBackgroundSubControls(LyricsStyleState style) {
+    final notifier = ref.read(lyricsStyleProvider.notifier);
+    final recents = ref.read(recentBackgroundsProvider.notifier);
 
     switch (style.backgroundType) {
       case BackgroundType.solidColor:
-        return Column(
+        return _InlineField(
           key: const ValueKey('bg_solid'),
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildLabel('Choose color'),
-            const SizedBox(height: AppSpacing.md),
-            LycriColorField(
-              color: style.backgroundColor,
-              onColorChanged: (c) {
-                ref.read(lyricsStyleProvider.notifier).setBackgroundColor(c);
-              },
-              onPickerDismissed:
-                  (c) =>
-                      ref.read(recentBackgroundsProvider.notifier).addColor(c),
-            ),
-
-            const SizedBox(height: AppSpacing.xl),
-            _RecentlyUsedSection<Color>(
-              title: 'Recently used',
-              items: ref.watch(recentBackgroundsProvider).colors,
-              onScale:
-                  (c) => ref
-                      .read(lyricsStyleProvider.notifier)
-                      .setBackgroundColor(c),
-              itemBuilder:
-                  (c) => Container(
-                    decoration: BoxDecoration(
-                      color: c,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                    ),
-                  ),
-            ),
-          ],
+          label: 'Color',
+          labelWidth: _labelColumn,
+          child: LycriColorField(
+            compact: true,
+            color: style.backgroundColor,
+            onColorChanged: notifier.setBackgroundColor,
+            onPickerDismissed: recents.addColor,
+          ),
         );
+
       case BackgroundType.gradient:
+        final colors =
+            style.gradientColors.length >= 2
+                ? style.gradientColors
+                : const [Colors.white, Colors.black];
+        void setColor(int index, Color c) {
+          final next = List<Color>.from(colors)..[index] = c;
+          notifier.setGradientColors(next);
+        }
+
+        void remember(Color _) => recents.addGradient(
+          style.gradientType,
+          ref.read(lyricsStyleProvider).gradientColors,
+        );
+
         return Column(
           key: const ValueKey('bg_gradient'),
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildLabel('Gradient type'),
-            const SizedBox(height: AppSpacing.md),
-            _GradientTypeSelector(
-              selected: style.gradientType,
-              onSelected:
-                  (type) => ref
-                      .read(lyricsStyleProvider.notifier)
-                      .setGradientType(type),
+            _InlineField(
+              label: 'Gradient type',
+              child: LycriSegmentedTray<GradientType>(
+                options: const [
+                  LycriTrayOption(value: GradientType.linear, label: 'Linear'),
+                  LycriTrayOption(value: GradientType.radial, label: 'Radial'),
+                ],
+                selected: style.gradientType,
+                onSelected: notifier.setGradientType,
+              ),
             ),
-            const SizedBox(height: AppSpacing.xl),
-            _buildLabel('Choose first color'),
-            const SizedBox(height: AppSpacing.md),
-            LycriColorField(
-              color:
-                  style.gradientColors.isNotEmpty
-                      ? style.gradientColors[0]
-                      : Colors.white,
-              onColorChanged: (c) {
-                final colors = List<Color>.from(style.gradientColors);
-                if (colors.isEmpty) {
-                  colors.addAll([c, Colors.black]);
-                } else {
-                  colors[0] = c;
-                }
-                ref
-                    .read(lyricsStyleProvider.notifier)
-                    .setGradientColors(colors);
-              },
-              onPickerDismissed: (_) {
-                final colors = ref.read(lyricsStyleProvider).gradientColors;
-                ref
-                    .read(recentBackgroundsProvider.notifier)
-                    .addGradient(style.gradientType, colors);
-              },
-            ),
-
-            const SizedBox(height: AppSpacing.xl),
-            _buildLabel('Choose second color'),
-            const SizedBox(height: AppSpacing.md),
-            LycriColorField(
-              color:
-                  style.gradientColors.length >= 2
-                      ? style.gradientColors[1]
-                      : Colors.black,
-              onColorChanged: (c) {
-                final colors = List<Color>.from(style.gradientColors);
-                if (colors.length < 2) {
-                  colors.addAll([Colors.white, c]);
-                } else {
-                  colors[1] = c;
-                }
-                ref
-                    .read(lyricsStyleProvider.notifier)
-                    .setGradientColors(colors);
-              },
-              onPickerDismissed: (_) {
-                final colors = ref.read(lyricsStyleProvider).gradientColors;
-                ref
-                    .read(recentBackgroundsProvider.notifier)
-                    .addGradient(style.gradientType, colors);
-              },
-            ),
-
-            const SizedBox(height: AppSpacing.xl),
-            _RecentlyUsedSection<RecentGradient>(
-              title: 'Recently used',
-              items: ref.watch(recentBackgroundsProvider).gradients,
-              onScale: (g) {
-                ref.read(lyricsStyleProvider.notifier).setGradientType(g.type);
-                ref
-                    .read(lyricsStyleProvider.notifier)
-                    .setGradientColors(g.colors);
-              },
-              itemBuilder:
-                  (g) => Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                      border: Border.all(
-                        color: AppColors.borderSubtle,
-                        width: 1,
+            const SizedBox(height: AppSpacing.lg),
+            _InlineField(
+              label: 'Colors',
+              labelWidth: _labelColumn,
+              child: Row(
+                children: [
+                  for (var i = 0; i < 2; i++) ...[
+                    if (i > 0) const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: LycriColorField(
+                        compact: true,
+                        color: colors[i],
+                        onColorChanged: (c) => setColor(i, c),
+                        onPickerDismissed: remember,
                       ),
-                      gradient:
-                          g.type == GradientType.linear
-                              ? LinearGradient(
-                                colors: g.colors,
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              )
-                              : RadialGradient(colors: g.colors),
                     ),
-                  ),
+                  ],
+                ],
+              ),
             ),
           ],
         );
 
       case BackgroundType.image:
-        return Column(
-          key: const ValueKey('bg_image'),
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildLabel('Background image'),
-            const SizedBox(height: AppSpacing.md),
-            _ImageBackgroundSelector(
-              imagePath: style.backgroundImagePath,
-              onSelect: () async {
-                final lastDir = ref.read(lastPickerDirectoryProvider);
-                final result = await FilePicker.platform.pickFiles(
-                  type: FileType.image,
-                  allowMultiple: false,
-                  initialDirectory: lastDir,
-                );
-                if (result != null && result.files.single.path != null) {
-                  final path = result.files.single.path!;
-                  ref.read(lastPickerDirectoryProvider.notifier).update(path);
-                  ref
-                      .read(lyricsStyleProvider.notifier)
-                      .setBackgroundImagePath(path);
-                  ref
-                      .read(recentBackgroundsProvider.notifier)
-                      .addImagePath(path);
-                }
-              },
-              onRemove: () {
-                ref
-                    .read(lyricsStyleProvider.notifier)
-                    .setBackgroundImagePath(null);
-              },
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            _RecentlyUsedSection<String>(
-              title: 'Recently used',
-              items: ref.watch(recentBackgroundsProvider).imagePaths,
-              onScale:
-                  (path) => ref
-                      .read(lyricsStyleProvider.notifier)
-                      .setBackgroundImagePath(path),
-              itemBuilder:
-                  (path) => ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    child: Image.file(
-                      File(path),
-                      fit: BoxFit.fill,
-                      cacheWidth: 60,
-                      cacheHeight: 60,
-                      errorBuilder:
-                          (_, __, ___) => Container(
-                            color: AppColors.surface3,
-                            child: const Icon(
-                              Icons.image_not_supported,
-                              size: 12,
-                            ),
-                          ),
-                    ),
-                  ),
-            ),
-          ],
-        );
-
       case BackgroundType.video:
-        return Column(
-          key: const ValueKey('bg_video'),
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildLabel('Video'),
-            const SizedBox(height: AppSpacing.md),
-            _VideoBackgroundSelector(
-              videoPath: style.backgroundVideoPath,
-              onSelect: () async {
-                final lastDir = ref.read(lastPickerDirectoryProvider);
-                final result = await FilePicker.platform.pickFiles(
-                  type: FileType.video,
-                  allowMultiple: false,
-                  initialDirectory: lastDir,
-                );
-                if (result != null && result.files.single.path != null) {
-                  final path = result.files.single.path!;
-                  ref.read(lastPickerDirectoryProvider.notifier).update(path);
-                  ref
-                      .read(lyricsStyleProvider.notifier)
-                      .setBackgroundVideoPath(path);
-                  ref
-                      .read(recentBackgroundsProvider.notifier)
-                      .addVideoPath(path);
-                }
-              },
-              onRemove: () {
-                ref
-                    .read(lyricsStyleProvider.notifier)
-                    .setBackgroundVideoPath(null);
-              },
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            _RecentlyUsedSection<String>(
-              title: 'Recently used',
-              items: ref.watch(recentBackgroundsProvider).videoPaths,
-              onScale:
-                  (path) => ref
-                      .read(lyricsStyleProvider.notifier)
-                      .setBackgroundVideoPath(path),
-              itemBuilder:
-                  (path) => VideoThumbnailWidget(
-                    videoPath: path,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                  ),
-            ),
-          ],
+        final isImage = style.backgroundType == BackgroundType.image;
+        final path =
+            isImage ? style.backgroundImagePath : style.backgroundVideoPath;
+        final hasFile = path != null && path.isNotEmpty;
+        return _InlineField(
+          key: ValueKey(isImage ? 'bg_image' : 'bg_video'),
+          label: isImage ? 'Image' : 'Video',
+          labelWidth: _labelColumn,
+          child: LycriValueChip(
+            leading:
+                hasFile
+                    ? _FileThumb(path: path, isImage: isImage)
+                    : ColoredBox(
+                      color: AppColors.surface3,
+                      child: Center(
+                        child: _svgIcon(
+                          isImage ? 'image-plus' : 'videoVector',
+                          AppColors.iconSubtle,
+                        ),
+                      ),
+                    ),
+            value:
+                hasFile
+                    ? _fileName(path)
+                    : (isImage ? 'Choose an image' : 'Choose a video'),
+            tooltip: hasFile ? path : null,
+            onTap: () => _pickFile(style.backgroundType),
+            onDelete:
+                hasFile
+                    ? () =>
+                        isImage
+                            ? notifier.setBackgroundImagePath(null)
+                            : notifier.setBackgroundVideoPath(null)
+                    : null,
+          ),
         );
     }
   }
+
+  /// Recently used values for the current background type, as chips.
+  List<Widget> _recentChips(BackgroundType type, RecentBackgroundsState r) {
+    final notifier = ref.read(lyricsStyleProvider.notifier);
+    switch (type) {
+      case BackgroundType.solidColor:
+        return [
+          for (final c in r.colors)
+            LycriValueChip(
+              leading: ChipSwatch(color: c),
+              tint: c,
+              value: _hex(c),
+              onTap: () => notifier.setBackgroundColor(c),
+            ),
+        ];
+      case BackgroundType.gradient:
+        return [
+          for (final g in r.gradients)
+            LycriValueChip(
+              leading: ChipSwatch(gradient: _gradientOf(g.type, g.colors)),
+              tint: g.colors.first,
+              value: g.type == GradientType.linear ? 'Linear' : 'Radial',
+              tooltip: g.colors.map(_hex).join(' → '),
+              onTap: () {
+                notifier.setGradientType(g.type);
+                notifier.setGradientColors(g.colors);
+              },
+            ),
+        ];
+      case BackgroundType.image:
+        return [
+          for (final p in r.imagePaths)
+            LycriValueChip(
+              leading: _FileThumb(path: p, isImage: true),
+              value: _fileName(p),
+              tooltip: p,
+              onTap: () => notifier.setBackgroundImagePath(p),
+            ),
+        ];
+      case BackgroundType.video:
+        return [
+          for (final p in r.videoPaths)
+            LycriValueChip(
+              leading: _FileThumb(path: p, isImage: false),
+              value: _fileName(p),
+              tooltip: p,
+              onTap: () => notifier.setBackgroundVideoPath(p),
+            ),
+        ];
+    }
+  }
+
+  static String _hex(Color c) =>
+      '#${c.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
+
+  static Gradient _gradientOf(GradientType type, List<Color> colors) =>
+      type == GradientType.linear
+          ? LinearGradient(
+            colors: colors,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          )
+          : RadialGradient(colors: colors);
 }
 
-// ─── Recently Used Widgets ──────────────────────────────────────────────────
+/// Static gradient glyph for the background-type tray (doesn't follow the
+/// chosen gradient — the tray shows the type, not the value).
+Widget _gradientTypeSwatch(Color _, bool selected) => _TypeSwatch(
+  gradient: LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors:
+        selected
+            ? const [AppColors.gray0, AppColors.gray400]
+            : const [AppColors.gray200, AppColors.gray500],
+  ),
+);
 
-class _RecentlyUsedSection<T> extends StatelessWidget {
-  final String title;
-  final List<T> items;
-  final Widget Function(T) itemBuilder;
-  final ValueChanged<T> onScale;
+// ─── Layout pieces ──────────────────────────────────────────────────────────
 
-  const _RecentlyUsedSection({
-    required this.title,
-    required this.items,
-    required this.itemBuilder,
-    required this.onScale,
-  });
+/// Edge fade for the background controls area during a type switch.
+///
+/// Fades the left/right [_extent] px while [animation] runs (off at rest, so
+/// labels at x=0 aren't faded) and clips horizontally at the area's edges,
+/// where the fade is fully transparent — panels sliding out dissolve rather
+/// than running past the editor. No vertical clip, so the height animation
+/// isn't cut.
+class _SwitchEdgeFade extends StatelessWidget {
+  const _SwitchEdgeFade({required this.animation, required this.child});
+
+  final AnimationController animation;
+  final Widget child;
+
+  static const double _extent = 40;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const SizedBox.shrink();
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        // Full fade for most of the switch, easing off as panels settle.
+        final t = animation.value;
+        final strength =
+            animation.isAnimating ? (t < 0.8 ? 1.0 : (1 - t) / 0.2) : 0.0;
+        final edge = Colors.black.withValues(alpha: 1 - strength);
+        // Same widget structure at rest and mid-switch: swapping it would
+        // rebuild the AnimatedSize below and kill its height animation.
+        return ClipRect(
+          clipper: const _HorizontalClipper(),
+          clipBehavior: strength > 0 ? Clip.hardEdge : Clip.none,
+          child: ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (bounds) {
+              final f =
+                  bounds.width <= 0
+                      ? 0.0
+                      : (_extent / bounds.width).clamp(0.0, 0.5);
+              return LinearGradient(
+                colors: [edge, Colors.black, Colors.black, edge],
+                stops: [0, f, 1 - f, 1],
+              ).createShader(bounds);
+            },
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+}
 
+/// Clips left/right only; vertically unbounded.
+class _HorizontalClipper extends CustomClipper<Rect> {
+  const _HorizontalClipper();
+
+  @override
+  Rect getClip(Size size) =>
+      Rect.fromLTRB(0, -100000, size.width, size.height + 100000);
+
+  @override
+  bool shouldReclip(_HorizontalClipper oldClipper) => false;
+}
+
+/// Titled editor group (Figma: "LYRIC", "BACKGROUND", "RECENTLY USED").
+class _Section extends StatelessWidget {
+  const _Section({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          title,
-          style: AppTypography.bodyLg.copyWith(color: AppColors.textSubtle),
+          title.toUpperCase(),
+          style: AppTypography.titleLg.copyWith(color: AppColors.textMinimal),
         ),
-        const SizedBox(height: AppSpacing.md),
-        SizedBox(
-          height: 32,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: () => onScale(item),
-                  child: SizedBox(
-                    width: 48,
-                    height: 40,
-                    child: itemBuilder(item),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+        for (final child in children) ...[
+          const SizedBox(height: AppSpacing.lg),
+          child,
+        ],
       ],
     );
   }
 }
 
-// ─── Section header with dotted divider ─────────────────────────────────────
+/// Dashed rule between sections, 24px above and below.
+class _Divider extends StatelessWidget {
+  const _Divider();
 
-/// Renders a section title (e.g. "Text", "Background") with a dotted
-/// line running alongside it.
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.label});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: CustomPaint(
+        size: const Size(double.infinity, 1),
+        painter: _DottedLinePainter(color: AppColors.borderBold),
+      ),
+    );
+  }
+}
+
+/// Label above its control (4px gap), with an optional info tooltip.
+class _StackedField extends StatelessWidget {
+  const _StackedField({required this.label, required this.child, this.info});
 
   final String label;
+  final Widget child;
+  final String? info;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          label,
-          style: AppTypography.titleLg.copyWith(color: AppColors.textBold),
+        Row(
+          children: [
+            Flexible(child: _FieldLabel(label)),
+            if (info != null) ...[
+              const SizedBox(width: AppSpacing.md),
+              Tooltip(
+                message: info!,
+                child: SvgPicture.asset(
+                  'assets/vectors/info-circle.svg',
+                  width: 16,
+                  height: 16,
+                  colorFilter: const ColorFilter.mode(
+                    AppColors.iconMinimal,
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: CustomPaint(
-            size: const Size(double.infinity, 1),
-            painter: _DottedLinePainter(color: AppColors.borderBold),
-          ),
-        ),
+        const SizedBox(height: AppSpacing.sm),
+        child,
       ],
     );
   }
 }
+
+/// Label and control side by side. Without [labelWidth] they split the row
+/// evenly (Figma: "Font color", "Alignment"); with it the label column is
+/// fixed and the control fills the rest ("Color", "Colors", "Image").
+class _InlineField extends StatelessWidget {
+  const _InlineField({
+    super.key,
+    required this.label,
+    required this.child,
+    this.labelWidth,
+  });
+
+  final String label;
+  final Widget child;
+  final double? labelWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final labelWidget = _FieldLabel(label);
+    return Row(
+      children: [
+        if (labelWidth != null)
+          SizedBox(width: labelWidth, child: labelWidget)
+        else
+          Expanded(child: labelWidget),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeText(
+      text,
+      style: AppTypography.bodyLg.copyWith(color: AppColors.textSubtle),
+    );
+  }
+}
+
+/// 17px rounded glyph inset in a 20px box (Figma "Frame 1279").
+class _TypeSwatch extends StatelessWidget {
+  const _TypeSwatch({this.color, this.gradient});
+
+  final Color? color;
+  final Gradient? gradient;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(1.5),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color,
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+      ),
+    );
+  }
+}
+
+/// Image or video thumbnail filling a chip's leading square.
+class _FileThumb extends StatelessWidget {
+  const _FileThumb({required this.path, required this.isImage});
+
+  final String path;
+  final bool isImage;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isImage) {
+      return VideoThumbnailWidget(
+        videoPath: path,
+        width: LycriValueChip.height,
+        height: LycriValueChip.height,
+      );
+    }
+    return Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      cacheWidth: 48,
+      errorBuilder:
+          (_, _, _) => const ColoredBox(
+            color: AppColors.surface2,
+            child: Icon(
+              Icons.image_not_supported,
+              size: 12,
+              color: AppColors.iconSubtle,
+            ),
+          ),
+    );
+  }
+}
+
+// ─── Dashed divider ─────────────────────────────────────────────────────────
 
 /// Paints a simple horizontal dotted line.
 class _DottedLinePainter extends CustomPainter {
@@ -710,8 +932,8 @@ class _DottedLinePainter extends CustomPainter {
           ..strokeWidth = AppStroke.md
           ..strokeCap = StrokeCap.round;
 
-    const dashWidth = 3.0;
-    const dashGap = 4.0;
+    const dashWidth = 4.0;
+    const dashGap = 12.0;
     double x = 0;
     while (x < size.width) {
       canvas.drawLine(
@@ -728,820 +950,27 @@ class _DottedLinePainter extends CustomPainter {
       color != oldDelegate.color;
 }
 
-// ─── Chip row (used for line count selector) ────────────────────────────────
+// ─── Header actions: save preset + presets ──────────────────────────────────
 
-/// A pill-shaped tray with a light brand tint. A white pill indicator
-/// slides smoothly to the selected item instead of snapping.
-class _ChipRow extends StatelessWidget {
-  const _ChipRow({
-    required this.items,
-    required this.selected,
-    required this.onSelected,
+/// Joined [save | PRESETS ⇕] pill (Figma: Editor header). Save opens the
+/// name-your-preset menu and flashes a check once saved.
+class _EditorHeaderActions extends ConsumerStatefulWidget {
+  const _EditorHeaderActions({
+    required this.canSave,
+    required this.presetName,
+    required this.onOpenPresets,
   });
 
-  final List<String> items;
-  final String selected;
-  final ValueChanged<String> onSelected;
-
-  static const _animDuration = Duration(milliseconds: 300);
-  static const _animCurve = Curves.easeOutCubic;
+  final bool canSave;
+  final String presetName;
+  final VoidCallback onOpenPresets;
 
   @override
-  Widget build(BuildContext context) {
-    final selectedIndex = items.indexOf(selected).clamp(0, items.length - 1);
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceBrandLight,
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth / items.length;
-
-          return SizedBox(
-            height: 40,
-            child: Stack(
-              children: [
-                // ── Sliding indicator pill ─────────────────────────────────
-                AnimatedPositioned(
-                  duration: _animDuration,
-                  curve: _animCurve,
-                  left: selectedIndex * itemWidth,
-                  top: 0,
-                  bottom: 0,
-                  width: itemWidth,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface4,
-                      borderRadius: BorderRadius.circular(AppRadius.full),
-                      border: Border.all(
-                        color: AppColors.borderBrand,
-                        width: AppStroke.lg,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── Text labels ────────────────────────────────────────────
-                Row(
-                  children:
-                      items.map((item) {
-                        final isSelected = item == selected;
-                        return Expanded(
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => onSelected(item),
-                              child: Center(
-                                child: AnimatedDefaultTextStyle(
-                                  duration: _animDuration,
-                                  curve: _animCurve,
-                                  style: AppTypography.bodyMd.copyWith(
-                                    color:
-                                        isSelected
-                                            ? AppColors.textBold
-                                            : AppColors.textSubtle,
-                                  ),
-                                  child: Text(item),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+  ConsumerState<_EditorHeaderActions> createState() =>
+      _EditorHeaderActionsState();
 }
 
-// ─── Alignment selector ─────────────────────────────────────────────────────
-
-/// Alignment selector with a `surfaceBrandLight` tray and a sliding white
-/// pill indicator that glides to the selected option.
-class _AlignmentSelector extends StatelessWidget {
-  const _AlignmentSelector({
-    required this.selectedActiveToken,
-    required this.onSelected,
-  });
-
-  final TextAlign selectedActiveToken;
-  final ValueChanged<TextAlign> onSelected;
-
-  static const _animDuration = Duration(milliseconds: 300);
-  static const _animCurve = Curves.easeOutCubic;
-
-  static const _alignmentData = [
-    {
-      'label': 'Left',
-      'icon': 'assets/vectors/format-align-left.svg',
-      'value': TextAlign.left,
-    },
-    {
-      'label': 'Center',
-      'icon': 'assets/vectors/format-align-center.svg',
-      'value': TextAlign.center,
-    },
-    {
-      'label': 'Right',
-      'icon': 'assets/vectors/format-align-right.svg',
-      'value': TextAlign.right,
-    },
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final values = _alignmentData.map((d) => d['value'] as TextAlign).toList();
-    final selectedIndex = values
-        .indexOf(selectedActiveToken)
-        .clamp(0, values.length - 1);
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceBrandLight,
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth / _alignmentData.length;
-
-          return SizedBox(
-            height: 64,
-            child: Stack(
-              children: [
-                // ── Sliding indicator pill ─────────────────────────────────
-                AnimatedPositioned(
-                  duration: _animDuration,
-                  curve: _animCurve,
-                  left: selectedIndex * itemWidth,
-                  top: 0,
-                  bottom: 0,
-                  width: itemWidth,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface4,
-                      borderRadius: BorderRadius.circular(AppRadius.full),
-                      border: Border.all(
-                        color: AppColors.borderBrand,
-                        width: AppStroke.lg,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── Icon + label cells ─────────────────────────────────────
-                Row(
-                  children:
-                      _alignmentData.map((data) {
-                        final label = data['label'] as String;
-                        final icon = data['icon'] as String;
-                        final val = data['value'] as TextAlign;
-
-                        final isSelected = val == selectedActiveToken;
-
-                        return Expanded(
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => onSelected(val),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  AnimatedSwitcher(
-                                    duration: _animDuration,
-                                    child: SvgPicture.asset(
-                                      icon,
-                                      key: ValueKey('${label}_$isSelected'),
-                                      width: 24,
-                                      height: 24,
-                                      colorFilter: ColorFilter.mode(
-                                        isSelected
-                                            ? AppColors.iconBold
-                                            : AppColors.iconSubtle,
-                                        BlendMode.srcIn,
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: AppSpacing.xs),
-                                  AnimatedDefaultTextStyle(
-                                    duration: _animDuration,
-                                    curve: _animCurve,
-                                    style: AppTypography.bodyMd.copyWith(
-                                      color:
-                                          isSelected
-                                              ? AppColors.textBold
-                                              : AppColors.textSubtle,
-                                    ),
-                                    child: Text(label),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-// ─── Background type selector ───────────────────────────────────────────────
-
-/// A `surfaceBrandLight` tray with icon + label items and a sliding
-/// white pill indicator — matches the alignment selector pattern.
-/// Uses dynamic color/gradient swatches and SVG icons for Image/Video.
-class _BackgroundTypeSelector extends StatelessWidget {
-  const _BackgroundTypeSelector({
-    required this.selected,
-    required this.onSelected,
-    required this.backgroundColor,
-    required this.gradientColors,
-  });
-
-  final BackgroundType selected;
-  final ValueChanged<BackgroundType> onSelected;
-
-  /// Current solid background color — used for the Color swatch.
-  final Color backgroundColor;
-
-  /// Current gradient colors — used for the Gradient swatch.
-  final List<Color> gradientColors;
-
-  static const _animDuration = Duration(milliseconds: 300);
-  static const _animCurve = Curves.easeOutCubic;
-
-  static const _labels = ['Solid', 'Flow', 'Image', 'Video'];
-  static const _values = [
-    BackgroundType.solidColor,
-    BackgroundType.gradient,
-    BackgroundType.image,
-    BackgroundType.video,
-  ];
-
-  /// Builds the visual icon/swatch for each background type.
-  Widget _buildIcon(int index, bool isSelected) {
-    switch (_values[index]) {
-      case BackgroundType.solidColor:
-        return Container(
-          width: 20,
-          height: 20,
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            border: Border.all(
-              color:
-                  isSelected ? AppColors.borderBrand : AppColors.borderSubtle,
-              width: AppStroke.sm,
-            ),
-          ),
-        );
-      case BackgroundType.gradient:
-        return Container(
-          width: 20,
-          height: 20,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            gradient: LinearGradient(
-              colors:
-                  gradientColors.length >= 2
-                      ? gradientColors
-                      : [Colors.white, Colors.black],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(
-              color:
-                  isSelected ? AppColors.borderBrand : AppColors.borderSubtle,
-              width: AppStroke.sm,
-            ),
-          ),
-        );
-      case BackgroundType.image:
-        return SvgPicture.asset(
-          'assets/vectors/ImageVector.svg',
-          width: 20,
-          height: 20,
-          colorFilter: ColorFilter.mode(
-            isSelected ? AppColors.iconBrand : AppColors.iconSubtle,
-            BlendMode.srcIn,
-          ),
-        );
-      case BackgroundType.video:
-        return SvgPicture.asset(
-          'assets/vectors/videoVector.svg',
-          width: 20,
-          height: 20,
-          colorFilter: ColorFilter.mode(
-            isSelected ? AppColors.iconBrand : AppColors.iconSubtle,
-            BlendMode.srcIn,
-          ),
-        );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedIndex = _values
-        .indexOf(selected)
-        .clamp(0, _values.length - 1);
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceBrandLight,
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth / _values.length;
-
-          return SizedBox(
-            height: 64,
-            child: Stack(
-              children: [
-                // ── Sliding indicator pill ─────────────────────────────────
-                AnimatedPositioned(
-                  duration: _animDuration,
-                  curve: _animCurve,
-                  left: selectedIndex * itemWidth,
-                  top: 0,
-                  bottom: 0,
-                  width: itemWidth,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface4,
-                      borderRadius: BorderRadius.circular(AppRadius.full),
-                      border: Border.all(
-                        color: AppColors.borderBrand,
-                        width: AppStroke.lg,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── Icon + label cells ─────────────────────────────────────
-                Row(
-                  children: List.generate(_values.length, (i) {
-                    final isSelected = _values[i] == selected;
-
-                    return Expanded(
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => onSelected(_values[i]),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              AnimatedSwitcher(
-                                duration: _animDuration,
-                                child: KeyedSubtree(
-                                  key: ValueKey('${_labels[i]}_$isSelected'),
-                                  child: _buildIcon(i, isSelected),
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              AnimatedDefaultTextStyle(
-                                duration: _animDuration,
-                                curve: _animCurve,
-                                style: AppTypography.bodyMd.copyWith(
-                                  color:
-                                      isSelected
-                                          ? AppColors.textSubtle
-                                          : AppColors.textSubtle,
-                                ),
-                                child: Text(_labels[i]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ─── Gradient type selector ───────────────────────────────────────────────
-
-/// Matches the segmented bar pattern used for alignment and background type.
-class _GradientTypeSelector extends StatelessWidget {
-  const _GradientTypeSelector({
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final GradientType selected;
-  final ValueChanged<GradientType> onSelected;
-
-  static const _animDuration = Duration(milliseconds: 300);
-  static const _animCurve = Curves.easeOutCubic;
-
-  static const _labels = ['Linear', 'Radial'];
-  static const _values = [GradientType.linear, GradientType.radial];
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedIndex = _values
-        .indexOf(selected)
-        .clamp(0, _values.length - 1);
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceBrandLight,
-        borderRadius: BorderRadius.circular(AppRadius.full),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final itemWidth = constraints.maxWidth / _values.length;
-
-          return SizedBox(
-            height: 40,
-            child: Stack(
-              children: [
-                // ── Sliding indicator pill ─────────────────────────────────
-                AnimatedPositioned(
-                  duration: _animDuration,
-                  curve: _animCurve,
-                  left: selectedIndex * itemWidth,
-                  top: 0,
-                  bottom: 0,
-                  width: itemWidth,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface4,
-                      borderRadius: BorderRadius.circular(AppRadius.full),
-                      border: Border.all(
-                        color: AppColors.borderBrand,
-                        width: AppStroke.sm,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // ── Label cells ────────────────────────────────────────────
-                Row(
-                  children: List.generate(_values.length, (i) {
-                    final isSelected = _values[i] == selected;
-                    return Expanded(
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => onSelected(_values[i]),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              // const SizedBox(height: AppSpacing.sm),
-                              AnimatedDefaultTextStyle(
-                                duration: _animDuration,
-                                curve: _animCurve,
-                                style: AppTypography.bodyMd.copyWith(
-                                  color:
-                                      isSelected
-                                          ? AppColors.textBold
-                                          : AppColors.textSubtle,
-                                ),
-                                child: Text(_labels[i]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ─── Image background selector ──────────────────────────────────────────
-
-/// UI for selecting or removing a background image.
-class _ImageBackgroundSelector extends StatelessWidget {
-  const _ImageBackgroundSelector({
-    required this.imagePath,
-    required this.onSelect,
-    required this.onRemove,
-  });
-
-  final String? imagePath;
-  final VoidCallback onSelect;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    bool hasImage = imagePath != null && imagePath!.isNotEmpty;
-
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface3,
-        borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(color: AppColors.borderMinimal, width: AppStroke.md),
-      ),
-      child: Row(
-        children: [
-          if (hasImage) ...[
-            // Thumbnail & Name clickable area
-            Expanded(
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onSelect,
-                  child: Row(
-                    children: [
-                      // Thumbnail
-                      Container(
-                        width: 32,
-                        height: 24,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(AppRadius.full),
-                          color: AppColors.surface2,
-                        ),
-                        child: Image.file(
-                          File(imagePath!),
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: AppColors.surface0,
-                              child: const Icon(Icons.broken_image, size: 16),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      // Filename
-                      Expanded(
-                        child: Text(
-                          imagePath!.split('/').last,
-                          style: AppTypography.bodyMd.copyWith(
-                            color: AppColors.textSubtle,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Separate Delete button (unwrapped from global gesture)
-            IconButton(
-              onPressed: onRemove,
-              icon: SvgPicture.asset(
-                'assets/vectors/delete-trash.svg',
-                width: 20,
-                height: 20,
-                colorFilter: const ColorFilter.mode(
-                  AppColors.textDanger,
-                  BlendMode.srcIn,
-                ),
-              ),
-            ),
-          ] else ...[
-            // Empty state clickable area
-            Expanded(
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onSelect,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Tap to select an image',
-                          style: AppTypography.bodyLg.copyWith(
-                            color: AppColors.textSubtle,
-                          ),
-                        ),
-                      ),
-                      SvgPicture.asset(
-                        'assets/vectors/image-plus.svg',
-                        width: 20,
-                        height: 20,
-                        colorFilter: const ColorFilter.mode(
-                          AppColors.iconMinimal,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-// ─── Video Background Selector ────────────────────────────────────────────────
-
-class _VideoBackgroundSelector extends StatelessWidget {
-  const _VideoBackgroundSelector({
-    required this.videoPath,
-    required this.onSelect,
-    required this.onRemove,
-  });
-
-  final String? videoPath;
-  final VoidCallback onSelect;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    bool hasVideo = videoPath != null && videoPath!.isNotEmpty;
-
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface3,
-        borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(color: AppColors.borderMinimal, width: AppStroke.md),
-      ),
-      child: Row(
-        children: [
-          if (hasVideo) ...[
-            // Clickable area for changing the video
-            Expanded(
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onSelect,
-                  child: Row(
-                    children: [
-                      // Video icon circle
-                      VideoThumbnailWidget(
-                        videoPath: videoPath!,
-                        width: 32,
-                        height: 24,
-                        borderRadius: BorderRadius.circular(AppRadius.full),
-                      ),
-
-                      const SizedBox(width: AppSpacing.md),
-                      // Filename
-                      Expanded(
-                        child: Text(
-                          videoPath!.split('/').last,
-                          style: AppTypography.bodyMd.copyWith(
-                            color: AppColors.textSubtle,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Delete button
-            IconButton(
-              onPressed: onRemove,
-              icon: SvgPicture.asset(
-                'assets/vectors/delete-trash.svg',
-                width: 20,
-                height: 20,
-                colorFilter: const ColorFilter.mode(
-                  AppColors.textDanger,
-                  BlendMode.srcIn,
-                ),
-              ),
-            ),
-          ] else ...[
-            // Empty state
-            Expanded(
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onSelect,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Tap to select a video',
-                          style: AppTypography.bodyLg.copyWith(
-                            color: AppColors.textSubtle,
-                          ),
-                        ),
-                      ),
-                      SvgPicture.asset(
-                        'assets/vectors/videoVector.svg',
-                        width: 20,
-                        height: 20,
-                        colorFilter: const ColorFilter.mode(
-                          AppColors.iconMinimal,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// A circular icon button with hover and click feedback.
-class _CircularIconButton extends StatefulWidget {
-  final VoidCallback onTap;
-  final String svgAsset;
-
-  const _CircularIconButton({
-    super.key,
-    required this.onTap,
-    required this.svgAsset,
-  });
-
-  @override
-  State<_CircularIconButton> createState() => _CircularIconButtonState();
-}
-
-class _CircularIconButtonState extends State<_CircularIconButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: _isHovered ? AppColors.surface2 : AppColors.surface3,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: SvgPicture.asset(
-            widget.svgAsset,
-            width: 20,
-            height: 20,
-            colorFilter: const ColorFilter.mode(
-              AppColors.iconSubtle,
-              BlendMode.srcIn,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SavePresetActionButton extends ConsumerStatefulWidget {
-  final bool isEnabled;
-
-  const _SavePresetActionButton({
-    super.key,
-    this.isEnabled = true,
-  });
-
-  @override
-  ConsumerState<_SavePresetActionButton> createState() => _SavePresetActionButtonState();
-}
-
-class _SavePresetActionButtonState extends ConsumerState<_SavePresetActionButton>
+class _EditorHeaderActionsState extends ConsumerState<_EditorHeaderActions>
     with TickerProviderStateMixin {
   bool _showSuccess = false;
   final LayerLink _layerLink = LayerLink();
@@ -1575,7 +1004,6 @@ class _SavePresetActionButtonState extends ConsumerState<_SavePresetActionButton
   }
 
   void _toggleMenu() {
-    if (!widget.isEnabled) return;
     if (_isMenuOpen) {
       _closeMenu();
     } else {
@@ -1596,7 +1024,6 @@ class _SavePresetActionButtonState extends ConsumerState<_SavePresetActionButton
                   child: const SizedBox.expand(),
                 ),
               ),
-              // Positioned menu
               Positioned(
                 width: 280,
                 child: CompositedTransformFollower(
@@ -1604,7 +1031,7 @@ class _SavePresetActionButtonState extends ConsumerState<_SavePresetActionButton
                   showWhenUnlinked: false,
                   targetAnchor: Alignment.bottomRight,
                   followerAnchor: Alignment.topRight,
-                  offset: const Offset(0, 4), // Directly below with a 4px gap
+                  offset: const Offset(0, AppSpacing.sm),
                   child: Material(
                     color: Colors.transparent,
                     child: FadeTransition(
@@ -1635,14 +1062,17 @@ class _SavePresetActionButtonState extends ConsumerState<_SavePresetActionButton
       _overlayEntry?.remove();
       _overlayEntry = null;
     });
-    if (mounted) setState(() => _isMenuOpen = false);
+    _isMenuOpen = false;
+    if (mounted) setState(() {});
   }
 
   Future<void> _confirmSave(String title) async {
     _closeMenu();
 
     final data = ref.read(lyricsStyleProvider.notifier).exportPresetData();
-    await ref.read(presetStateProvider.notifier).saveCurrentAsPreset(title, data);
+    await ref
+        .read(presetStateProvider.notifier)
+        .saveCurrentAsPreset(title, data);
 
     if (mounted) {
       setState(() => _showSuccess = true);
@@ -1655,62 +1085,27 @@ class _SavePresetActionButtonState extends ConsumerState<_SavePresetActionButton
 
   @override
   Widget build(BuildContext context) {
-    Widget child;
-
-    if (_showSuccess) {
-      child = Container(
-        key: const ValueKey('success'),
-        width: 40,
-        height: 40,
-        decoration: const BoxDecoration(
-          color: AppColors.surfaceSuccess,
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: SvgPicture.asset(
-          'assets/vectors/check-large.svg',
-          width: 20,
-          height: 20,
-          colorFilter: const ColorFilter.mode(
-            AppColors.iconInverse,
-            BlendMode.srcIn,
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: LycriPillGroup(
+        segments: [
+          LycriPillSegment(
+            svgAsset:
+                _showSuccess
+                    ? 'assets/vectors/check-large.svg'
+                    : 'assets/vectors/save.svg',
+            tooltip: widget.canSave ? 'Save as preset' : 'No changes to save',
+            enabled: widget.canSave && !_showSuccess,
+            onTap: _toggleMenu,
           ),
-        ),
-      );
-    } else if (!widget.isEnabled) {
-      child = Container(
-        key: const ValueKey('saved'),
-        width: 40,
-        height: 40,
-        decoration: const BoxDecoration(
-          color: AppColors.surface3,
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: SvgPicture.asset(
-          'assets/vectors/save.svg',
-          width: 20,
-          height: 20,
-          colorFilter: const ColorFilter.mode(
-            AppColors.iconMinimal,
-            BlendMode.srcIn,
+          LycriPillSegment(
+            label: widget.presetName,
+            trailingSvgAsset: 'assets/vectors/unfold-more.svg',
+            tooltip: 'Presets',
+            onTap: widget.onOpenPresets,
           ),
-        ),
-      );
-    } else {
-      child = CompositedTransformTarget(
-        link: _layerLink,
-        child: _CircularIconButton(
-          key: const ValueKey('not_saved'),
-          onTap: _toggleMenu,
-          svgAsset: 'assets/vectors/save.svg',
-        ),
-      );
-    }
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: child,
+        ],
+      ),
     );
   }
 }

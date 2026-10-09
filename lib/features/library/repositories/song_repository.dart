@@ -80,6 +80,7 @@ class SongRepository {
             textContent: segment.text,
             type: segment.type,
             segmentNumber: segment.number,
+            label: Value(segment.label),
             isHidden: Value(segment.isHidden),
             orderIndex: i, // Ensure explicit ordering
           ),
@@ -115,6 +116,7 @@ class SongRepository {
       text: e.textContent,
       type: e.type,
       number: e.segmentNumber,
+      label: e.label,
       isHidden: e.isHidden,
     )).toList();
   }

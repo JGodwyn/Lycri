@@ -6,6 +6,8 @@ import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_stroke.dart';
 import '../../core/theme/app_typography.dart';
+import 'scroll_fade_mask.dart';
+import 'fade_text.dart';
 import 'lycri_text_field.dart';
 
 /// A single item in a [LycriDropdown].
@@ -51,6 +53,7 @@ class LycriDropdown<T> extends StatefulWidget {
     required this.selectedValue,
     required this.onChanged,
     this.leadingIcon,
+    this.leadingSvg,
     this.maxDropdownHeight = 350,
     this.showSearch = false,
     this.searchHint = 'Search here...',
@@ -67,6 +70,9 @@ class LycriDropdown<T> extends StatefulWidget {
 
   /// Optional leading icon shown in the trigger button.
   final IconData? leadingIcon;
+
+  /// SVG alternative to [leadingIcon] (20×20, tinted icon-subtle).
+  final String? leadingSvg;
 
   /// Maximum height of the dropdown panel before it scrolls.
   final double maxDropdownHeight;
@@ -191,42 +197,51 @@ class _LycriDropdownState<T> extends State<LycriDropdown<T>>
           onTap: _toggleDropdown,
           child: Container(
             key: _triggerKey,
-            height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: AppPadding.lg),
             decoration: BoxDecoration(
               color: AppColors.surface3,
               borderRadius: BorderRadius.circular(AppRadius.full),
-              border: Border.all(
-                color: AppColors.borderSubtle,
-                width: AppStroke.md,
-              ),
             ),
             child: Row(
               children: [
-                if (widget.leadingIcon != null) ...[
-                  Icon(
-                    widget.leadingIcon,
-                    size: 24,
-                    color: AppColors.iconSubtle,
+                if (widget.leadingSvg != null) ...[
+                  SvgPicture.asset(
+                    widget.leadingSvg!,
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.iconBold,
+                      BlendMode.srcIn,
+                    ),
                   ),
-                  const SizedBox(width: AppSpacing.xmd),
+                  const SizedBox(width: AppSpacing.md),
+                ] else if (widget.leadingIcon != null) ...[
+                  Icon(widget.leadingIcon, size: 20, color: AppColors.iconBold),
+                  const SizedBox(width: AppSpacing.md),
                 ],
+                // Selected value: body-lg, previewed in its own
+                // font when the item provides one.
                 Expanded(
-                  child: Text(
+                  child: FadeText(
                     _selectedLabel,
-                    style: AppTypography.bodyMd.copyWith(
+                    style: AppTypography.bodyLg.copyWith(
                       fontFamily: _selectedFontFamily,
                       color: AppColors.textBold,
                     ),
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: AppSpacing.md),
                 RotationTransition(
                   turns: _chevronTurns,
-                  child: Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 20,
-                    color: AppColors.iconSubtle,
+                  child: SvgPicture.asset(
+                    'assets/vectors/chevron-down.svg',
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.iconBold,
+                      BlendMode.srcIn,
+                    ),
                   ),
                 ),
               ],
@@ -418,62 +433,64 @@ class _DropdownOverlayState<T> extends State<_DropdownOverlay<T>>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                    if (widget.showSearch)
-                      Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xmd),
-                        child: LycriTextField(
-                          controller: _searchController,
-                          autoFocus: true,
-                          hintText: widget.searchHint,
-                          onChanged: _onSearchChanged,
-                          prefixIcon: SvgPicture.asset(
-                            "assets/vectors/magnifyingglass.svg",
-                            width: 20,
-                            height: 20,
-                            colorFilter: ColorFilter.mode(
-                              AppColors.iconMinimal,
-                              BlendMode.srcIn,
+                      if (widget.showSearch)
+                        Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xmd),
+                          child: LycriTextField(
+                            controller: _searchController,
+                            autoFocus: true,
+                            hintText: widget.searchHint,
+                            onChanged: _onSearchChanged,
+                            prefixIcon: SvgPicture.asset(
+                              "assets/vectors/magnifyingglass.svg",
+                              width: 20,
+                              height: 20,
+                              colorFilter: ColorFilter.mode(
+                                AppColors.iconMinimal,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          ),
+                        ),
+                      Flexible(
+                        child: Scrollbar(
+                          controller: _scrollController,
+                          thumbVisibility: true,
+                          radius: const Radius.circular(AppRadius.full),
+                          child: ScrollFadeMask(
+                            child: ListView.separated(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.sm,
+                              ),
+                              shrinkWrap: true,
+                              itemCount: _filteredItems.length,
+                              separatorBuilder:
+                                  (_, __) => Divider(
+                                    height: 1,
+                                    thickness: AppStroke.sm,
+                                    color: AppColors.borderMinimal,
+                                    indent: AppSpacing.lg,
+                                    endIndent: AppSpacing.lg,
+                                  ),
+                              itemBuilder: (_, index) {
+                                final item = _filteredItems[index];
+                                final isSelected =
+                                    item.value == widget.selectedValue;
+
+                                return _DropdownMenuItem(
+                                  label: item.label,
+                                  fontFamily: item.fontFamily,
+                                  isSelected: isSelected,
+                                  onTap: () => widget.onSelected(item.value),
+                                );
+                              },
                             ),
                           ),
                         ),
                       ),
-                    Flexible(
-                      child: Scrollbar(
-                        controller: _scrollController,
-                        thumbVisibility: true,
-                        radius: const Radius.circular(AppRadius.full),
-                        child: ListView.separated(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.only(
-                            bottom: AppSpacing.sm,
-                          ),
-                          shrinkWrap: true,
-                          itemCount: _filteredItems.length,
-                          separatorBuilder:
-                              (_, __) => Divider(
-                                height: 1,
-                                thickness: AppStroke.sm,
-                                color: AppColors.borderMinimal,
-                                indent: AppSpacing.lg,
-                                endIndent: AppSpacing.lg,
-                              ),
-                          itemBuilder: (_, index) {
-                            final item = _filteredItems[index];
-                            final isSelected =
-                                item.value == widget.selectedValue;
-
-                            return _DropdownMenuItem(
-                              label: item.label,
-                              fontFamily: item.fontFamily,
-                              isSelected: isSelected,
-                              onTap: () => widget.onSelected(item.value),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -523,13 +540,12 @@ class _DropdownMenuItemState extends State<_DropdownMenuItem> {
           child: Row(
             children: [
               Expanded(
-                child: Text(
+                child: FadeText(
                   widget.label,
                   style: AppTypography.bodyMd.copyWith(
                     fontFamily: widget.fontFamily,
                     color: AppColors.textBold,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (widget.isSelected)

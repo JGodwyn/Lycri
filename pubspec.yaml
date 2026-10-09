@@ -58,7 +58,28 @@ flutter:
     - assets/vectors/
 
   fonts:
-    # ── Libre Caslon Condensed (display / headings / UI labels) ───────────────
+    # ── Advent Pro (display / headings / titles / UI labels) ──────────────────
+    - family: Advent Pro
+      fonts:
+        - asset: assets/fonts/AdventPro-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/AdventPro-Black.ttf
+          weight: 900
+
+    # ── Gabarito (body / paragraph text) ──────────────────────────────────────
+    - family: Gabarito
+      fonts:
+        - asset: assets/fonts/Gabarito-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Gabarito-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Gabarito-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Gabarito-Bold.ttf
+          weight: 700
+
+    # ── Libre Caslon (no longer used by the UI — kept as selectable lyric
+    #    fonts so existing presets that reference them still render) ─────────
     - family: Libre Caslon Condensed
       fonts:
         - asset: assets/fonts/LibreCaslonCondensed-Regular.ttf
@@ -82,7 +103,6 @@ flutter:
           weight: 700
           style: italic
 
-    # ── Libre Caslon Text (body / paragraph text) ─────────────────────────────
     - family: Libre Caslon Text
       fonts:
         - asset: assets/fonts/LibreCaslonText-Regular.ttf

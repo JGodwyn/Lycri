@@ -54,7 +54,6 @@ Future<void> main(List<String> args) async {
     center: savedX == null || savedY == null,
     title: 'Lycri',
     titleBarStyle: TitleBarStyle.normal,
-    backgroundColor: Colors.transparent,
     skipTaskbar: false,
   );
 

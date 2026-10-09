@@ -22,8 +22,8 @@ final lyricsLinesProvider = Provider<List<String>>((ref) {
 /// Provider for structured, segmented lyrics (Verses/Choruses).
 final segmentedLyricsProvider =
     StateNotifierProvider<SegmentedLyricsNotifier, SegmentedLyricsState>(
-  (ref) => SegmentedLyricsNotifier(ref),
-);
+      (ref) => SegmentedLyricsNotifier(ref),
+    );
 
 class LyricsNotifier extends StateNotifier<String?> {
   LyricsNotifier() : super(null);
@@ -51,6 +51,9 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
 
   /// Triggers the intelligent cleanup/segmentation process.
   /// If a cached state exists, merges edits into it to preserve metadata.
+  ///
+  /// Edits to a lyric that's already in the library ([songId] set) are saved
+  /// automatically once segmented; new lyrics still need an explicit save.
   Future<void> cleanup() async {
     final rawText = _ref.read(lyricsProvider);
     if (rawText == null || rawText.isEmpty) return;
@@ -78,6 +81,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
         isEditing: false,
       );
       _syncToRaw();
+      await _autoSaveIfInLibrary();
       return;
     }
 
@@ -92,6 +96,11 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       isEditing: false,
     );
     _syncToRaw();
+    await _autoSaveIfInLibrary();
+  }
+
+  Future<void> _autoSaveIfInLibrary() async {
+    if (state.songId != null) await saveLyric(state.songTitle);
   }
 
   /// Merges new raw text into cached segments, preserving metadata
@@ -137,9 +146,17 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   /// A line is considered a match if its edit distance ≤ 20% (per SMAP 2013).
   double _textSimilarity(String a, String b) {
     final linesA =
-        a.split('\n').map((l) => _normalizeLine(l)).where((l) => l.isNotEmpty).toList();
+        a
+            .split('\n')
+            .map((l) => _normalizeLine(l))
+            .where((l) => l.isNotEmpty)
+            .toList();
     final linesB =
-        b.split('\n').map((l) => _normalizeLine(l)).where((l) => l.isNotEmpty).toList();
+        b
+            .split('\n')
+            .map((l) => _normalizeLine(l))
+            .where((l) => l.isNotEmpty)
+            .toList();
     if (linesA.isEmpty && linesB.isEmpty) return 1.0;
     if (linesA.isEmpty || linesB.isEmpty) return 0.0;
 
@@ -161,7 +178,8 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
         usedB.add(bestIdx);
       }
     }
-    final maxLen = linesA.length > linesB.length ? linesA.length : linesB.length;
+    final maxLen =
+        linesA.length > linesB.length ? linesA.length : linesB.length;
     return matches / maxLen;
   }
 
@@ -219,15 +237,16 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   /// Saves the current lyric segments to the database.
   Future<void> saveLyric([String? title]) async {
     final rawText = _ref.read(lyricsProvider) ?? '';
-    
+
     final toSaveTitle = title ?? state.songTitle ?? 'Untitled';
     final songId = state.songId ?? _uuid.v4();
 
     // Regenerate segment IDs to prevent UNIQUE constraint collisions
     // if the user re-saves or saves multiple times.
-    final freshSegments = state.segments.map((s) {
-      return s.copyWith(id: '${_uuid.v4()}_${s.type.name}_${s.number}');
-    }).toList();
+    final freshSegments =
+        state.segments.map((s) {
+          return s.copyWith(id: '${_uuid.v4()}_${s.type.name}_${s.number}');
+        }).toList();
 
     // We update the state to indicate it's saved. Save state doesn't need
     // loading indicators here; the UI handles the quick check transition.
@@ -269,7 +288,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     while (await repo.doesTitleExist(candidate)) {
       // If the candidate matches our CURRENT name, we stop here (no real collision)
       if (candidate == state.songTitle) break;
-      
+
       candidate = "$trimmedTitle $count";
       count++;
     }
@@ -285,7 +304,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   /// Called when the currently loaded song is deleted from the database.
   /// We keep the text but mark it as unsaved and remove its identity.
   void handleCurrentSongDeleted() {
-    // We cannot use copyWith here because copyWith's `??` logic prevents 
+    // We cannot use copyWith here because copyWith's `??` logic prevents
     // setting fields to null.
     state = SegmentedLyricsState(
       segments: state.segments,
@@ -322,7 +341,7 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     if (state.segments.isNotEmpty) {
       _cachedSegments = List<LyricsSegment>.from(state.segments);
     }
-    
+
     // Ensure hidden text is visible in raw view
     final hasHidden = state.segments.any((s) => s.isHidden);
     if (hasHidden) {
@@ -335,13 +354,10 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     }
 
     // Go to un-segmented view but keep save info!
-    state = state.copyWith(
-      isSegmented: false,
-      isEditing: true,
-    );
+    state = state.copyWith(isSegmented: false, isEditing: true);
   }
 
-  /// Cancels editing mode. Leaves the current text in the view but 
+  /// Cancels editing mode. Leaves the current text in the view but
   /// disconnects it from the saved lyric by dropping all edit metadata.
   void cancelEdit() {
     _cachedSegments = null;
@@ -534,6 +550,38 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
     _ref.read(scrollToActiveTriggerProvider.notifier).state++;
   }
 
+  /// Sets a segment's custom name; blank restores the default name.
+  void renameSegment(String id, String name) {
+    final trimmed = name.trim();
+    state = state.copyWith(
+      segments: [
+        for (final s in state.segments)
+          if (s.id == id)
+            s.copyWith(label: trimmed, clearLabel: trimmed.isEmpty)
+          else
+            s,
+      ],
+    );
+  }
+
+  /// Inserts an empty verse at [index] and returns its id. Nothing is synced
+  /// until it gets text — empty segments are left out of the raw lyrics.
+  String insertSegment(int index) {
+    final number =
+        state.segments.where((s) => s.type == LyricsSegmentType.verse).length +
+        1;
+    final segment = LyricsSegment(
+      id: '${_uuid.v4()}_verse_$number',
+      text: '',
+      type: LyricsSegmentType.verse,
+      number: number,
+    );
+    final list = List<LyricsSegment>.from(state.segments)
+      ..insert(index.clamp(0, state.segments.length), segment);
+    state = state.copyWith(segments: list);
+    return segment.id;
+  }
+
   /// Reorders segments and syncs back to global lyricsProvider.
   void reorder(int oldIndex, int newIndex) {
     if (oldIndex < newIndex) {
@@ -549,11 +597,10 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
 
   /// Synchronizes the segmented order/content back to the raw lyricsProvider.
   void _syncToRaw() {
-    final combined =
-        state.segments
-            .where((s) => !s.isHidden)
-            .map((s) => s.text.trim())
-            .join('\n\n');
+    final combined = state.segments
+        .where((s) => !s.isHidden && s.text.trim().isNotEmpty)
+        .map((s) => s.text.trim())
+        .join('\n\n');
     _ref.read(lyricsProvider.notifier).update(combined);
   }
 
@@ -686,19 +733,24 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
         type = LyricsSegmentType.intro;
       } else if (i == rawBlocks.length - 1 && block.lineCount <= 2) {
         type = LyricsSegmentType.outro;
-      } else if (i < rawBlocks.length - 1 && 
-                 segments.isNotEmpty && 
-                 chorusIndices.contains(i + 1)) {
-        type = block.lineCount <= 4 ? LyricsSegmentType.preChorus : LyricsSegmentType.bridge;
+      } else if (i < rawBlocks.length - 1 &&
+          segments.isNotEmpty &&
+          chorusIndices.contains(i + 1)) {
+        type =
+            block.lineCount <= 4
+                ? LyricsSegmentType.preChorus
+                : LyricsSegmentType.bridge;
       }
 
       counts[type] = (counts[type] ?? 0) + 1;
-      segments.add(LyricsSegment(
-        id: '${_uuid.v4()}_${type.name}_${counts[type]}',
-        text: block.text,
-        type: type,
-        number: counts[type]!,
-      ));
+      segments.add(
+        LyricsSegment(
+          id: '${_uuid.v4()}_${type.name}_${counts[type]}',
+          text: block.text,
+          type: type,
+          number: counts[type]!,
+        ),
+      );
     }
     return segments;
   }
@@ -706,9 +758,14 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
   /// Elastic Snapping algorithm: Splits lines into blocks by finding the most
   /// "lyrical" break points. Uses rhyme preservation, rhythmic balance, and
   /// content-shift detection to find natural stanza boundaries.
-  List<_RawBlock> _createLyricalBlocks(List<String> lines, String? explicitLabel) {
+  List<_RawBlock> _createLyricalBlocks(
+    List<String> lines,
+    String? explicitLabel,
+  ) {
     if (lines.isEmpty) {
-      return explicitLabel != null ? [_RawBlock(text: '', explicitLabel: explicitLabel)] : [];
+      return explicitLabel != null
+          ? [_RawBlock(text: '', explicitLabel: explicitLabel)]
+          : [];
     }
 
     // Max stanza size for presentation (8 lines fits most screens well).
@@ -722,7 +779,12 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       if (remaining <= maxStanza) {
         // Last block: small enough to keep whole.
         final stanza = lines.sublist(start).join('\n');
-        blocks.add(_RawBlock(text: stanza, explicitLabel: start == 0 ? explicitLabel : null));
+        blocks.add(
+          _RawBlock(
+            text: stanza,
+            explicitLabel: start == 0 ? explicitLabel : null,
+          ),
+        );
         break;
       }
 
@@ -748,17 +810,22 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
         final lineTwoBefore = currentPoint > 1 ? lines[currentPoint - 2] : null;
         final nextLine = lines[currentPoint];
 
-        final isCoupletEnd = lineTwoBefore != null && _RhymeAnalyzer.isRhyme(lineBefore, lineTwoBefore);
+        final isCoupletEnd =
+            lineTwoBefore != null &&
+            _RhymeAnalyzer.isRhyme(lineBefore, lineTwoBefore);
         final breaksCouplet = _RhymeAnalyzer.isRhyme(lineBefore, nextLine);
 
         if (isCoupletEnd) score += 5.0; // Ends on a satisfying rhyme.
-        if (breaksCouplet) score -= 8.0; // DON'T split here if it breaks a rhyme!
+        if (breaksCouplet)
+          score -= 8.0; // DON'T split here if it breaks a rhyme!
 
         // 4. Content-shift signal: if the vocabulary between the line before
         //    and the line after the split is very different, there's likely a
         //    natural section change (e.g., verse → refrain). Reward that.
-        final wordsBefore = _normalizeLine(lineBefore).split(RegExp(r'\s+')).toSet();
-        final wordsAfter = _normalizeLine(nextLine).split(RegExp(r'\s+')).toSet();
+        final wordsBefore =
+            _normalizeLine(lineBefore).split(RegExp(r'\s+')).toSet();
+        final wordsAfter =
+            _normalizeLine(nextLine).split(RegExp(r'\s+')).toSet();
         if (wordsBefore.isNotEmpty && wordsAfter.isNotEmpty) {
           final overlap = wordsBefore.intersection(wordsAfter).length;
           final maxWords = max(wordsBefore.length, wordsAfter.length);
@@ -774,7 +841,12 @@ class SegmentedLyricsNotifier extends StateNotifier<SegmentedLyricsState> {
       }
 
       final stanza = lines.sublist(start, start + bestSplitOffset).join('\n');
-      blocks.add(_RawBlock(text: stanza, explicitLabel: start == 0 ? explicitLabel : null));
+      blocks.add(
+        _RawBlock(
+          text: stanza,
+          explicitLabel: start == 0 ? explicitLabel : null,
+        ),
+      );
       start += bestSplitOffset;
     }
     return blocks;
@@ -839,7 +911,8 @@ class _RhymeAnalyzer {
     return false;
   }
 
-  static String _clean(String w) => w.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+  static String _clean(String w) =>
+      w.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
 
   static String _extractVowels(String w) {
     final vowels = RegExp(r'[aeiouy]+');
@@ -855,5 +928,6 @@ class _RawBlock {
 
   _RawBlock({required this.text, this.explicitLabel});
 
-  int get lineCount => text.split('\n').where((l) => l.trim().isNotEmpty).length;
+  int get lineCount =>
+      text.split('\n').where((l) => l.trim().isNotEmpty).length;
 }

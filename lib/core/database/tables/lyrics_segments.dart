@@ -9,6 +9,9 @@ class LyricsSegments extends Table {
   TextColumn get textContent => text()();
   IntColumn get type => intEnum<LyricsSegmentType>()();
   IntColumn get segmentNumber => integer()();
+
+  /// User-set name (e.g. "Tag"); null shows the default "Verse 2" style.
+  TextColumn get label => text().nullable()();
   BoolColumn get isHidden => boolean().withDefault(const Constant(false))();
   IntColumn get orderIndex => integer()();
 

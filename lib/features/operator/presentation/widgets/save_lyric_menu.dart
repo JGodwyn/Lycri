@@ -9,13 +9,22 @@ import '../../../../core/theme/app_stroke.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/lycri_button.dart';
 import '../../../../shared/widgets/lycri_text_field.dart';
+import '../../../../shared/widgets/fade_text.dart';
 import '../../../library/providers/database_provider.dart';
 
 class SaveLyricMenu extends ConsumerStatefulWidget {
   final VoidCallback onClose;
   final Function(String) onSave;
 
-  const SaveLyricMenu({super.key, required this.onClose, required this.onSave});
+  /// Pre-fills the name field, e.g. with a title set via "tap to name".
+  final String? initialTitle;
+
+  const SaveLyricMenu({
+    super.key,
+    required this.onClose,
+    required this.onSave,
+    this.initialTitle,
+  });
 
   @override
   ConsumerState<SaveLyricMenu> createState() => _SaveLyricMenuState();
@@ -31,6 +40,8 @@ class _SaveLyricMenuState extends ConsumerState<SaveLyricMenu> {
   void initState() {
     super.initState();
     _controller.addListener(_onTextChanged);
+    // Set after the listener so a pre-filled title is collision-checked too.
+    if (widget.initialTitle != null) _controller.text = widget.initialTitle!;
   }
 
   void _onTextChanged() {
@@ -96,10 +107,12 @@ class _SaveLyricMenuState extends ConsumerState<SaveLyricMenu> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Name this lyric',
-                style: AppTypography.titleLg.copyWith(
-                  color: AppColors.textBold,
+              Expanded(
+                child: FadeText(
+                  'Name this lyric'.toUpperCase(),
+                  style: AppTypography.titleLg.copyWith(
+                    color: AppColors.textBold,
+                  ),
                 ),
               ),
               GestureDetector(

@@ -101,88 +101,99 @@ class _NdiOperatorViewState extends ConsumerState<NdiOperatorView> {
     final isNdiEnabled = ref.watch(ndiServiceProvider);
     if (!isNdiEnabled) return const SizedBox.shrink();
 
-    final lyrics = ref.watch(lyricsProvider);
-    final style = ref.watch(lyricsStyleProvider);
-    final isVisible = ref.watch(lyricsVisibilityProvider);
-
     return Positioned(
       left: -2000,
       top: -2000,
       child: RepaintBoundary(
         key: _repaintBoundaryKey,
-        child: SizedBox(
-          width: 1920,
-          height: 1080,
-          child: Material(
-            color: Colors.transparent,
-            child: Stack(
-              children: [
-                // 1. Background layer
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color:
-                          style.backgroundType == BackgroundType.solidColor
-                              ? style.backgroundColor
-                              : Colors.black,
-                      gradient:
-                          style.backgroundType == BackgroundType.gradient
-                              ? (style.gradientType == GradientType.linear
-                                  ? LinearGradient(
-                                    colors:
-                                        style.gradientColors.length >= 2
-                                            ? style.gradientColors
-                                            : [Colors.white, Colors.black],
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                  )
-                                  : RadialGradient(
-                                    colors:
-                                        style.gradientColors.length >= 2
-                                            ? style.gradientColors
-                                            : [Colors.white, Colors.black],
-                                    center: Alignment.center,
-                                    radius: 0.8,
-                                  ))
-                              : null,
-                      image:
-                          style.backgroundType == BackgroundType.image &&
-                                  style.backgroundImagePath != null
-                              ? DecorationImage(
-                                image: FileImage(
-                                  File(style.backgroundImagePath!),
-                                ),
-                                fit: BoxFit.cover,
-                              )
-                              : null,
-                    ),
-                  ),
-                ),
+        child: const SizedBox(
+          width: LyricsOutputCanvas.width,
+          height: LyricsOutputCanvas.height,
+          child: LyricsOutputCanvas(),
+        ),
+      ),
+    );
+  }
+}
 
-                // 2. Video Background (if active)
-                if (style.backgroundType == BackgroundType.video &&
-                    style.backgroundVideoPath != null)
-                  Positioned.fill(
-                    child: StaticVideoBackground(
-                      path: style.backgroundVideoPath!,
-                    ),
-                  ),
+/// The audience-facing output (background + lyrics) as rendered on the
+/// presentation window, at [width] × [height]. Drives NDI capture and the
+/// operator's live view, which scales it down with a [FittedBox].
+class LyricsOutputCanvas extends ConsumerWidget {
+  const LyricsOutputCanvas({super.key});
 
-                // 3. Lyrics layer
-                Positioned.fill(
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: isVisible ? 1.0 : 0.0,
-                    child:
-                        lyrics != null
-                            ? const _NdiLyricsPreview()
-                            : const SizedBox.shrink(),
-                  ),
-                ),
-              ],
+  static const double width = 1920;
+  static const double height = 1080;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lyrics = ref.watch(lyricsProvider);
+    final style = ref.watch(lyricsStyleProvider);
+    final isVisible = ref.watch(lyricsVisibilityProvider);
+
+    return Material(
+      color: Colors.transparent,
+      child: Stack(
+        children: [
+          // 1. Background layer
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color:
+                    style.backgroundType == BackgroundType.solidColor
+                        ? style.backgroundColor
+                        : Colors.black,
+                gradient:
+                    style.backgroundType == BackgroundType.gradient
+                        ? (style.gradientType == GradientType.linear
+                            ? LinearGradient(
+                              colors:
+                                  style.gradientColors.length >= 2
+                                      ? style.gradientColors
+                                      : [Colors.white, Colors.black],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            )
+                            : RadialGradient(
+                              colors:
+                                  style.gradientColors.length >= 2
+                                      ? style.gradientColors
+                                      : [Colors.white, Colors.black],
+                              center: Alignment.center,
+                              radius: 0.8,
+                            ))
+                        : null,
+                image:
+                    style.backgroundType == BackgroundType.image &&
+                            style.backgroundImagePath != null
+                        ? DecorationImage(
+                          image: FileImage(File(style.backgroundImagePath!)),
+                          fit: BoxFit.cover,
+                        )
+                        : null,
+              ),
             ),
           ),
-        ),
+
+          // 2. Video Background (if active)
+          if (style.backgroundType == BackgroundType.video &&
+              style.backgroundVideoPath != null)
+            Positioned.fill(
+              child: StaticVideoBackground(path: style.backgroundVideoPath!),
+            ),
+
+          // 3. Lyrics layer
+          Positioned.fill(
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: isVisible ? 1.0 : 0.0,
+              child:
+                  lyrics != null
+                      ? const _NdiLyricsPreview()
+                      : const SizedBox.shrink(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -497,13 +508,13 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
                         if (isAutoLargeSegment) {
                           final bool isActivePage =
                               pageIndex ==
-                                _getSegmentPageIndex(
-                                  activeIndex,
-                                  segmentedState.segments
-                                      .where((s) => !s.isHidden)
-                                      .map((s) => s.lineCount)
-                                      .toList(),
-                                );
+                              _getSegmentPageIndex(
+                                activeIndex,
+                                segmentedState.segments
+                                    .where((s) => !s.isHidden)
+                                    .map((s) => s.lineCount)
+                                    .toList(),
+                              );
                           // Center the content if it fits within the
                           // available height; only scroll when it overflows.
                           return ScrollConfiguration(

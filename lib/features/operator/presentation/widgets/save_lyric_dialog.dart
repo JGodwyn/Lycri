@@ -37,7 +37,10 @@ class _SaveLyricDialogState extends State<SaveLyricDialog> {
       backgroundColor: AppColors.surface4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.xl),
-        side: const BorderSide(color: AppColors.borderMinimal, width: AppStroke.md),
+        side: const BorderSide(
+          color: AppColors.borderMinimal,
+          width: AppStroke.md,
+        ),
       ),
       elevation: 0,
       child: Container(
@@ -48,7 +51,7 @@ class _SaveLyricDialogState extends State<SaveLyricDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Save Lyric',
+              'Save Lyric'.toUpperCase(),
               style: AppTypography.headingMd.copyWith(
                 color: AppColors.textBold,
                 fontWeight: FontWeight.w600,
@@ -85,26 +88,19 @@ class _SaveLyricDialogState extends State<SaveLyricDialog> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
+                  child: LycriButton(
+                    label: 'Cancel',
+                    variant: LycriButtonVariant.secondary,
+                    fillWidth: true,
                     onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: AppColors.borderBold),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                      ),
-                    ),
-                    child: Text(
-                      'Cancel',
-                      style: AppTypography.bodyMd.copyWith(color: AppColors.textBold),
-                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: LycriButton(
                     label: 'Save',
-                    onPressed: isValid ? () => Navigator.of(context).pop(title) : null,
+                    onPressed:
+                        isValid ? () => Navigator.of(context).pop(title) : null,
                   ),
                 ),
               ],

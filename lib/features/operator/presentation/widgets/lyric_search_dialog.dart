@@ -13,6 +13,9 @@ import 'package:lycri_lyrics/features/library/models/song_domain_model.dart';
 import 'package:lycri_lyrics/features/library/providers/song_search_provider.dart';
 import 'package:lycri_lyrics/features/library/providers/database_provider.dart';
 import 'package:lycri_lyrics/shared/providers/lyrics_provider.dart';
+import '../../../../shared/widgets/scroll_fade_mask.dart';
+import '../../../../shared/widgets/fade_text.dart';
+import '../../../../shared/widgets/lycri_pill_group.dart';
 import 'package:lycri_lyrics/shared/widgets/lycri_text_field.dart';
 
 class LyricSearchDialog extends ConsumerStatefulWidget {
@@ -154,54 +157,27 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Saved lyrics',
+                        'Saved lyrics'.toUpperCase(),
                         style: AppTypography.headingSm.copyWith(
                           color: AppColors.textBold,
                         ),
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: _handleImport,
-                            icon: SvgPicture.asset(
-                              'assets/vectors/Import-down.svg',
-                              width: 18,
-                              height: 18,
-                              colorFilter: const ColorFilter.mode(
-                                AppColors.iconSubtle,
-                                BlendMode.srcIn,
-                              ),
-                            ),
+                      LycriPillGroup(
+                        segments: [
+                          LycriPillSegment(
+                            svgAsset: 'assets/vectors/Import-down.svg',
                             tooltip: 'Import songs to library',
-                            visualDensity: VisualDensity.compact,
-                            splashRadius: 18,
+                            onTap: _handleImport,
                           ),
-                          IconButton(
-                            onPressed: _handleExport,
-                            icon: SvgPicture.asset(
-                              'assets/vectors/Export-up.svg',
-                              width: 18,
-                              height: 18,
-                              colorFilter: const ColorFilter.mode(
-                                AppColors.iconSubtle,
-                                BlendMode.srcIn,
-                              ),
-                            ),
+                          LycriPillSegment(
+                            svgAsset: 'assets/vectors/Export-up.svg',
                             tooltip: 'Export songs in library',
-                            visualDensity: VisualDensity.compact,
-                            splashRadius: 18,
+                            onTap: _handleExport,
                           ),
-                          const SizedBox(width: AppSpacing.sm),
-                          IconButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: AppColors.iconSubtle,
-                              size: 20,
-                            ),
-                            visualDensity: VisualDensity.compact,
-                            splashRadius: 18,
+                          LycriPillSegment(
+                            svgAsset: 'assets/vectors/close.svg',
+                            tooltip: 'Close',
+                            onTap: () => Navigator.of(context).pop(),
                           ),
                         ],
                       ),
@@ -282,27 +258,33 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
                                     behavior: ScrollConfiguration.of(
                                       context,
                                     ).copyWith(scrollbars: false),
-                                    child: AnimatedList(
-                                      key: _listKey,
-                                      controller: _scrollController,
-                                      initialItemCount: _items.length,
-                                      shrinkWrap: true,
-                                      physics:
-                                          const AlwaysScrollableScrollPhysics(),
-                                      padding: EdgeInsets.zero,
-                                      itemBuilder: (context, index, animation) {
-                                        // Double check index safety due to async syncing
-                                        if (index >= _items.length) {
-                                          return const SizedBox.shrink();
-                                        }
-                                        final song = _items[index];
-                                        return _buildItem(
-                                          song,
+                                    child: ScrollFadeMask(
+                                      child: AnimatedList(
+                                        key: _listKey,
+                                        controller: _scrollController,
+                                        initialItemCount: _items.length,
+                                        shrinkWrap: true,
+                                        physics:
+                                            const AlwaysScrollableScrollPhysics(),
+                                        padding: EdgeInsets.zero,
+                                        itemBuilder: (
+                                          context,
+                                          index,
                                           animation,
-                                          showDivider:
-                                              index < _items.length - 1,
-                                        );
-                                      },
+                                        ) {
+                                          // Double check index safety due to async syncing
+                                          if (index >= _items.length) {
+                                            return const SizedBox.shrink();
+                                          }
+                                          final song = _items[index];
+                                          return _buildItem(
+                                            song,
+                                            animation,
+                                            showDivider:
+                                                index < _items.length - 1,
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -441,10 +423,8 @@ class _SongListItem extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                child: Text(
+                child: FadeText(
                   song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.bodyLg.copyWith(
                     color: AppColors.textBold,
                     fontWeight: FontWeight.w400,

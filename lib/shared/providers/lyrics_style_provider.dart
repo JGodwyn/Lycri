@@ -16,7 +16,7 @@ enum GradientType { linear, radial }
 /// Holds the visual styling state for the lyrics presentation.
 class LyricsStyleState {
   const LyricsStyleState({
-    this.fontFamily = 'Libre Caslon Condensed',
+    this.fontFamily = 'Advent Pro',
     this.displayLines = -1, // -1 = Auto, 0 = All, > 0 = Paginated
     this.textAlign = TextAlign.left,
     this.fontColor = const Color(0xFF000000), // Default to purely black

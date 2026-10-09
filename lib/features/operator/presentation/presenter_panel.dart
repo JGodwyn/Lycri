@@ -11,13 +11,20 @@ import '../../../core/theme/app_stroke.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/providers/active_line_provider.dart';
 import '../../../shared/providers/display_mode_provider.dart';
+import '../../../shared/providers/live_view_provider.dart';
 import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
 import '../../../shared/providers/lyrics_visibility_provider.dart';
 import '../../../shared/providers/presentation_window_provider.dart';
 import '../../operator/models/lyrics_segment.dart';
+import 'widgets/live_view_pip.dart';
 import '../../../shared/widgets/static_video_background.dart';
+import '../../../shared/widgets/cassette_press.dart';
+import '../../../shared/widgets/inner_shadow.dart';
 import '../../../shared/widgets/lycri_button.dart';
+import '../../../shared/widgets/scroll_fade_mask.dart';
+import '../../../shared/widgets/fade_text.dart';
+import '../../../shared/widgets/lycri_pill_group.dart';
 
 /// Center panel of the operator window.
 /// Shows a top bar with the "Presenter" label and a "Go live" button,
@@ -160,331 +167,513 @@ class PresenterPanel extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Top bar ────────────────────────────────────────────────────────
+        // ── Header bar ────────────────────────────────────────────────────
         Container(
-          padding: const EdgeInsets.only(
-            left: AppSpacing.lg,
-            right: AppSpacing.md,
-            top: AppSpacing.md,
-            bottom: AppSpacing.md,
+          height: 56,
+          padding: const EdgeInsets.fromLTRB(
+            AppPadding.xl,
+            AppPadding.sm,
+            AppPadding.sm,
+            AppPadding.sm,
           ),
           decoration: BoxDecoration(
             color: AppColors.surface4,
             borderRadius: BorderRadius.circular(AppRadius.full),
             border: Border.all(
-              color: AppColors.borderMinimal,
-              width: AppStroke.md,
+              color: AppColors.borderSubtle,
+              width: AppStroke.sm,
+              strokeAlign: BorderSide.strokeAlignOutside,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 20,
+              ),
+            ],
           ),
           child: Row(
             children: [
-              // ── "Presenter" label — fills remaining space, truncates if needed
               Expanded(
-                child: Text(
-                  'Presenter',
-                  style: AppTypography.titleLg.copyWith(
+                child: FadeText(
+                  'Presenter'.toUpperCase(),
+                  style: AppTypography.headingSm.copyWith(
                     color: AppColors.textSubtle,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: AppSpacing.md),
 
-              // ── Controls block — always right-aligned, natural width ────────
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const _ScreenSelector(),
-                  const SizedBox(width: AppSpacing.lg),
-
-                  // ── Clear (sweep brush) ───────────────────────────────────
-                  MouseRegion(
-                    cursor:
-                        lyrics != null
-                            ? SystemMouseCursors.click
-                            : SystemMouseCursors.basic,
-                    child: GestureDetector(
-                      onTap:
-                          lyrics == null
-                              ? null
-                              : () {
-                                if (isLive) {
-                                  ref
-                                      .read(presentationWindowProvider.notifier)
-                                      .endLive();
-                                }
-                                ref.read(segmentedLyricsProvider.notifier).clearAll();
-                              },
-                      child: SvgPicture.asset(
-                        'assets/vectors/SweepBrush.svg',
-                        width: 20,
-                        height: 20,
-                        colorFilter: ColorFilter.mode(
-                          lyrics != null
-                              ? AppColors.iconSubtle
-                              : AppColors.iconMinimal,
-                          BlendMode.srcIn,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: AppSpacing.lg),
-
-                  // ── Left arrow ────────────────────────────────────────────
-                  _ArrowButton(
-                    icon: Icons.chevron_left,
-                    onPressed:
-                        lines.isEmpty
-                            ? null
-                            : () {
-                              ref.read(activeLineProvider.notifier).previous();
-                              ref
-                                  .read(scrollToActiveTriggerProvider.notifier)
-                                  .state++;
-                            },
-                  ),
-
-                  const SizedBox(width: AppSpacing.sm),
-
-                  // ── Right arrow ───────────────────────────────────────────
-                  _ArrowButton(
-                    icon: Icons.chevron_right,
-                    onPressed:
-                        lines.isEmpty
-                            ? null
-                            : () {
-                              ref
-                                  .read(activeLineProvider.notifier)
-                                  .next(lines.length - 1);
-                              ref
-                                  .read(scrollToActiveTriggerProvider.notifier)
-                                  .state++;
-                            },
-                  ),
-
-                  const SizedBox(width: AppSpacing.lg),
-
-                  // ── Go Live / End Live ────────────────────────────────────
-                  LycriButton(
-                    label: isLive ? 'End Live' : 'Go Live',
-                    onPressed: () {
+              // ── Clear everything ─────────────────────────────────────────
+              LycriPillGroup(
+                segments: [
+                  LycriPillSegment(
+                    svgAsset: 'assets/vectors/SweepBrush.svg',
+                    tooltip: 'Clear lyrics',
+                    enabled: lyrics != null,
+                    onTap: () {
                       if (isLive) {
                         ref.read(presentationWindowProvider.notifier).endLive();
-                      } else {
-                        final style = ref.read(lyricsStyleProvider);
-                        final segmentedState = ref.read(segmentedLyricsProvider);
-                        ref.read(presentationWindowProvider.notifier).goLive(
-                          lyrics,
-                          ref.read(activeLineProvider),
-                          style.fontFamily,
-                          style.displayLines,
-                          style.textAlign,
-                          style.fontColor,
-                          style.backgroundColor,
-                          style.backgroundType,
-                          style.gradientType,
-                          style.gradientColors,
-                          style.backgroundImagePath,
-                          style.backgroundVideoPath,
-                          segmentedState.isSegmented,
-                          segmentedState.segments
-                              .where((s) => !s.isHidden)
-                              .map((s) => s.lineCount)
-                              .toList(),
-                        );
                       }
+                      ref.read(segmentedLyricsProvider.notifier).clearAll();
                     },
-                    fillWidth: false,
-                    height: 32,
-                    disabled: !isLive && lyrics == null,
                   ),
                 ],
               ),
+              const SizedBox(width: AppSpacing.md),
+
+              const _ScreenSelector(),
+              const SizedBox(width: AppSpacing.md),
+
+              // ── Previous / next line ─────────────────────────────────────
+              LycriPillGroup(
+                segments: [
+                  LycriPillSegment(
+                    svgAsset: 'assets/vectors/chevron-left.svg',
+                    tooltip: 'Previous line',
+                    enabled: lines.isNotEmpty,
+                    onTap: () {
+                      ref.read(activeLineProvider.notifier).previous();
+                      ref.read(scrollToActiveTriggerProvider.notifier).state++;
+                    },
+                  ),
+                  LycriPillSegment(
+                    svgAsset: 'assets/vectors/chevron-right.svg',
+                    tooltip: 'Next line',
+                    enabled: lines.isNotEmpty,
+                    onTap: () {
+                      ref
+                          .read(activeLineProvider.notifier)
+                          .next(lines.length - 1);
+                      ref.read(scrollToActiveTriggerProvider.notifier).state++;
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(width: AppSpacing.md),
+
+              // ── Go live ⇄ LIVE + stop ────────────────────────────────────
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child:
+                    isLive
+                        ? _LiveControls(
+                          key: const ValueKey('live'),
+                          onStop:
+                              () =>
+                                  ref
+                                      .read(presentationWindowProvider.notifier)
+                                      .endLive(),
+                        )
+                        : LycriButton(
+                          key: const ValueKey('go_live'),
+                          label: 'Go live',
+                          height: 40,
+                          disabled: lyrics == null,
+                          onPressed: () => _goLive(ref, lyrics),
+                        ),
+              ),
             ],
           ),
         ),
 
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.lg),
 
-        // ── Preview area ────────────────────────────────────────────────────
+        // ── Preview area (+ live view picture-in-picture) ───────────────────
         Expanded(
-          child: Stack(
-            children: [
-              // The preview container fills the whole Stack.
-              Positioned.fill(
-                child: Builder(
-                  builder: (context) {
-                    final style = ref.watch(lyricsStyleProvider);
-                    return Container(
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(AppRadius.xl),
-                      ),
-                      child: Stack(
-                        children: [
-                          // Background layer (Color/Gradient/Image/Video)
-                          Positioned.fill(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    style.backgroundType ==
-                                            BackgroundType.solidColor
-                                        ? style.backgroundColor
-                                        : null,
-                                gradient:
-                                    style.backgroundType ==
-                                            BackgroundType.gradient
-                                        ? (style.gradientType ==
-                                                GradientType.linear
-                                            ? LinearGradient(
-                                              colors:
-                                                  style.gradientColors.length >=
-                                                          2
-                                                      ? style.gradientColors
-                                                      : [
-                                                        Colors.white,
-                                                        Colors.black,
-                                                      ],
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              stops: const [0.0, 1.0],
-                                            )
-                                            : RadialGradient(
-                                              colors:
-                                                  style.gradientColors.length >=
-                                                          2
-                                                      ? style.gradientColors
-                                                      : [
-                                                        Colors.white,
-                                                        Colors.black,
-                                                      ],
-                                              center: Alignment.center,
-                                              radius: 0.8,
-                                              stops: const [0.0, 1.0],
-                                            ))
-                                        : null,
-                                image:
-                                    style.backgroundType ==
-                                                BackgroundType.image &&
-                                            style.backgroundImagePath != null
-                                        ? DecorationImage(
-                                          image: FileImage(
-                                            File(style.backgroundImagePath!),
-                                          ),
-                                          fit: BoxFit.cover,
-                                        )
-                                        : null,
-                              ),
-                            ),
-                          ),
-                          // Video Layer (if applicable)
-                          if (style.backgroundType == BackgroundType.video &&
-                              style.backgroundVideoPath != null)
+          // Clip to the preview's rounded shape, so the live view is cut by
+          // the same corners when it overshoots the edges.
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Builder(
+                    builder: (context) {
+                      final style = ref.watch(lyricsStyleProvider);
+                      return Container(
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(AppRadius.xl),
+                        ),
+                        child: Stack(
+                          children: [
+                            // Background layer (Color/Gradient/Image/Video)
                             Positioned.fill(
-                              child: StaticVideoBackground(
-                                path: style.backgroundVideoPath!,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color:
+                                      style.backgroundType ==
+                                              BackgroundType.solidColor
+                                          ? style.backgroundColor
+                                          : null,
+                                  gradient:
+                                      style.backgroundType ==
+                                              BackgroundType.gradient
+                                          ? (style.gradientType ==
+                                                  GradientType.linear
+                                              ? LinearGradient(
+                                                colors:
+                                                    style
+                                                                .gradientColors
+                                                                .length >=
+                                                            2
+                                                        ? style.gradientColors
+                                                        : [
+                                                          Colors.white,
+                                                          Colors.black,
+                                                        ],
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                stops: const [0.0, 1.0],
+                                              )
+                                              : RadialGradient(
+                                                colors:
+                                                    style
+                                                                .gradientColors
+                                                                .length >=
+                                                            2
+                                                        ? style.gradientColors
+                                                        : [
+                                                          Colors.white,
+                                                          Colors.black,
+                                                        ],
+                                                center: Alignment.center,
+                                                radius: 0.8,
+                                                stops: const [0.0, 1.0],
+                                              ))
+                                          : null,
+                                  image:
+                                      style.backgroundType ==
+                                                  BackgroundType.image &&
+                                              style.backgroundImagePath != null
+                                          ? DecorationImage(
+                                            image: FileImage(
+                                              File(style.backgroundImagePath!),
+                                            ),
+                                            fit: BoxFit.cover,
+                                          )
+                                          : null,
+                                ),
                               ),
                             ),
-                          // Lyrics/Content switcher
-                          Positioned.fill(
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 250),
-                              opacity: lyricsVisible ? 1.0 : 0.6,
-                              child: AnimatedSwitcher(
+                            // Video Layer (if applicable)
+                            if (style.backgroundType == BackgroundType.video &&
+                                style.backgroundVideoPath != null)
+                              Positioned.fill(
+                                child: StaticVideoBackground(
+                                  path: style.backgroundVideoPath!,
+                                ),
+                              ),
+                            // Lyrics/Content switcher
+                            Positioned.fill(
+                              child: AnimatedOpacity(
                                 duration: const Duration(milliseconds: 250),
-                                child:
-                                    lyrics != null
-                                        ? const _LyricsPreview(
-                                          key: ValueKey('lyrics'),
-                                        )
-                                        : const _EmptyPresenterState(
-                                          key: ValueKey('empty'),
-                                        ),
+                                opacity: lyricsVisible ? 1.0 : 0.6,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 250),
+                                  child:
+                                      lyrics != null
+                                          ? const _LyricsPreview(
+                                            key: ValueKey('lyrics'),
+                                          )
+                                          : const _EmptyPresenterState(
+                                            key: ValueKey('empty'),
+                                          ),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-
-              // ── Visibility toggle — floats over top-right of the preview ──
-              Positioned(
-                top: AppSpacing.md,
-                right: AppSpacing.md,
-                child: _VisibilityToggle(),
-              ),
-            ],
+                const Positioned.fill(child: LiveViewPip()),
+              ],
+            ),
           ),
         ),
+
+        const SizedBox(height: AppSpacing.lg),
+
+        // ── Bottom bar ──────────────────────────────────────────────────────
+        const _PresenterBottomBar(),
       ],
+    );
+  }
+
+  void _goLive(WidgetRef ref, String? lyrics) {
+    final style = ref.read(lyricsStyleProvider);
+    final segmentedState = ref.read(segmentedLyricsProvider);
+    ref
+        .read(presentationWindowProvider.notifier)
+        .goLive(
+          lyrics,
+          ref.read(activeLineProvider),
+          style.fontFamily,
+          style.displayLines,
+          style.textAlign,
+          style.fontColor,
+          style.backgroundColor,
+          style.backgroundType,
+          style.gradientType,
+          style.gradientColors,
+          style.backgroundImagePath,
+          style.backgroundVideoPath,
+          segmentedState.isSegmented,
+          segmentedState.segments
+              .where((s) => !s.isHidden)
+              .map((s) => s.lineCount)
+              .toList(),
+        );
+  }
+}
+
+// ─── Live controls ──────────────────────────────────────────────────────────
+
+/// Shown in place of "Go live" while presenting: a green LIVE status joined
+/// to a red stop button (Figma: live-view header).
+class _LiveControls extends StatelessWidget {
+  const _LiveControls({super.key, required this.onStop});
+
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    const liveRadius = BorderRadius.horizontal(
+      left: Radius.circular(AppRadius.full),
+      right: Radius.circular(AppRadius.md),
+    );
+    const stopRadius = BorderRadius.horizontal(
+      left: Radius.circular(AppRadius.md),
+      right: Radius.circular(AppRadius.full),
+    );
+    final shadow = Colors.black.withValues(alpha: 0.15);
+
+    return Container(
+      padding: const EdgeInsets.all(AppStroke.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSuccessLight,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InnerShadow(
+            color: shadow,
+            borderRadius: liveRadius,
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: AppPadding.md),
+              decoration: const BoxDecoration(
+                color: AppColors.surfaceSuccess,
+                borderRadius: liveRadius,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.surface4,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Text(
+                    'Live'.toUpperCase(),
+                    style: AppTypography.titleLg.copyWith(
+                      color: AppColors.textInverse,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: AppStroke.md),
+          _StopButton(onTap: onStop, borderRadius: stopRadius),
+        ],
+      ),
     );
   }
 }
 
-// ─── Visibility toggle ───────────────────────────────────────────────────────
+class _StopButton extends StatefulWidget {
+  const _StopButton({required this.onTap, required this.borderRadius});
 
-/// Floating eye-button overlaid on the top-right of the presenter preview.
-///
-/// Active (eye visible): lyrics shown on the live screen — bright orange with glow.
-/// Inactive: lyrics faded out on the live screen — neutral surface.
-class _VisibilityToggle extends ConsumerWidget {
-  const _VisibilityToggle();
+  final VoidCallback onTap;
+  final BorderRadius borderRadius;
+
+  @override
+  State<_StopButton> createState() => _StopButtonState();
+}
+
+class _StopButtonState extends State<_StopButton> {
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'End live',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: CassettePress(
+          onTap: widget.onTap,
+          builder:
+              (context, t) => InnerShadow(
+                color: Colors.black.withValues(
+                  alpha: CassettePress.shadowAlpha(0.15, t),
+                ),
+                offset: CassettePress.shadowOffset(t),
+                borderRadius: widget.borderRadius,
+                child: Container(
+                  width: 44,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Color.lerp(
+                      AppColors.red500,
+                      AppColors.red700,
+                      t.clamp(0.0, 1.0),
+                    ),
+                    borderRadius: widget.borderRadius,
+                  ),
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface4,
+                      borderRadius: BorderRadius.circular(AppRadius.xs),
+                    ),
+                  ),
+                ),
+              ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Bottom bar ─────────────────────────────────────────────────────────────
+
+/// `Gray600` bar under the preview: lyric visibility + more on the left,
+/// live-view toggle on the right.
+class _PresenterBottomBar extends ConsumerWidget {
+  const _PresenterBottomBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lyricsVisible = ref.watch(lyricsVisibilityProvider);
+    final showLive = ref.watch(liveViewVisibleProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(AppPadding.xs),
+      decoration: BoxDecoration(
+        color: AppColors.gray600,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          LycriPillGroup(
+            tone: LycriPillTone.muted,
+            height: 32,
+            iconSize: 20,
+            segments: [
+              LycriPillSegment(
+                svgAsset: 'assets/vectors/list-play.svg',
+                label: lyricsVisible ? 'Hide lyrics' : 'Show lyrics',
+                onTap: () {
+                  final next = !lyricsVisible;
+                  ref.read(lyricsVisibilityProvider.notifier).state = next;
+                  ref
+                      .read(presentationWindowProvider.notifier)
+                      .syncLyricsVisibility(next);
+                },
+              ),
+              // TODO(design): the "…" menu's contents aren't specified yet.
+              const LycriPillSegment(
+                svgAsset: 'assets/vectors/more-horizontal.svg',
+                tooltip: 'More',
+                enabled: false,
+                width: 40,
+              ),
+            ],
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Flexible(
+            child: _LiveViewToggle(
+              active: showLive,
+              onTap:
+                  () =>
+                      ref.read(liveViewVisibleProvider.notifier).state =
+                          !showLive,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Show live view" (Gray500) ⇄ "Hide live view" (Gray0, subtle text).
+class _LiveViewToggle extends StatelessWidget {
+  const _LiveViewToggle({required this.active, required this.onTap});
+
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = active ? AppColors.textSubtle : AppColors.textInverse;
+    final radius = BorderRadius.circular(AppRadius.full);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          final next = !lyricsVisible;
-          ref.read(lyricsVisibilityProvider.notifier).state = next;
-          ref
-              .read(presentationWindowProvider.notifier)
-              .syncLyricsVisibility(next);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-          width: 48,
-          height: 32,
-          decoration: BoxDecoration(
-            color: lyricsVisible ? AppColors.surfaceBrand : AppColors.surface4,
-            borderRadius: BorderRadius.circular(AppRadius.full),
-            boxShadow:
-                lyricsVisible
-                    ? [
-                      BoxShadow(
-                        color: AppColors.surfaceBrand.withValues(alpha: 0.55),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                        offset: Offset.zero,
+      child: CassettePress(
+        onTap: onTap,
+        builder:
+            (context, t) => InnerShadow(
+              color: Colors.black.withValues(
+                alpha: CassettePress.shadowAlpha(0.15, t),
+              ),
+              offset: CassettePress.shadowOffset(t),
+              borderRadius: radius,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: AppPadding.md),
+                decoration: BoxDecoration(
+                  color: Color.lerp(
+                    active ? AppColors.gray0 : AppColors.gray500,
+                    active ? AppColors.surface2 : AppColors.gray700,
+                    t.clamp(0.0, 1.0),
+                  ),
+                  borderRadius: radius,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SvgPicture.asset(
+                      'assets/vectors/eye.svg',
+                      width: 20,
+                      height: 20,
+                      colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Flexible(
+                      child: FadeText(
+                        (active ? 'Hide live view' : 'Show live view')
+                            .toUpperCase(),
+                        style: AppTypography.titleLg.copyWith(color: fg),
                       ),
-                    ]
-                    : [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.10),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-          ),
-          child: Center(
-            child: SvgPicture.asset(
-              'assets/vectors/eye.svg',
-              width: 22,
-              height: 22,
-              colorFilter: ColorFilter.mode(
-                lyricsVisible ? AppColors.textInverse : AppColors.iconSubtle,
-                BlendMode.srcIn,
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
       ),
     );
   }
@@ -616,23 +805,39 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
     // Prune stale keys when the line count shrinks.
     _lineKeys.removeWhere((k, _) => k >= lines.length);
 
+    // In segmented mode, separate verses/choruses with a gap (dist-xl).
+    final segmentedState = ref.watch(segmentedLyricsProvider);
+    final segmentStarts = <int>{};
+    if (segmentedState.isSegmented) {
+      var offset = 0;
+      for (final segment in segmentedState.segments) {
+        if (segment.isHidden || segment.lineCount == 0) continue;
+        segmentStarts.add(offset);
+        offset += segment.lineCount;
+      }
+    }
+
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (int i = 0; i < lines.length; i++)
-              _LyricLine(
-                key: _keyFor(i),
-                text: lines[i],
-                isActive: i == activeIndex,
-                styleState: styleState,
-                onTap: () => ref.read(activeLineProvider.notifier).jumpTo(i),
-              ),
-          ],
+      child: ScrollFadeMask(
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(AppPadding.x2l),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (int i = 0; i < lines.length; i++)
+                _LyricLine(
+                  key: _keyFor(i),
+                  text: lines[i],
+                  isActive: i == activeIndex,
+                  topGap:
+                      i > 0 && segmentStarts.contains(i) ? AppSpacing.xl : 0,
+                  styleState: styleState,
+                  onTap: () => ref.read(activeLineProvider.notifier).jumpTo(i),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -642,6 +847,7 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
 class _LyricLine extends StatelessWidget {
   final String text;
   final bool isActive;
+  final double topGap;
   final LyricsStyleState styleState;
   final VoidCallback onTap;
 
@@ -649,6 +855,7 @@ class _LyricLine extends StatelessWidget {
     super.key,
     required this.text,
     required this.isActive,
+    this.topGap = 0,
     required this.styleState,
     required this.onTap,
   });
@@ -660,11 +867,11 @@ class _LyricLine extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+          padding: EdgeInsets.only(top: topGap),
           child: AnimatedDefaultTextStyle(
             duration: _LyricsPreviewState._animDuration,
             curve: _LyricsPreviewState._animCurve,
-            style: AppTypography.headingMd.copyWith(
+            style: AppTypography.headingSm.copyWith(
               fontFamily: styleState.fontFamily,
               color:
                   isActive
@@ -850,7 +1057,7 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'How do you want to display?',
+                          'How do you want to display?'.toUpperCase(),
                           style: AppTypography.titleLg.copyWith(
                             color: AppColors.textBold,
                           ),
@@ -937,73 +1144,85 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
       link: _layerLink,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        child: GestureDetector(
+        child: KeyedSubtree(
           key: _triggerKey,
-          onTap: _toggle,
-          child: Container(
-            height: 32,
-            padding: const EdgeInsets.only(
-              left: AppSpacing.xmd,
-              right: AppSpacing.xmd,
-              top: AppSpacing.sm,
-              bottom: AppSpacing.sm,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.surface3,
-              borderRadius: BorderRadius.circular(AppRadius.full),
-              border: Border.all(
-                color: AppColors.borderMinimal,
-                width: AppStroke.sm,
-              ),
-            ),
-            child: Builder(
-              builder: (context) {
-                // Read the shared provider to keep the trigger label in sync.
-                final currentOutput = ref.watch(displayModeProvider);
-                final svgAsset =
-                    currentOutput.type == DisplayType.thisDisplay
-                        ? 'assets/vectors/monitor.svg'
-                        : currentOutput.type == DisplayType.ndi
-                        ? 'assets/vectors/monitorStack.svg'
-                        : 'assets/vectors/monitorOutline.svg';
+          child: CassettePress(
+            onTap: _toggle,
+            builder:
+                (context, t) => InnerShadow(
+                  color: Colors.black.withValues(
+                    alpha: CassettePress.shadowAlpha(0.15, t),
+                  ),
+                  offset: CassettePress.shadowOffset(t),
+                  borderRadius: BorderRadius.circular(AppRadius.full),
+                  child: Container(
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppPadding.md,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Color.lerp(
+                        _isOpen ? AppColors.surface2 : AppColors.surface3,
+                        AppColors.surface1,
+                        t.clamp(0.0, 1.0),
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                    ),
+                    child: Builder(
+                      builder: (context) {
+                        // Read the shared provider to keep the trigger label in sync.
+                        final currentOutput = ref.watch(displayModeProvider);
+                        final svgAsset =
+                            currentOutput.type == DisplayType.thisDisplay
+                                ? 'assets/vectors/monitor.svg'
+                                : currentOutput.type == DisplayType.ndi
+                                ? 'assets/vectors/monitorStack.svg'
+                                : 'assets/vectors/monitorOutline.svg';
 
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SvgPicture.asset(
-                      svgAsset,
-                      width: 20,
-                      height: 20,
-                      colorFilter: const ColorFilter.mode(
-                        AppColors.textSubtle,
-                        BlendMode.srcIn,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Flexible(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 40),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder:
-                            (child, animation) => FadeTransition(
-                              opacity: animation,
-                              child: child,
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SvgPicture.asset(
+                              svgAsset,
+                              width: 24,
+                              height: 24,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.iconSubtle,
+                                BlendMode.srcIn,
+                              ),
                             ),
-                        child: Text(
-                          currentOutput.label,
-                          key: ValueKey(currentOutput),
-                          style: AppTypography.titleMd.copyWith(
-                            color: AppColors.textSubtle,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                            const SizedBox(width: AppSpacing.md),
+                            Container(
+                              width: AppStroke.md,
+                              height: 12,
+                              color: AppColors.borderBold,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Flexible(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 40),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder:
+                                    (child, animation) => FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    ),
+                                child: FadeText(
+                                  currentOutput.label.toUpperCase(),
+                                  key: ValueKey(currentOutput),
+                                  style: AppTypography.titleLg.copyWith(
+                                    color: AppColors.textSubtle,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                  ],
-                );
-              },
-            ),
+                  ),
+                ),
           ),
         ),
       ),
@@ -1029,24 +1248,16 @@ class _DisplayCard extends StatefulWidget {
 }
 
 class _DisplayCardState extends State<_DisplayCard> {
-  bool _hovered = false;
-
   @override
   Widget build(BuildContext context) {
     final Color bg =
-        widget.isSelected
-            ? AppColors.surfaceBrandLight
-            : _hovered
-            ? AppColors.surface3
-            : AppColors.surface3;
+        widget.isSelected ? AppColors.surfaceBrandLight : AppColors.surface3;
 
     final Color borderColor =
         widget.isSelected ? AppColors.borderBrand : Colors.transparent;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -1087,10 +1298,8 @@ class _DisplayCardState extends State<_DisplayCard> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    Text(
-                      widget.output.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    FadeText(
+                      widget.output.label.toUpperCase(),
                       style: AppTypography.titleMd.copyWith(
                         color:
                             widget.isSelected
@@ -1123,90 +1332,6 @@ class _DisplayCardState extends State<_DisplayCard> {
                 ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ArrowButton extends StatefulWidget {
-  const _ArrowButton({this.icon, this.svgAsset, this.onPressed})
-    : assert(icon != null || svgAsset != null);
-
-  /// Material icon (used for arrow buttons).
-  final IconData? icon;
-
-  /// SVG asset path (used for the sweep/clear button).
-  final String? svgAsset;
-
-  final VoidCallback? onPressed;
-
-  @override
-  State<_ArrowButton> createState() => _ArrowButtonState();
-}
-
-class _ArrowButtonState extends State<_ArrowButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  bool get _enabled => widget.onPressed != null;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color bg =
-        !_enabled
-            ? AppColors.btnBrandSecondaryRest.withValues(alpha: 0.5)
-            : _pressed
-            ? AppColors.btnBrandSecondaryPressed
-            : _hovered
-            ? AppColors.btnBrandSecondaryHover
-            : AppColors.btnBrandSecondaryRest;
-
-    final Color fg =
-        !_enabled
-            ? AppColors.textMinimal
-            : _pressed
-            ? AppColors.textInverse
-            : AppColors.textBold;
-
-    return MouseRegion(
-      cursor: _enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) {
-        setState(() {
-          _hovered = false;
-          _pressed = false;
-        });
-      },
-      child: GestureDetector(
-        onTapDown: _enabled ? (_) => setState(() => _pressed = true) : null,
-        onTapUp:
-            _enabled
-                ? (_) {
-                  setState(() => _pressed = false);
-                  widget.onPressed?.call();
-                }
-                : null,
-        onTapCancel: _enabled ? () => setState(() => _pressed = false) : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(AppRadius.full),
-          ),
-          child:
-              widget.svgAsset != null
-                  ? Center(
-                    child: SvgPicture.asset(
-                      widget.svgAsset!,
-                      width: 18,
-                      height: 18,
-                      colorFilter: ColorFilter.mode(fg, BlendMode.srcIn),
-                    ),
-                  )
-                  : Icon(widget.icon, size: 18, color: fg),
         ),
       ),
     );

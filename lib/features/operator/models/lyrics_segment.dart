@@ -5,6 +5,9 @@ class LyricsSegment {
   final String text;
   final LyricsSegmentType type;
   final int number;
+
+  /// Custom name set by the user; null falls back to the type and number (e.g. "Verse 2").
+  final String? label;
   final bool isHidden;
 
   const LyricsSegment({
@@ -12,6 +15,7 @@ class LyricsSegment {
     required this.text,
     required this.type,
     required this.number,
+    this.label,
     this.isHidden = false,
   });
 
@@ -20,6 +24,8 @@ class LyricsSegment {
     String? text,
     LyricsSegmentType? type,
     int? number,
+    String? label,
+    bool clearLabel = false,
     bool? isHidden,
   }) {
     return LyricsSegment(
@@ -27,6 +33,7 @@ class LyricsSegment {
       text: text ?? this.text,
       type: type ?? this.type,
       number: number ?? this.number,
+      label: clearLabel ? null : (label ?? this.label),
       isHidden: isHidden ?? this.isHidden,
     );
   }
@@ -37,6 +44,7 @@ class LyricsSegment {
       'text': text,
       'type': type.name,
       'number': number,
+      'label': label,
       'isHidden': isHidden,
     };
   }
@@ -50,6 +58,7 @@ class LyricsSegment {
         orElse: () => LyricsSegmentType.verse, // fallback
       ),
       number: json['number'] as int,
+      label: json['label'] as String?,
       isHidden: json['isHidden'] as bool? ?? false,
     );
   }
@@ -67,6 +76,7 @@ class LyricsSegment {
           text == other.text &&
           type == other.type &&
           number == other.number &&
+          label == other.label &&
           isHidden == other.isHidden;
 
   @override
@@ -75,6 +85,7 @@ class LyricsSegment {
       text.hashCode ^
       type.hashCode ^
       number.hashCode ^
+      label.hashCode ^
       isHidden.hashCode;
 }
 
@@ -100,15 +111,15 @@ class SegmentedLyricsState {
   });
 
   factory SegmentedLyricsState.initial() => const SegmentedLyricsState(
-        segments: [],
-        isSegmented: false,
-        isLoading: false,
-        songTitle: null,
-        isSaved: false,
-        songId: null,
-        isEditing: false,
-        originalSegments: null,
-      );
+    segments: [],
+    isSegmented: false,
+    isLoading: false,
+    songTitle: null,
+    isSaved: false,
+    songId: null,
+    isEditing: false,
+    originalSegments: null,
+  );
 
   bool get hasChanges {
     if (originalSegments == null) return false;
@@ -119,7 +130,10 @@ class SegmentedLyricsState {
     for (int i = 0; i < segments.length; i++) {
       final a = segments[i];
       final b = originalSegments![i];
-      if (a.text != b.text || a.type != b.type || a.number != b.number) {
+      if (a.text != b.text ||
+          a.type != b.type ||
+          a.number != b.number ||
+          a.label != b.label) {
         return true;
       }
     }

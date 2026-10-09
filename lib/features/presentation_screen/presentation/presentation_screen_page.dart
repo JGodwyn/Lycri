@@ -34,7 +34,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   List<String> _lines = [];
 
   /// The font family used to render the lyrics.
-  String _fontFamily = 'Libre Caslon Condensed';
+  String _fontFamily = 'Advent Pro';
 
   /// Number of lines to display simultaneously (-1 = Auto, 0 = All, > 0 = Paginated).
   int _displayLines = -1;

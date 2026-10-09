@@ -28,10 +28,15 @@ class LycriActionMenu extends StatefulWidget {
     super.key,
     required this.actions,
     required this.child,
+    this.tapRegionGroupId,
   });
 
   final List<LycriMenuAction> actions;
   final Widget child;
+
+  /// Marks the open menu as part of this [TapRegion] group, so taps on it
+  /// don't count as "outside" for a text field in the same group.
+  final Object? tapRegionGroupId;
 
   @override
   State<LycriActionMenu> createState() => LycriActionMenuState();
@@ -61,13 +66,16 @@ class LycriActionMenuState extends State<LycriActionMenu>
 
         const double menuWidth = 200.0;
         // Estimate menu height based on number of actions + dividers + padding
-        final double menuHeight = (widget.actions.length * 48.0) + (widget.actions.length - 1) + 32.0;
+        final double menuHeight =
+            (widget.actions.length * 48.0) + (widget.actions.length - 1) + 32.0;
         const double gap = AppSpacing.sm;
 
-        final double spaceBelow = screenSize.height - (offset.dy + renderBox.size.height + gap);
+        final double spaceBelow =
+            screenSize.height - (offset.dy + renderBox.size.height + gap);
         final double spaceAbove = offset.dy - gap;
 
-        final bool showAbove = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+        final bool showAbove =
+            spaceBelow < menuHeight && spaceAbove > spaceBelow;
 
         // Calculate horizontal offset (left-align by default)
         double dx = 0.0;
@@ -86,6 +94,7 @@ class LycriActionMenuState extends State<LycriActionMenu>
           layerLink: _layerLink,
           actions: widget.actions,
           onDismiss: _hideMenu,
+          tapRegionGroupId: widget.tapRegionGroupId,
           dx: dx,
           showAbove: showAbove,
         );
@@ -116,7 +125,8 @@ class LycriActionMenuState extends State<LycriActionMenu>
     return CompositedTransformTarget(
       link: _layerLink,
       child: GestureDetector(
-        onTap: () {}, // Swallows the tap to prevent propagation to parent widgets (like cards)
+        onTap:
+            () {}, // Swallows the tap to prevent propagation to parent widgets (like cards)
         behavior: HitTestBehavior.opaque,
         child: Listener(
           onPointerDown: (_) => toggleMenu(),
@@ -135,11 +145,13 @@ class _LycriMenuOverlay extends StatefulWidget {
     required this.onDismiss,
     required this.dx,
     required this.showAbove,
+    this.tapRegionGroupId,
   });
 
   final LayerLink layerLink;
   final List<LycriMenuAction> actions;
   final VoidCallback onDismiss;
+  final Object? tapRegionGroupId;
   final double dx;
   final bool showAbove;
 
@@ -194,64 +206,73 @@ class _LycriMenuOverlayState extends State<_LycriMenuOverlay>
         CompositedTransformFollower(
           link: widget.layerLink,
           showWhenUnlinked: false,
-          targetAnchor: widget.showAbove ? Alignment.topLeft : Alignment.bottomLeft,
-          followerAnchor: widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
-          offset: Offset(widget.dx, widget.showAbove ? -AppSpacing.sm : AppSpacing.sm),
+          targetAnchor:
+              widget.showAbove ? Alignment.topLeft : Alignment.bottomLeft,
+          followerAnchor:
+              widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
+          offset: Offset(
+            widget.dx,
+            widget.showAbove ? -AppSpacing.sm : AppSpacing.sm,
+          ),
           child: FadeTransition(
             opacity: _fadeAnim,
             child: ScaleTransition(
               scale: _scaleAnim,
-              alignment: widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
-              child: Material(
-                type: MaterialType.transparency,
-                child: Container(
-                  width: 200,
-                  decoration: BoxDecoration(
-                    color: AppColors.surface4,
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(
-                      color: AppColors.borderSubtle,
-                      width: AppStroke.sm,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
+              alignment:
+                  widget.showAbove ? Alignment.bottomLeft : Alignment.topLeft,
+              child: TapRegion(
+                groupId: widget.tapRegionGroupId,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: Container(
+                    width: 200,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface4,
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      border: Border.all(
+                        color: AppColors.borderSubtle,
+                        width: AppStroke.sm,
                       ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.md,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(widget.actions.length, (index) {
-                        final action = widget.actions[index];
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _MenuActionTile(
-                              action: action,
-                              onTap: () {
-                                action.onTap();
-                                widget.onDismiss();
-                              },
-                            ),
-                            if (index < widget.actions.length - 1)
-                              Divider(
-                                height: 1,
-                                thickness: AppStroke.sm,
-                                color: AppColors.borderMinimal,
-                                indent: AppSpacing.md,
-                                endIndent: AppSpacing.md,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.md,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(widget.actions.length, (index) {
+                          final action = widget.actions[index];
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _MenuActionTile(
+                                action: action,
+                                onTap: () {
+                                  action.onTap();
+                                  widget.onDismiss();
+                                },
                               ),
-                          ],
-                        );
-                      }),
+                              if (index < widget.actions.length - 1)
+                                Divider(
+                                  height: 1,
+                                  thickness: AppStroke.sm,
+                                  color: AppColors.borderMinimal,
+                                  indent: AppSpacing.md,
+                                  endIndent: AppSpacing.md,
+                                ),
+                            ],
+                          );
+                        }),
+                      ),
                     ),
                   ),
                 ),
@@ -314,7 +335,6 @@ class _MenuActionTileState extends State<_MenuActionTile> {
                         widget.action.isDestructive
                             ? AppColors.textDanger
                             : AppColors.textBold,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),

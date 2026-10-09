@@ -9,13 +9,18 @@ import '../../../../core/theme/app_stroke.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/lycri_button.dart';
 import '../../../../shared/widgets/lycri_text_field.dart';
+import '../../../../shared/widgets/fade_text.dart';
 import '../../../library/providers/database_provider.dart';
 
 class SavePresetMenu extends ConsumerStatefulWidget {
   final VoidCallback onClose;
   final Function(String) onSave;
 
-  const SavePresetMenu({super.key, required this.onClose, required this.onSave});
+  const SavePresetMenu({
+    super.key,
+    required this.onClose,
+    required this.onSave,
+  });
 
   @override
   ConsumerState<SavePresetMenu> createState() => _SavePresetMenuState();
@@ -96,10 +101,12 @@ class _SavePresetMenuState extends ConsumerState<SavePresetMenu> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Name this preset',
-                style: AppTypography.titleLg.copyWith(
-                  color: AppColors.textBold,
+              Expanded(
+                child: FadeText(
+                  'Name this preset'.toUpperCase(),
+                  style: AppTypography.titleLg.copyWith(
+                    color: AppColors.textBold,
+                  ),
                 ),
               ),
               GestureDetector(

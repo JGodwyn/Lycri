@@ -8,6 +8,8 @@ import '../../core/utils/system_font_service.dart';
 /// always appear first in the dropdown.
 final systemFontsProvider = FutureProvider<List<String>>((ref) async {
   const bundledFonts = [
+    'Advent Pro',
+    'Gabarito',
     'Libre Caslon Condensed',
     'Libre Caslon Text',
     'Source Code Pro',

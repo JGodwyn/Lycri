@@ -56,7 +56,7 @@ class AppTheme {
         bodyLarge: AppTypography.bodyLg.copyWith(color: AppColors.textBold),
         bodyMedium: AppTypography.bodyMd.copyWith(color: AppColors.textBold),
         bodySmall: AppTypography.bodySm.copyWith(color: AppColors.textSubtle),
-        labelLarge: AppTypography.btnLg.copyWith(color: AppColors.textBold),
+        labelLarge: AppTypography.titleLg.copyWith(color: AppColors.textBold),
         labelSmall: AppTypography.btnSm.copyWith(color: AppColors.textSubtle),
       ),
 
@@ -86,7 +86,7 @@ class AppTheme {
           backgroundColor: AppColors.btnBrandPrimaryRest,
           foregroundColor: AppColors.textInverse,
           disabledBackgroundColor: AppColors.btnBrandPrimaryDisabled,
-          textStyle: AppTypography.btnLg,
+          textStyle: AppTypography.titleLg,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),

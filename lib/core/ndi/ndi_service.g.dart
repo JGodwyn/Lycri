@@ -6,7 +6,7 @@ part of 'ndi_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$ndiServiceHash() => r'4b6683a253c681d42d8e25516b5b7340d0f5e78f';
+String _$ndiServiceHash() => r'04b577c4cefb3c0f344db028010b5ab26dd217e0';
 
 /// See also [NdiService].
 @ProviderFor(NdiService)

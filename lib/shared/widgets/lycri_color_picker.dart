@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'lycri_value_chip.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
@@ -15,12 +17,17 @@ class LycriColorField extends StatefulWidget {
   final ValueChanged<Color>? onColorFinal;
   final ValueChanged<Color>? onPickerDismissed;
 
+  /// Renders as a 24px [LycriValueChip] (swatch + hex) instead of the
+  /// full-height field — the editor's compact layout.
+  final bool compact;
+
   const LycriColorField({
     super.key,
     required this.color,
     required this.onColorChanged,
     this.onColorFinal,
     this.onPickerDismissed,
+    this.compact = false,
   });
 
 
@@ -149,6 +156,18 @@ class _LycriColorFieldState extends State<LycriColorField> {
     final hex =
         '#${widget.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
 
+    if (widget.compact) {
+      return CompositedTransformTarget(
+        link: _layerLink,
+        child: LycriValueChip(
+          leading: ChipSwatch(color: widget.color),
+          tint: widget.color,
+          value: hex,
+          onTap: _toggleOverlay,
+        ),
+      );
+    }
+
     return CompositedTransformTarget(
       link: _layerLink,
       child: MouseRegion(
@@ -157,14 +176,13 @@ class _LycriColorFieldState extends State<LycriColorField> {
           onTap: _toggleOverlay,
           child: Container(
             height: 48,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            padding: const EdgeInsets.only(
+              left: AppPadding.lg,
+              right: AppPadding.sm,
+            ),
             decoration: BoxDecoration(
               color: AppColors.surface3,
               borderRadius: BorderRadius.circular(AppRadius.full),
-              border: Border.all(
-                color: AppColors.borderSubtle,
-                width: AppStroke.md,
-              ),
             ),
             child: Row(
               children: [
@@ -174,7 +192,7 @@ class _LycriColorFieldState extends State<LycriColorField> {
                   height: 24,
                   decoration: BoxDecoration(
                     color: widget.color,
-                    borderRadius: BorderRadius.circular(AppRadius.full),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                     border: Border.all(
                       color: AppColors.borderSubtle,
                       width: AppStroke.sm,
@@ -186,16 +204,19 @@ class _LycriColorFieldState extends State<LycriColorField> {
                 Expanded(
                   child: Text(
                     hex,
-                    style: AppTypography.bodyMd.copyWith(
-                      color: AppColors.textBold,
+                    style: AppTypography.bodyLg.copyWith(
+                      color: AppColors.textSubtle,
                     ),
                   ),
                 ),
-                // Icon
-                const Icon(
-                  Icons.palette,
-                  size: 18,
-                  color: AppColors.iconSubtle,
+                SvgPicture.asset(
+                  'assets/vectors/palette.svg',
+                  width: 32,
+                  height: 32,
+                  colorFilter: const ColorFilter.mode(
+                    AppColors.iconSubtle,
+                    BlendMode.srcIn,
+                  ),
                 ),
               ],
             ),
