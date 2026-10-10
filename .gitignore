@@ -53,3 +53,6 @@ app.*.map.json
 # Figma Bridge exports
 design-sync/
 design-sync/
+
+# Golden test failure output
+test/design/failures/

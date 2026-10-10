@@ -132,6 +132,10 @@ class NdiService extends _$NdiService {
     _sendFrame();
   }
 
+  /// Sends the last frame again without copying (its buffer stays untouched
+  /// until the next [updateFrameBuffer]).
+  void resendLastFrame() => _sendFrame();
+
   void _sendFrame() {
     if (!state || _sender_instance == null || _ndiFrame == null) return;
 

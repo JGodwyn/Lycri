@@ -40,6 +40,14 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     String fontFamily,
     int displayLines,
     TextAlign textAlign,
+    LyricsPosition position,
+    LyricsSize size,
+    bool clipped,
+    bool overlay,
+    LyricsOverlayTone overlayTone,
+    int overlayOpacity,
+    int lineHeight,
+    bool textShadow,
     Color fontColor,
     Color backgroundColor,
     BackgroundType backgroundType,
@@ -96,11 +104,20 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
         'fontFamily': fontFamily,
         'displayLines': displayLines,
         'textAlign': textAlign.index,
+        'position': position.index,
+        'size': size.index,
+        'clipped': clipped,
+        'overlay': overlay,
+        'overlayTone': overlayTone.index,
+        'overlayOpacity': overlayOpacity,
+        'lineHeight': lineHeight,
+        'textShadow': textShadow,
         'fontColor': fontColor.value.toRadixString(16),
         'backgroundColor': backgroundColor.value.toRadixString(16),
         'backgroundType': backgroundType.index,
         'gradientType': gradientType.index,
-        'gradientColors': gradientColors.map((c) => c.value.toRadixString(16)).toList(),
+        'gradientColors':
+            gradientColors.map((c) => c.value.toRadixString(16)).toList(),
         'backgroundImagePath': backgroundImagePath,
         'backgroundVideoPath': backgroundVideoPath,
         'isSegmented': isSegmented,
@@ -203,6 +220,67 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     }
   }
 
+  /// Send updated lyrics position to the presentation window.
+  Future<void> syncPosition(LyricsPosition position) async {
+    if (_controller == null) return;
+    try {
+      await _controller!.invokeMethod('updatePosition', position.index);
+    } catch (e) {
+      _handleChannelError(e);
+    }
+  }
+
+  /// Send updated lyric size to the presentation window.
+  Future<void> syncSize(LyricsSize size) async {
+    if (_controller == null) return;
+    try {
+      await _controller!.invokeMethod('updateSize', size.index);
+    } catch (e) {
+      _handleChannelError(e);
+    }
+  }
+
+  /// Send updated clipping to the presentation window.
+  Future<void> syncClipped(bool clipped) async {
+    if (_controller == null) return;
+    try {
+      await _controller!.invokeMethod('updateClipped', clipped);
+    } catch (e) {
+      _handleChannelError(e);
+    }
+  }
+
+  /// Send the overlay settings to the presentation window.
+  Future<void> syncOverlay(
+    bool overlay,
+    LyricsOverlayTone tone,
+    int opacity,
+  ) async {
+    if (_controller == null) return;
+    try {
+      await _controller!.invokeMethod('updateOverlay', {
+        'overlay': overlay,
+        'overlayTone': tone.index,
+        'overlayOpacity': opacity,
+      });
+    } catch (e) {
+      _handleChannelError(e);
+    }
+  }
+
+  /// Send the lyric text settings (line height, shadow) to the window.
+  Future<void> syncTextLayout(int lineHeight, bool textShadow) async {
+    if (_controller == null) return;
+    try {
+      await _controller!.invokeMethod('updateTextLayout', {
+        'lineHeight': lineHeight,
+        'textShadow': textShadow,
+      });
+    } catch (e) {
+      _handleChannelError(e);
+    }
+  }
+
   /// Send updated font color to the presentation window.
   Future<void> syncFontColor(Color color) async {
     if (_controller == null) return;
@@ -217,7 +295,10 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
   Future<void> syncBackgroundColor(Color color) async {
     if (_controller == null) return;
     try {
-      await _controller!.invokeMethod('updateBackgroundColor', color.toARGB32());
+      await _controller!.invokeMethod(
+        'updateBackgroundColor',
+        color.toARGB32(),
+      );
     } catch (e) {
       _handleChannelError(e);
     }

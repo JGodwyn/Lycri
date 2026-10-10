@@ -18,6 +18,7 @@ import '../../../shared/widgets/lycri_color_picker.dart';
 import '../../../shared/widgets/lycri_dropdown.dart';
 import '../../../shared/widgets/lycri_pill_group.dart';
 import '../../../shared/widgets/lycri_segmented_tray.dart';
+import '../../../shared/widgets/lycri_stepper.dart';
 import '../../../shared/widgets/lycri_value_chip.dart';
 import '../../../shared/widgets/scroll_fade_mask.dart';
 import '../../../shared/widgets/video_thumbnail_widget.dart';
@@ -25,6 +26,7 @@ import '../../../shared/utils/dialog_utils.dart';
 import '../providers/preset_state_provider.dart';
 import 'widgets/preset_search_dialog.dart';
 import '../../../shared/widgets/fade_text.dart';
+import '../../../shared/widgets/checkerboard.dart';
 import 'widgets/save_preset_menu.dart';
 
 /// Right panel of the operator window (Figma: "EditorWindow1–3").
@@ -41,8 +43,8 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
     with SingleTickerProviderStateMixin {
   static const List<String> _lineCounts = ['Auto', '1', '2', '3', '4', 'All'];
 
-  /// Width of the label column in the background rows (Figma: 112).
-  static const double _labelColumn = 112;
+  /// Width of the label column in inline rows (Figma: 96).
+  static const double _labelColumn = 96;
 
   /// Track previous background type to determine push direction.
   BackgroundType? _prevBackgroundType;
@@ -110,8 +112,9 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
           BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20),
         ],
       ),
-      child: Scrollbar(
-        controller: _scrollController,
+      child: ScrollConfiguration(
+        // No scrollbar: the edge fade signals more content.
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
         child: ScrollFadeMask(
           child: SingleChildScrollView(
             controller: _scrollController,
@@ -123,13 +126,14 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
+                      child: FadeText(
                         'Editor'.toUpperCase(),
                         style: AppTypography.headingSm.copyWith(
                           color: AppColors.textSubtle,
                         ),
                       ),
                     ),
+                    const SizedBox(width: AppSpacing.md),
                     _EditorHeaderActions(
                       canSave: presetState.isDirty,
                       presetName: presetName,
@@ -146,67 +150,10 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                 // ── Lyric ────────────────────────────────────────────────────
                 _Section(
                   title: 'Lyric',
+                  gap: AppSpacing.md,
                   children: [
                     _StackedField(
-                      label: 'Font Family',
-                      child: fontsAsync.when(
-                        data:
-                            (fonts) => LycriDropdown<String>(
-                              items: [
-                                for (final f in fonts)
-                                  LycriDropdownItem(
-                                    value: f,
-                                    label: f,
-                                    fontFamily: f,
-                                  ),
-                              ],
-                              selectedValue: style.fontFamily,
-                              onChanged:
-                                  (font) => ref
-                                      .read(lyricsStyleProvider.notifier)
-                                      .setFontFamily(font),
-                              leadingSvg: 'assets/vectors/format-font-size.svg',
-                              showSearch: true,
-                              searchHint: 'Search fonts here',
-                            ),
-                        loading:
-                            () => const SizedBox(
-                              height: 40,
-                              child: Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        error:
-                            (_, _) => Text(
-                              'Failed to load fonts',
-                              style: AppTypography.bodySm.copyWith(
-                                color: AppColors.textDanger,
-                              ),
-                            ),
-                      ),
-                    ),
-                    _InlineField(
-                      label: 'Font color',
-                      child: LycriColorField(
-                        compact: true,
-                        color: style.fontColor,
-                        onColorChanged:
-                            (c) => ref
-                                .read(lyricsStyleProvider.notifier)
-                                .setFontColor(c),
-                      ),
-                    ),
-                    _StackedField(
                       label: 'Lyrics to display at a time',
-                      info:
-                          'How many lines show on screen at once. Auto fits '
-                          'as many as the screen allows; All shows every line.',
                       child: LycriSegmentedTray<String>(
                         options: [
                           for (final c in _lineCounts)
@@ -224,8 +171,143 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                         },
                       ),
                     ),
-                    _StackedField(
+                    _InlineField(
+                      label: 'Size',
+                      labelWidth: _labelColumn,
+                      child: LycriSegmentedTray<LyricsSize>(
+                        options: const [
+                          LycriTrayOption(
+                            value: LyricsSize.small,
+                            label: 'Small',
+                          ),
+                          LycriTrayOption(value: LyricsSize.mid, label: 'Mid'),
+                          LycriTrayOption(value: LyricsSize.big, label: 'Big'),
+                        ],
+                        selected: style.size,
+                        onSelected:
+                            (v) => ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setSize(v),
+                      ),
+                    ),
+                    _InlineField(
+                      label: 'Position',
+                      labelWidth: _labelColumn,
+                      gap: AppSpacing.sm,
+                      child: LycriSegmentedTray<LyricsPosition>(
+                        options: [
+                          for (final (value, label, icon) in const [
+                            (LyricsPosition.top, 'Top', 'position-top'),
+                            (
+                              LyricsPosition.middle,
+                              'Middle',
+                              'position-middle',
+                            ),
+                            (
+                              LyricsPosition.bottom,
+                              'Bottom',
+                              'position-bottom',
+                            ),
+                          ])
+                            LycriTrayOption(
+                              value: value,
+                              label: label,
+                              iconBuilder: (color, _) => _svgIcon(icon, color),
+                            ),
+                        ],
+                        selected: style.position,
+                        onSelected:
+                            (v) => ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setPosition(v),
+                      ),
+                    ),
+                    _InlineField(
+                      label: 'Clipped',
+                      labelWidth: _labelColumn,
+                      info:
+                          'Yes: when the lyrics change, they fade in and out '
+                          'just above and below the lyrics. No: they slide '
+                          'all the way to the edges of the screen.',
+                      child: LycriSegmentedTray<bool>(
+                        options: const [
+                          LycriTrayOption(value: true, label: 'Yes'),
+                          LycriTrayOption(value: false, label: 'No'),
+                        ],
+                        selected: style.clipped,
+                        onSelected:
+                            (v) => ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setClipped(v),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const _Divider(),
+
+                // ── Typography ───────────────────────────────────────────────
+                _Section(
+                  title: 'Typography',
+                  gap: AppSpacing.md,
+                  children: [
+                    fontsAsync.when(
+                      data:
+                          (fonts) => LycriDropdown<String>(
+                            items: [
+                              for (final f in fonts)
+                                LycriDropdownItem(
+                                  value: f,
+                                  label: f,
+                                  fontFamily: f,
+                                ),
+                            ],
+                            selectedValue: style.fontFamily,
+                            onChanged:
+                                (font) => ref
+                                    .read(lyricsStyleProvider.notifier)
+                                    .setFontFamily(font),
+                            leadingSvg: 'assets/vectors/format-font-size.svg',
+                            showSearch: true,
+                            searchHint: 'Search fonts here',
+                          ),
+                      loading:
+                          () => const SizedBox(
+                            height: 40,
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                      error:
+                          (_, _) => Text(
+                            'Failed to load fonts',
+                            style: AppTypography.bodySm.copyWith(
+                              color: AppColors.textDanger,
+                            ),
+                          ),
+                    ),
+                    _InlineField(
+                      label: 'Font color',
+                      labelWidth: _labelColumn,
+                      child: LycriColorField(
+                        compact: true,
+                        color: style.fontColor,
+                        onColorChanged:
+                            (c) => ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setFontColor(c),
+                      ),
+                    ),
+                    _InlineField(
                       label: 'Alignment',
+                      labelWidth: _labelColumn,
+                      gap: AppSpacing.sm,
                       child: LycriSegmentedTray<TextAlign>(
                         options: [
                           for (final (value, label, icon) in const [
@@ -246,6 +328,35 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                                 .setTextAlign(v),
                       ),
                     ),
+                    _InlineField(
+                      label: 'Line height',
+                      labelWidth: _labelColumn,
+                      child: LycriStepper(
+                        value: style.lineHeight,
+                        min: 10,
+                        max: 100,
+                        format: (v) => '$v%',
+                        onChanged:
+                            ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setLineHeight,
+                      ),
+                    ),
+                    _InlineField(
+                      label: 'Shadow',
+                      labelWidth: _labelColumn,
+                      child: LycriSegmentedTray<bool>(
+                        options: const [
+                          LycriTrayOption(value: true, label: 'Yes'),
+                          LycriTrayOption(value: false, label: 'No'),
+                        ],
+                        selected: style.textShadow,
+                        onSelected:
+                            ref
+                                .read(lyricsStyleProvider.notifier)
+                                .setTextShadow,
+                      ),
+                    ),
                   ],
                 ),
 
@@ -254,6 +365,7 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                 // ── Background ───────────────────────────────────────────────
                 _Section(
                   title: 'Background',
+                  gap: AppSpacing.md,
                   children: [
                     _StackedField(
                       label: 'Background type',
@@ -286,6 +398,11 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                             label: 'Video',
                             iconBuilder:
                                 (color, _) => _svgIcon('videoVector', color),
+                          ),
+                          const LycriTrayOption(
+                            value: BackgroundType.transparent,
+                            label: 'Transparent',
+                            iconBuilder: _transparentTypeSwatch,
                           ),
                         ],
                         selected: currentBackgroundType,
@@ -380,7 +497,9 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                                 child: LayoutBuilder(
                                   key: ValueKey(currentBackgroundType),
                                   builder: (context, constraints) {
-                                    const columns = 3;
+                                    // Chips carry a value (hex, file name),
+                                    // so at most two per row.
+                                    const columns = 2;
                                     final width =
                                         (constraints.maxWidth -
                                             AppSpacing.md * (columns - 1)) /
@@ -452,6 +571,8 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
         return 'bg_image';
       case BackgroundType.video:
         return 'bg_video';
+      case BackgroundType.transparent:
+        return 'bg_transparent';
     }
   }
 
@@ -529,7 +650,7 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                 onSelected: notifier.setGradientType,
               ),
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.md),
             _InlineField(
               label: 'Colors',
               labelWidth: _labelColumn,
@@ -590,6 +711,81 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                     : null,
           ),
         );
+
+      case BackgroundType.transparent:
+        return Column(
+          key: const ValueKey('bg_transparent'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _InlineField(
+              label: 'Overlay',
+              labelWidth: _labelColumn,
+              info:
+                  'A soft gradient behind the lyrics, so they stay readable '
+                  'over busy video. It sits where the lyrics are positioned.',
+              child: LycriSegmentedTray<bool>(
+                options: const [
+                  LycriTrayOption(value: true, label: 'Yes'),
+                  LycriTrayOption(value: false, label: 'No'),
+                ],
+                selected: style.overlay,
+                onSelected: notifier.setOverlay,
+              ),
+            ),
+            // Tone row only while the overlay is on.
+            AnimatedSize(
+              duration: _resizeDuration,
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child:
+                  style.overlay
+                      ? Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.md),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _InlineField(
+                              label: 'Color',
+                              labelWidth: _labelColumn,
+                              child: LycriSegmentedTray<LyricsOverlayTone>(
+                                options: const [
+                                  LycriTrayOption(
+                                    value: LyricsOverlayTone.light,
+                                    label: 'Light',
+                                  ),
+                                  LycriTrayOption(
+                                    value: LyricsOverlayTone.dark,
+                                    label: 'Dark',
+                                  ),
+                                ],
+                                selected: style.overlayTone,
+                                onSelected: notifier.setOverlayTone,
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            _InlineField(
+                              label: 'Opacity',
+                              labelWidth: _labelColumn,
+                              child: LycriStepper(
+                                value: style.overlayOpacity,
+                                format: (v) => '$v%',
+                                onChanged: notifier.setOverlayOpacity,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      : const SizedBox(width: double.infinity),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Only the NDI output is transparent, ready to layer over video '
+              'in vMix, OBS or a switcher. Screens and projectors show a '
+              'black background.',
+              style: AppTypography.bodyLg.copyWith(color: AppColors.textSubtle),
+            ),
+          ],
+        );
     }
   }
 
@@ -641,6 +837,8 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
               onTap: () => notifier.setBackgroundVideoPath(p),
             ),
         ];
+      case BackgroundType.transparent:
+        return const [];
     }
   }
 
@@ -667,6 +865,19 @@ Widget _gradientTypeSwatch(Color _, bool selected) => _TypeSwatch(
         selected
             ? const [AppColors.gray0, AppColors.gray400]
             : const [AppColors.gray200, AppColors.gray500],
+  ),
+);
+
+/// Checkerboard glyph for the "Transparent" background type.
+Widget _transparentTypeSwatch(Color _, bool selected) => Padding(
+  padding: const EdgeInsets.all(1.5),
+  child: ClipRRect(
+    borderRadius: BorderRadius.circular(AppRadius.sm),
+    child: Checkerboard(
+      cellSize: 4.25,
+      light: selected ? AppColors.gray0 : AppColors.gray400,
+      dark: selected ? AppColors.gray400 : AppColors.gray600,
+    ),
   ),
 );
 
@@ -737,10 +948,17 @@ class _HorizontalClipper extends CustomClipper<Rect> {
 
 /// Titled editor group (Figma: "LYRIC", "BACKGROUND", "RECENTLY USED").
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.children});
+  const _Section({
+    required this.title,
+    required this.children,
+    this.gap = AppSpacing.lg,
+  });
 
   final String title;
   final List<Widget> children;
+
+  /// Space between the title and each row.
+  final double gap;
 
   @override
   Widget build(BuildContext context) {
@@ -751,10 +969,7 @@ class _Section extends StatelessWidget {
           title.toUpperCase(),
           style: AppTypography.titleLg.copyWith(color: AppColors.textMinimal),
         ),
-        for (final child in children) ...[
-          const SizedBox(height: AppSpacing.lg),
-          child,
-        ],
+        for (final child in children) ...[SizedBox(height: gap), child],
       ],
     );
   }
@@ -776,39 +991,19 @@ class _Divider extends StatelessWidget {
   }
 }
 
-/// Label above its control (4px gap), with an optional info tooltip.
+/// Label above its control (4px gap).
 class _StackedField extends StatelessWidget {
-  const _StackedField({required this.label, required this.child, this.info});
+  const _StackedField({required this.label, required this.child});
 
   final String label;
   final Widget child;
-  final String? info;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Flexible(child: _FieldLabel(label)),
-            if (info != null) ...[
-              const SizedBox(width: AppSpacing.md),
-              Tooltip(
-                message: info!,
-                child: SvgPicture.asset(
-                  'assets/vectors/info-circle.svg',
-                  width: 16,
-                  height: 16,
-                  colorFilter: const ColorFilter.mode(
-                    AppColors.iconMinimal,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
+        _FieldLabel(label),
         const SizedBox(height: AppSpacing.sm),
         child,
       ],
@@ -817,46 +1012,72 @@ class _StackedField extends StatelessWidget {
 }
 
 /// Label and control side by side. Without [labelWidth] they split the row
-/// evenly (Figma: "Font color", "Alignment"); with it the label column is
-/// fixed and the control fills the rest ("Color", "Colors", "Image").
+/// evenly; with it the label column is fixed and the control fills the rest
+/// (Figma: 96). [gap] separates
+/// them — 8, or 4 beside the icon trays.
 class _InlineField extends StatelessWidget {
   const _InlineField({
     super.key,
     required this.label,
     required this.child,
     this.labelWidth,
+    this.gap = AppSpacing.md,
+    this.info,
   });
 
   final String label;
   final Widget child;
   final double? labelWidth;
+  final double gap;
+  final String? info;
 
   @override
   Widget build(BuildContext context) {
-    final labelWidget = _FieldLabel(label);
+    final labelWidget = _FieldLabel(label, info: info);
     return Row(
       children: [
         if (labelWidth != null)
           SizedBox(width: labelWidth, child: labelWidget)
         else
           Expanded(child: labelWidget),
-        const SizedBox(width: AppSpacing.md),
+        SizedBox(width: gap),
         Expanded(child: child),
       ],
     );
   }
 }
 
+/// Field label, with an info icon (4px after) whose tooltip is [info].
 class _FieldLabel extends StatelessWidget {
-  const _FieldLabel(this.text);
+  const _FieldLabel(this.text, {this.info});
 
   final String text;
+  final String? info;
 
   @override
   Widget build(BuildContext context) {
-    return FadeText(
+    final label = FadeText(
       text,
       style: AppTypography.bodyLg.copyWith(color: AppColors.textSubtle),
+    );
+    if (info == null) return label;
+    return Row(
+      children: [
+        Flexible(child: label),
+        const SizedBox(width: AppSpacing.sm),
+        Tooltip(
+          message: info!,
+          child: SvgPicture.asset(
+            'assets/vectors/info-circle.svg',
+            width: 16,
+            height: 16,
+            colorFilter: const ColorFilter.mode(
+              AppColors.iconSubtle,
+              BlendMode.srcIn,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1100,6 +1321,7 @@ class _EditorHeaderActionsState extends ConsumerState<_EditorHeaderActions>
           ),
           LycriPillSegment(
             label: widget.presetName,
+            labelMaxWidth: 112,
             trailingSvgAsset: 'assets/vectors/unfold-more.svg',
             tooltip: 'Presets',
             onTap: widget.onOpenPresets,

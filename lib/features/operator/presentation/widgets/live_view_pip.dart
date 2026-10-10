@@ -430,7 +430,9 @@ class _LiveViewPipState extends ConsumerState<LiveViewPip>
                       child: SizedBox(
                         width: LyricsOutputCanvas.width,
                         height: LyricsOutputCanvas.height,
-                        child: IgnorePointer(child: LyricsOutputCanvas()),
+                        child: IgnorePointer(
+                          child: LyricsOutputCanvas(showTransparency: true),
+                        ),
                       ),
                     ),
                   ),

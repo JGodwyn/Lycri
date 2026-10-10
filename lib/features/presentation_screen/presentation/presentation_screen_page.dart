@@ -8,7 +8,11 @@ import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/theme/app_typography.dart';
+import '../../../shared/providers/lyrics_style_provider.dart'
+    show LyricsOverlayTone, LyricsPosition, LyricsSize, LyricsStyleState;
+import '../../../shared/widgets/lyric_block_mask.dart';
+import '../../../shared/widgets/lyrics_overlay.dart';
+import '../../../shared/widgets/scroll_fade_mask.dart';
 
 /// Full-screen presentation window shown on the secondary display.
 ///
@@ -48,6 +52,16 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Text alignment for the lyrics.
   TextAlign _textAlign = TextAlign.left;
 
+  /// Vertical placement of the lyrics.
+  LyricsPosition _position = LyricsPosition.middle;
+  LyricsSize _size = LyricsSize.mid;
+  bool _clipped = true;
+  bool _overlay = false;
+  LyricsOverlayTone _overlayTone = LyricsOverlayTone.dark;
+  int _overlayOpacity = 60;
+  int _lineHeight = 40;
+  bool _textShadow = false;
+
   /// Font color for the lyrics.
   Color _fontColor = const Color(0xFF000000);
 
@@ -85,9 +99,16 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   /// Keys for each line — used to measure position for scroll targeting.
   final Map<int, GlobalKey> _lineKeys = {};
 
+  /// Per page: the page root and its lyric block, for [LyricBlockMask].
+  final Map<int, GlobalKey> _pageKeys = {};
+  final Map<int, GlobalKey> _blockKeys = {};
+
   /// Animation duration & curve for Spotify-style smooth transitions.
   static const _animDuration = Duration(milliseconds: 400);
   static const _animCurve = Curves.easeOutCubic;
+
+  /// Fade length where scrolling lyrics run past the screen edge.
+  static const _overflowFade = 120.0;
 
   WindowController? _windowController;
 
@@ -140,6 +161,31 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       }
       if (args.containsKey('textAlign')) {
         _textAlign = TextAlign.values[(args['textAlign'] as num).toInt()];
+      }
+      if (args.containsKey('position')) {
+        _position = LyricsPosition.values[(args['position'] as num).toInt()];
+      }
+      if (args.containsKey('size')) {
+        _size = LyricsSize.values[(args['size'] as num).toInt()];
+      }
+      if (args.containsKey('clipped')) {
+        _clipped = args['clipped'] as bool;
+      }
+      if (args.containsKey('overlay')) {
+        _overlay = args['overlay'] as bool;
+      }
+      if (args.containsKey('overlayOpacity')) {
+        _overlayOpacity = (args['overlayOpacity'] as num).toInt();
+      }
+      if (args.containsKey('lineHeight')) {
+        _lineHeight = (args['lineHeight'] as num).toInt();
+      }
+      if (args.containsKey('textShadow')) {
+        _textShadow = args['textShadow'] as bool;
+      }
+      if (args.containsKey('overlayTone')) {
+        _overlayTone =
+            LyricsOverlayTone.values[(args['overlayTone'] as num).toInt()];
       }
       if (args.containsKey('fontColor')) {
         _fontColor = Color(int.parse(args['fontColor'] as String, radix: 16));
@@ -275,12 +321,14 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         } else {
           const double overlayW = 1280;
           const double overlayH = 720;
-          await windowManager.setBounds(Rect.fromLTWH(
-            x + (w - overlayW) / 2,
-            y + (h - overlayH) / 2,
-            overlayW,
-            overlayH,
-          ));
+          await windowManager.setBounds(
+            Rect.fromLTWH(
+              x + (w - overlayW) / 2,
+              y + (h - overlayH) / 2,
+              overlayW,
+              overlayH,
+            ),
+          );
           await windowManager.setFullScreen(false);
         }
       } catch (e) {
@@ -462,6 +510,53 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
         }
         return null;
 
+      case 'updateOverlay':
+        final map = call.arguments as Map?;
+        if (map != null) {
+          setState(() {
+            _overlay = map['overlay'] as bool;
+            _overlayTone =
+                LyricsOverlayTone.values[(map['overlayTone'] as num).toInt()];
+            _overlayOpacity = (map['overlayOpacity'] as num).toInt();
+          });
+        }
+        return null;
+
+      case 'updateTextLayout':
+        final map = call.arguments as Map?;
+        if (map != null) {
+          setState(() {
+            _lineHeight = (map['lineHeight'] as num).toInt();
+            _textShadow = map['textShadow'] as bool;
+          });
+          _scrollToActive(_activeLine);
+        }
+        return null;
+
+      case 'updatePosition':
+        final positionIndex = call.arguments as int?;
+        if (positionIndex != null) {
+          setState(() => _position = LyricsPosition.values[positionIndex]);
+          _scrollToActive(_activeLine);
+        }
+        return null;
+
+      case 'updateSize':
+        final sizeIndex = call.arguments as int?;
+        if (sizeIndex != null) {
+          setState(() => _size = LyricsSize.values[sizeIndex]);
+          _scrollToActive(_activeLine);
+        }
+        return null;
+
+      case 'updateClipped':
+        final clipped = call.arguments as bool?;
+        if (clipped != null) {
+          setState(() => _clipped = clipped);
+          _scrollToActive(_activeLine);
+        }
+        return null;
+
       case 'updateFontColor':
         final colorValue = call.arguments as int?;
         if (colorValue != null) {
@@ -539,7 +634,8 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     bool shouldScrollInternally = false;
     if (_displayLines == -1 && _isSegmented && _segmentLineCounts.isNotEmpty) {
       final segIdx = _getSegmentPageIndex(activeIndex);
-      if (segIdx < _segmentLineCounts.length && _segmentLineCounts[segIdx] > 4) {
+      if (segIdx < _segmentLineCounts.length &&
+          _segmentLineCounts[segIdx] > 4) {
         shouldScrollInternally = true;
       }
     }
@@ -566,7 +662,19 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   void _performScrollAnimation(int activeIndex) {
     if (!_scrollController.hasClients) return;
 
-    final key = _lineKeys[activeIndex];
+    // Clipped continuous lyrics pin their band's first line; otherwise the
+    // active line is the anchor.
+    final band = _clippedContinuous ? _bandHeight(activeIndex) : null;
+    final anchor =
+        band != null
+            ? LyricBlockMask.bandRange(
+              activeIndex,
+              _lines.length,
+              slot: _position.index,
+            ).$1
+            : activeIndex;
+
+    final key = _lineKeys[anchor];
     if (key == null || key.currentContext == null) return;
 
     final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
@@ -581,10 +689,18 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
       ancestor: scrollObject,
     );
 
-    final targetOffset =
-        (_scrollController.offset +
-            lineOffset.dy -
-            (viewport.viewportDimension * 0.33))
+    // Where the anchor should rest: the pinned band's top, or the scroll
+    // anchor.
+    final restY =
+        band != null
+            ? _position.bandTop(
+              viewport.viewportDimension,
+              band,
+              LyricBlockMask.defaultFade,
+            )
+            : viewport.viewportDimension * _position.scrollAnchor;
+
+    final targetOffset = (_scrollController.offset + lineOffset.dy - restY)
         .clamp(0.0, viewport.maxScrollExtent);
 
     // Jump instantly for large offsets to hide correction glance.
@@ -600,6 +716,51 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     }
   }
 
+  /// The active page's lyric block within its page, for [LyricBlockMask].
+  Rect? _measureBlock(int totalPages) {
+    final page =
+        _displayLines > 0
+            ? _activeLine ~/ _displayLines
+            : _getSegmentPageIndex(_activeLine);
+    if (page >= totalPages) return null;
+    // Large segments scroll inside their page; nothing to clip to.
+    if (_displayLines == -1 &&
+        page < _segmentLineCounts.length &&
+        _segmentLineCounts[page] > 4) {
+      return LyricBlockMask.showAll;
+    }
+    return LyricBlockMask.blockRect(_blockKeys[page], _pageKeys[page]);
+  }
+
+  /// Continuous mode (All, or Auto without sections) with clipping on: the
+  /// lines scroll through a band pinned at the position.
+  bool get _clippedContinuous =>
+      _clipped && !_isCurrentlyPaginated(_activeLine);
+
+  /// Height of the band around the active line.
+  double? _bandHeight(int activeIndex) {
+    if (_lines.isEmpty) return null;
+    final (first, last) = LyricBlockMask.bandRange(
+      activeIndex,
+      _lines.length,
+      slot: _position.index,
+    );
+    return LyricBlockMask.bandHeight((i) => _lineKeys[i], first, last);
+  }
+
+  /// The pinned band in the view, for [LyricBlockMask] in continuous mode.
+  Rect? _measureContinuousBand() {
+    if (!_scrollController.hasClients) return null;
+    final band = _bandHeight(_activeLine);
+    if (band == null) return null;
+    final top = _position.bandTop(
+      _scrollController.position.viewportDimension,
+      band,
+      LyricBlockMask.defaultFade,
+    );
+    return Rect.fromLTWH(0, top, 0, band);
+  }
+
   CrossAxisAlignment get _crossAxisAlignment {
     switch (_textAlign) {
       case TextAlign.center:
@@ -612,17 +773,25 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   }
 
   Widget _buildLyricLine(int i, {bool useGlobalKey = false}) {
-    return Padding(
+    return AnimatedPadding(
       key: useGlobalKey ? _keyFor(i) : null,
-      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+      duration: _animDuration,
+      curve: _animCurve,
+      padding: EdgeInsets.only(
+        bottom: _size.textStyle.fontSize! * _lineHeight / 100,
+      ),
       child: AnimatedDefaultTextStyle(
         duration: _animDuration,
         curve: _animCurve,
-        style: AppTypography.displayMd.copyWith(
+        style: _size.textStyle.copyWith(
           fontFamily: _fontFamily,
           color:
               i == _activeLine ? _fontColor : _fontColor.withValues(alpha: 0.2),
           height: 1.4,
+          shadows:
+              _textShadow
+                  ? LyricsStyleState.shadowAt(i == _activeLine ? 1 : 0.2)
+                  : const [],
         ),
         child: SizedBox(
           width: double.infinity,
@@ -696,6 +865,13 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                     final Widget pageWidget = Builder(
                       builder: (context) {
                         final Widget lineList = Column(
+                          key:
+                              isAutoLargeSegment
+                                  ? null
+                                  : _blockKeys.putIfAbsent(
+                                    pageIndex,
+                                    GlobalKey.new,
+                                  ),
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: _crossAxisAlignment,
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -717,32 +893,39 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                             behavior: ScrollConfiguration.of(
                               context,
                             ).copyWith(scrollbars: false),
-                            child: CustomScrollView(
-                              controller:
-                                  isActivePage ? _scrollController : null,
-                              slivers: [
-                                SliverFillRemaining(
-                                  hasScrollBody: false,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: AppSpacing.x2l,
+                            child: ScrollFadeMask(
+                              extent: _overflowFade,
+                              child: CustomScrollView(
+                                controller:
+                                    isActivePage ? _scrollController : null,
+                                slivers: [
+                                  SliverFillRemaining(
+                                    hasScrollBody: false,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: AppSpacing.x2l,
+                                      ),
+                                      child: Align(
+                                        alignment: _position.alignment,
+                                        child: lineList,
+                                      ),
                                     ),
-                                    child: Center(child: lineList),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           );
                         }
 
-                        return Center(
+                        return Align(
+                          alignment: _position.alignment,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
                               vertical: AppSpacing.x2l,
                             ),
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
-                              alignment: Alignment.center,
+                              alignment: _position.alignment,
                               child: ConstrainedBox(
                                 constraints: BoxConstraints.tightFor(
                                   width: constraints.maxWidth,
@@ -756,6 +939,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                     );
 
                     return SizedBox.expand(
+                      key: _pageKeys.putIfAbsent(pageIndex, GlobalKey.new),
                       child: Padding(padding: pagePadding, child: pageWidget),
                     );
                   },
@@ -765,30 +949,56 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
           );
         },
       );
+      content = LyricBlockMask(
+        enabled: _clipped,
+        listenable: _pageController,
+        measure: () => _measureBlock(totalPages),
+        duration: _animDuration,
+        curve: _animCurve,
+        child: content,
+      );
     } else {
-      content = Center(
+      content = LyricBlockMask(
         key: const ValueKey('continuous_view'),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(
-              context,
-            ).copyWith(scrollbars: false),
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.x5l,
-                vertical: AppSpacing.x2l,
+        enabled: _clipped,
+        listenable: _scrollController,
+        measure: _measureContinuousBand,
+        duration: _animDuration,
+        curve: _animCurve,
+        child: LayoutBuilder(
+          builder:
+              (context, constraints) => Align(
+                alignment: _position.alignment,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1200),
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(
+                      context,
+                    ).copyWith(scrollbars: false),
+                    child: ScrollFadeMask(
+                      // Clipped: the band mask does the fading.
+                      extent: _clipped ? 0 : _overflowFade,
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        // Clipped: a screen of slack at both ends, so even the
+                        // first and last lines can sit in the pinned band.
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.x5l,
+                          vertical:
+                              _clipped ? constraints.maxHeight : AppSpacing.x2l,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: _crossAxisAlignment,
+                          children: [
+                            for (int i = 0; i < _lines.length; i++)
+                              _buildLyricLine(i, useGlobalKey: true),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: _crossAxisAlignment,
-                children: [
-                  for (int i = 0; i < _lines.length; i++)
-                    _buildLyricLine(i, useGlobalKey: true),
-                ],
-              ),
-            ),
-          ),
         ),
       );
     }
@@ -835,9 +1045,9 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
                 fit: BoxFit.cover,
               ),
             )
-            : _backgroundType == 3 &&
-                _backgroundVideoPath !=
-                    null // 3 = video
+            // 3 = video; 4 = transparent (keyed via NDI, black on screen)
+            : (_backgroundType == 3 && _backgroundVideoPath != null) ||
+                _backgroundType == 4
             ? const BoxDecoration(color: Colors.black)
             : BoxDecoration(color: _backgroundColor);
 
@@ -848,6 +1058,16 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
           children: [
             if (_backgroundType == 3 && _backgroundVideoPath != null)
               _StaticVideoBackground(path: _backgroundVideoPath!),
+            // Readability overlay (transparent background only).
+            if (_backgroundType == 4)
+              Positioned.fill(
+                child: LyricsOverlay(
+                  position: _position,
+                  tone: _overlayTone,
+                  opacity: _overlayOpacity / 100,
+                  visible: _overlay && hasLyrics && _lyricsVisible,
+                ),
+              ),
             Positioned.fill(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),

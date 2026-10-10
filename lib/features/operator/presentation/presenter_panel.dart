@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -25,6 +27,7 @@ import '../../../shared/widgets/lycri_button.dart';
 import '../../../shared/widgets/scroll_fade_mask.dart';
 import '../../../shared/widgets/fade_text.dart';
 import '../../../shared/widgets/lycri_pill_group.dart';
+import '../../../shared/widgets/checkerboard.dart';
 
 /// Center panel of the operator window.
 /// Shows a top bar with the "Presenter" label and a "Go live" button,
@@ -126,6 +129,32 @@ class PresenterPanel extends ConsumerWidget {
               .read(presentationWindowProvider.notifier)
               .syncTextAlign(next.textAlign);
         }
+        if (prev?.position != next.position) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncPosition(next.position);
+        }
+        if (prev?.size != next.size) {
+          ref.read(presentationWindowProvider.notifier).syncSize(next.size);
+        }
+        if (prev?.overlay != next.overlay ||
+            prev?.overlayTone != next.overlayTone ||
+            prev?.overlayOpacity != next.overlayOpacity) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncOverlay(next.overlay, next.overlayTone, next.overlayOpacity);
+        }
+        if (prev?.lineHeight != next.lineHeight ||
+            prev?.textShadow != next.textShadow) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncTextLayout(next.lineHeight, next.textShadow);
+        }
+        if (prev?.clipped != next.clipped) {
+          ref
+              .read(presentationWindowProvider.notifier)
+              .syncClipped(next.clipped);
+        }
         if (prev?.fontColor != next.fontColor) {
           ref
               .read(presentationWindowProvider.notifier)
@@ -191,17 +220,18 @@ class PresenterPanel extends ConsumerWidget {
               ),
             ],
           ),
-          child: Row(
+          // When space runs out the screen selector's label fades first,
+          // then the title.
+          child: _PresenterHeaderLayout(
+            gap: AppSpacing.md,
+            selectorMinWidth: _ScreenSelector.minWidth,
             children: [
-              Expanded(
-                child: FadeText(
-                  'Presenter'.toUpperCase(),
-                  style: AppTypography.headingSm.copyWith(
-                    color: AppColors.textSubtle,
-                  ),
+              FadeText(
+                'Presenter'.toUpperCase(),
+                style: AppTypography.headingSm.copyWith(
+                  color: AppColors.textSubtle,
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
 
               // ── Clear everything ─────────────────────────────────────────
               LycriPillGroup(
@@ -219,58 +249,67 @@ class PresenterPanel extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(width: AppSpacing.md),
 
               const _ScreenSelector(),
-              const SizedBox(width: AppSpacing.md),
 
-              // ── Previous / next line ─────────────────────────────────────
-              LycriPillGroup(
-                segments: [
-                  LycriPillSegment(
-                    svgAsset: 'assets/vectors/chevron-left.svg',
-                    tooltip: 'Previous line',
-                    enabled: lines.isNotEmpty,
-                    onTap: () {
-                      ref.read(activeLineProvider.notifier).previous();
-                      ref.read(scrollToActiveTriggerProvider.notifier).state++;
-                    },
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Previous / next line ─────────────────────────────────────
+                  LycriPillGroup(
+                    segments: [
+                      LycriPillSegment(
+                        svgAsset: 'assets/vectors/chevron-left.svg',
+                        tooltip: 'Previous line',
+                        enabled: lines.isNotEmpty,
+                        onTap: () {
+                          ref.read(activeLineProvider.notifier).previous();
+                          ref
+                              .read(scrollToActiveTriggerProvider.notifier)
+                              .state++;
+                        },
+                      ),
+                      LycriPillSegment(
+                        svgAsset: 'assets/vectors/chevron-right.svg',
+                        tooltip: 'Next line',
+                        enabled: lines.isNotEmpty,
+                        onTap: () {
+                          ref
+                              .read(activeLineProvider.notifier)
+                              .next(lines.length - 1);
+                          ref
+                              .read(scrollToActiveTriggerProvider.notifier)
+                              .state++;
+                        },
+                      ),
+                    ],
                   ),
-                  LycriPillSegment(
-                    svgAsset: 'assets/vectors/chevron-right.svg',
-                    tooltip: 'Next line',
-                    enabled: lines.isNotEmpty,
-                    onTap: () {
-                      ref
-                          .read(activeLineProvider.notifier)
-                          .next(lines.length - 1);
-                      ref.read(scrollToActiveTriggerProvider.notifier).state++;
-                    },
+                  const SizedBox(width: AppSpacing.md),
+
+                  // ── Go live ⇄ LIVE + stop ────────────────────────────────────
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child:
+                        isLive
+                            ? _LiveControls(
+                              key: const ValueKey('live'),
+                              onStop:
+                                  () =>
+                                      ref
+                                          .read(
+                                            presentationWindowProvider.notifier,
+                                          )
+                                          .endLive(),
+                            )
+                            : LycriButton(
+                              key: const ValueKey('go_live'),
+                              label: 'Go live',
+                              height: 40,
+                              disabled: lyrics == null,
+                              onPressed: () => _goLive(ref, lyrics),
+                            ),
                   ),
                 ],
-              ),
-              const SizedBox(width: AppSpacing.md),
-
-              // ── Go live ⇄ LIVE + stop ────────────────────────────────────
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child:
-                    isLive
-                        ? _LiveControls(
-                          key: const ValueKey('live'),
-                          onStop:
-                              () =>
-                                  ref
-                                      .read(presentationWindowProvider.notifier)
-                                      .endLive(),
-                        )
-                        : LycriButton(
-                          key: const ValueKey('go_live'),
-                          label: 'Go live',
-                          height: 40,
-                          disabled: lyrics == null,
-                          onPressed: () => _goLive(ref, lyrics),
-                        ),
               ),
             ],
           ),
@@ -297,6 +336,11 @@ class PresenterPanel extends ConsumerWidget {
                         ),
                         child: Stack(
                           children: [
+                            // Transparent background: keyed over video
+                            // downstream, so show a checkerboard here.
+                            if (style.backgroundType ==
+                                BackgroundType.transparent)
+                              const Positioned.fill(child: Checkerboard()),
                             // Background layer (Color/Gradient/Image/Video)
                             Positioned.fill(
                               child: Container(
@@ -413,6 +457,14 @@ class PresenterPanel extends ConsumerWidget {
           style.fontFamily,
           style.displayLines,
           style.textAlign,
+          style.position,
+          style.size,
+          style.clipped,
+          style.overlay,
+          style.overlayTone,
+          style.overlayOpacity,
+          style.lineHeight,
+          style.textShadow,
           style.fontColor,
           style.backgroundColor,
           style.backgroundType,
@@ -860,23 +912,39 @@ class _LyricLine extends StatelessWidget {
     required this.onTap,
   });
 
+  /// The preview sets Mid in `heading-sm`; other sizes, the line gap and
+  /// the shadow scale from the output by the same ratio.
+  static final double _previewScale =
+      AppTypography.headingSm.fontSize! / LyricsSize.mid.textStyle.fontSize!;
+
   @override
   Widget build(BuildContext context) {
+    final fontSize = styleState.size.textStyle.fontSize! * _previewScale;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.only(top: topGap),
+        child: AnimatedPadding(
+          duration: _LyricsPreviewState._animDuration,
+          curve: _LyricsPreviewState._animCurve,
+          padding: EdgeInsets.only(
+            top: topGap,
+            bottom: styleState.lineGap * _previewScale,
+          ),
           child: AnimatedDefaultTextStyle(
             duration: _LyricsPreviewState._animDuration,
             curve: _LyricsPreviewState._animCurve,
             style: AppTypography.headingSm.copyWith(
               fontFamily: styleState.fontFamily,
+              fontSize: fontSize,
               color:
                   isActive
                       ? styleState.fontColor
                       : styleState.fontColor.withValues(alpha: 0.2),
+              shadows: styleState.shadowFor(
+                isActive ? 1 : 0.2,
+                scale: _previewScale,
+              ),
             ),
             child: SizedBox(
               width: double.infinity,
@@ -934,6 +1002,10 @@ class _EmptyPresenterState extends StatelessWidget {
 
 class _ScreenSelector extends ConsumerStatefulWidget {
   const _ScreenSelector();
+
+  /// Padding + icon + divider, with no label showing.
+  static const double minWidth =
+      AppPadding.md * 2 + 24 + AppSpacing.md * 2 + AppStroke.md;
 
   @override
   ConsumerState<_ScreenSelector> createState() => _ScreenSelectorState();
@@ -1199,20 +1271,27 @@ class _ScreenSelectorState extends ConsumerState<_ScreenSelector>
                             ),
                             const SizedBox(width: AppSpacing.md),
                             Flexible(
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 40),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                transitionBuilder:
-                                    (child, animation) => FadeTransition(
-                                      opacity: animation,
-                                      child: child,
+                              // Long display names fade rather than grow the
+                              // trigger.
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 140,
+                                ),
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 40),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  transitionBuilder:
+                                      (child, animation) => FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
+                                  child: FadeText(
+                                    currentOutput.label.toUpperCase(),
+                                    key: ValueKey(currentOutput),
+                                    style: AppTypography.titleLg.copyWith(
+                                      color: AppColors.textSubtle,
                                     ),
-                                child: FadeText(
-                                  currentOutput.label.toUpperCase(),
-                                  key: ValueKey(currentOutput),
-                                  style: AppTypography.titleLg.copyWith(
-                                    color: AppColors.textSubtle,
                                   ),
                                 ),
                               ),
@@ -1336,4 +1415,138 @@ class _DisplayCardState extends State<_DisplayCard> {
       ),
     );
   }
+}
+
+// ─── Header layout ──────────────────────────────────────────────────────────
+
+/// Lays out the presenter header: [title] on the left, then the controls
+/// right-aligned as [clear] · [selector] · [trailing], [gap] apart.
+///
+/// Children are `[title, clear, selector, trailing]`. Spare width goes to the
+/// title first. When short, the selector shrinks first (its label fades), down
+/// to [selectorMinWidth], and only then does the title fade.
+class _PresenterHeaderLayout extends MultiChildRenderObjectWidget {
+  const _PresenterHeaderLayout({
+    required this.gap,
+    required this.selectorMinWidth,
+    required super.children,
+  }) : assert(children.length == 4);
+
+  final double gap;
+  final double selectorMinWidth;
+
+  @override
+  _RenderPresenterHeader createRenderObject(BuildContext context) =>
+      _RenderPresenterHeader(gap: gap, selectorMinWidth: selectorMinWidth);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderPresenterHeader renderObject,
+  ) {
+    renderObject
+      ..gap = gap
+      ..selectorMinWidth = selectorMinWidth;
+  }
+}
+
+class _HeaderParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderPresenterHeader extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _HeaderParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _HeaderParentData> {
+  _RenderPresenterHeader({
+    required double gap,
+    required double selectorMinWidth,
+  }) : _gap = gap,
+       _selectorMinWidth = selectorMinWidth;
+
+  double _gap;
+  set gap(double value) {
+    if (value == _gap) return;
+    _gap = value;
+    markNeedsLayout();
+  }
+
+  double _selectorMinWidth;
+  set selectorMinWidth(double value) {
+    if (value == _selectorMinWidth) return;
+    _selectorMinWidth = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _HeaderParentData) {
+      child.parentData = _HeaderParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final title = firstChild!;
+    final clear = childAfter(title)!;
+    final selector = childAfter(clear)!;
+    final trailing = childAfter(selector)!;
+
+    final width = constraints.maxWidth;
+    final loose = BoxConstraints(maxHeight: constraints.maxHeight);
+
+    clear.layout(loose, parentUsesSize: true);
+    trailing.layout(loose, parentUsesSize: true);
+    title.layout(loose.copyWith(maxWidth: width), parentUsesSize: true);
+
+    // Width left for selector + title once the fixed controls and the three
+    // gaps (title|clear|selector|trailing) are placed.
+    final shared = width - clear.size.width - trailing.size.width - _gap * 3;
+
+    // Selector takes what the title doesn't need, but never less than its
+    // label-less minimum.
+    final selectorMax = math.max(_selectorMinWidth, shared - title.size.width);
+    selector.layout(
+      loose.copyWith(maxWidth: selectorMax),
+      parentUsesSize: true,
+    );
+
+    // Title gets the remainder; it fades if that's less than it wants.
+    final titleMax = math.max(0.0, shared - selector.size.width);
+    if (title.size.width > titleMax) {
+      title.layout(loose.copyWith(maxWidth: titleMax), parentUsesSize: true);
+    }
+
+    final height = constraints.constrainHeight(
+      [
+        title,
+        clear,
+        selector,
+        trailing,
+      ].map((c) => c.size.height).reduce(math.max),
+    );
+    size = constraints.constrain(Size(width, height));
+
+    void place(RenderBox child, double x) {
+      (child.parentData! as _HeaderParentData).offset = Offset(
+        x,
+        (height - child.size.height) / 2,
+      );
+    }
+
+    // Title left; controls right-aligned.
+    place(title, 0);
+    var x = width - trailing.size.width;
+    place(trailing, x);
+    x -= _gap + selector.size.width;
+    place(selector, x);
+    x -= _gap + clear.size.width;
+    place(clear, x);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }

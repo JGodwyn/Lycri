@@ -3,6 +3,7 @@ import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:window_manager/window_manager.dart';
@@ -42,15 +43,28 @@ Future<void> main(List<String> args) async {
   // Window Manager
   await windowManager.ensureInitialized();
 
-  // Retrieve saved window state
-  final double savedWidth = sharedPrefs.getDouble('window_width') ?? 1400.0;
-  final double savedHeight = sharedPrefs.getDouble('window_height') ?? 900.0;
+  // Minimum size: wide enough that the fixed side columns (320 + 333) leave
+  // the presenter a usable preview. Clamped to the screen's work area so it
+  // still fits small or scaled displays (e.g. 1080p at 150% = 1280×~680
+  // after the Windows taskbar).
+  final Size? workArea =
+      (await screenRetriever.getPrimaryDisplay()).visibleSize;
+  final Size minimumSize = Size(
+    workArea == null ? 1280 : workArea.width.clamp(960, 1280).toDouble(),
+    workArea == null ? 720 : workArea.height.clamp(600, 720).toDouble(),
+  );
+
+  // Retrieve saved window state (never smaller than the minimum)
+  final double savedWidth = (sharedPrefs.getDouble('window_width') ?? 1400.0)
+      .clamp(minimumSize.width, double.infinity);
+  final double savedHeight = (sharedPrefs.getDouble('window_height') ?? 900.0)
+      .clamp(minimumSize.height, double.infinity);
   final double? savedX = sharedPrefs.getDouble('window_x');
   final double? savedY = sharedPrefs.getDouble('window_y');
 
   final WindowOptions windowOptions = WindowOptions(
     size: Size(savedWidth, savedHeight),
-    minimumSize: const Size(1200, 700),
+    minimumSize: minimumSize,
     center: savedX == null || savedY == null,
     title: 'Lycri',
     titleBarStyle: TitleBarStyle.normal,

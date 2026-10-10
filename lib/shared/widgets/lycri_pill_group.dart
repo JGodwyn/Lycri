@@ -30,6 +30,7 @@ class LycriPillSegment {
     this.enabled = true,
     this.tooltip,
     this.width,
+    this.labelMaxWidth = 160,
   }) : assert(svgAsset != null || label != null);
 
   /// Leading icon (24×24).
@@ -47,6 +48,9 @@ class LycriPillSegment {
 
   /// Fixed width; icon-only segments default to 48.
   final double? width;
+
+  /// Labels wider than this fade out rather than grow the pill.
+  final double labelMaxWidth;
 }
 
 /// A row of joined pill buttons (Figma: segmented "Button" frames).
@@ -184,8 +188,7 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
                       const SizedBox(width: AppSpacing.md),
                     if (s.label != null)
                       ConstrainedBox(
-                        // Long labels (e.g. preset names) fade out rather than grow the pill.
-                        constraints: const BoxConstraints(maxWidth: 160),
+                        constraints: BoxConstraints(maxWidth: s.labelMaxWidth),
                         child: FadeText(
                           s.label!.toUpperCase(),
                           style: AppTypography.titleLg.copyWith(

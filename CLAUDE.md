@@ -56,8 +56,9 @@ screens):
 - Scrollable areas → wrap the scroll view in `ScrollFadeMask`
   (`lib/shared/widgets/scroll_fade_mask.dart`); edges fade only while there
   is more content past them.
-- Exception: the audience-facing output (presentation window, NDI view)
-  renders lyrics unmasked.
+- Audience-facing output (presentation window, NDI view): lyrics that
+  scroll past the screen edge fade too (`ScrollFadeMask`, 120px extent at
+  1080p). Lyrics that fit are never masked.
 
 ## Database (Drift)
 
