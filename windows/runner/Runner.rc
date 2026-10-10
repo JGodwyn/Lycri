@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "lycri_lyrics" "\0"
+            VALUE "CompanyName", "com.lycri" "\0"
+            VALUE "FileDescription", "Lycri" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "lycri_lyrics" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "InternalName", "Lycri" "\0"
+            VALUE "LegalCopyright", "Copyright © 2026 com.lycri. All rights reserved." "\0"
             VALUE "OriginalFilename", "lycri_lyrics.exe" "\0"
-            VALUE "ProductName", "lycri_lyrics" "\0"
+            VALUE "ProductName", "Lycri" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
