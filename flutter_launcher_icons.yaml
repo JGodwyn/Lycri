@@ -1,0 +1,5 @@
+flutter_launcher_icons:
+  windows:
+    generate: true
+    image_path: "macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png"
+    icon_size: 256 # 256x256 is the max Windows icon size.
