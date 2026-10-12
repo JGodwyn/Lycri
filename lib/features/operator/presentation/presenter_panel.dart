@@ -18,6 +18,7 @@ import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
 import '../../../shared/providers/lyrics_visibility_provider.dart';
 import '../../../shared/providers/presentation_window_provider.dart';
+import '../../../shared/utils/lyric_scroll_follower.dart';
 import '../../operator/models/lyrics_segment.dart';
 import 'widgets/live_view_pip.dart';
 import '../../../shared/widgets/static_video_background.dart';
@@ -260,7 +261,6 @@ class PresenterPanel extends ConsumerWidget {
                     segments: [
                       LycriPillSegment(
                         svgAsset: 'assets/vectors/chevron-left.svg',
-                        tooltip: 'Previous line',
                         enabled: lines.isNotEmpty,
                         onTap: () {
                           ref.read(activeLineProvider.notifier).previous();
@@ -271,7 +271,6 @@ class PresenterPanel extends ConsumerWidget {
                       ),
                       LycriPillSegment(
                         svgAsset: 'assets/vectors/chevron-right.svg',
-                        tooltip: 'Next line',
                         enabled: lines.isNotEmpty,
                         onTap: () {
                           ref
@@ -564,42 +563,39 @@ class _StopButton extends StatefulWidget {
 class _StopButtonState extends State<_StopButton> {
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'End live',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: CassettePress(
-          onTap: widget.onTap,
-          builder:
-              (context, t) => InnerShadow(
-                color: Colors.black.withValues(
-                  alpha: CassettePress.shadowAlpha(0.15, t),
-                ),
-                offset: CassettePress.shadowOffset(t),
-                borderRadius: widget.borderRadius,
-                child: Container(
-                  width: 44,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Color.lerp(
-                      AppColors.red500,
-                      AppColors.red700,
-                      t.clamp(0.0, 1.0),
-                    ),
-                    borderRadius: widget.borderRadius,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: CassettePress(
+        onTap: widget.onTap,
+        builder:
+            (context, t) => InnerShadow(
+              color: Colors.black.withValues(
+                alpha: CassettePress.shadowAlpha(0.15, t),
+              ),
+              offset: CassettePress.shadowOffset(t),
+              borderRadius: widget.borderRadius,
+              child: Container(
+                width: 44,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Color.lerp(
+                    AppColors.red500,
+                    AppColors.red700,
+                    t.clamp(0.0, 1.0),
                   ),
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface4,
-                      borderRadius: BorderRadius.circular(AppRadius.xs),
-                    ),
+                  borderRadius: widget.borderRadius,
+                ),
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface4,
+                    borderRadius: BorderRadius.circular(AppRadius.xs),
                   ),
                 ),
               ),
-        ),
+            ),
       ),
     );
   }
@@ -637,6 +633,7 @@ class _PresenterBottomBar extends ConsumerWidget {
               LycriPillSegment(
                 svgAsset: 'assets/vectors/list-play.svg',
                 label: lyricsVisible ? 'Hide lyrics' : 'Show lyrics',
+                selected: !lyricsVisible,
                 onTap: () {
                   final next = !lyricsVisible;
                   ref.read(lyricsVisibilityProvider.notifier).state = next;
@@ -648,7 +645,6 @@ class _PresenterBottomBar extends ConsumerWidget {
               // TODO(design): the "…" menu's contents aren't specified yet.
               const LycriPillSegment(
                 svgAsset: 'assets/vectors/more-horizontal.svg',
-                tooltip: 'More',
                 enabled: false,
                 width: 40,
               ),
@@ -744,8 +740,10 @@ class _LyricsPreview extends ConsumerStatefulWidget {
   ConsumerState<_LyricsPreview> createState() => _LyricsPreviewState();
 }
 
-class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
+class _LyricsPreviewState extends ConsumerState<_LyricsPreview>
+    with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
+  late final LyricScrollFollower _follower;
 
   /// Keys attached to each line so we can measure their positions.
   final Map<int, GlobalKey> _lineKeys = {};
@@ -757,14 +755,18 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
   @override
   void initState() {
     super.initState();
+    _follower = LyricScrollFollower(
+      vsync: this,
+      controller: _scrollController,
+      target: _activeTarget,
+    );
     // Scroll to starting active line if any.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToActive(ref.read(activeLineProvider));
-    });
+    _scrollToActive();
   }
 
   @override
   void dispose() {
+    _follower.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -774,60 +776,25 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
     return _lineKeys.putIfAbsent(index, () => GlobalKey());
   }
 
-  void _scrollToActive(int activeIndex) {
-    if (!mounted) return;
+  void _scrollToActive() => _follower.follow();
 
-    // Retry multiple times to ensure we catch the layout after a lyric update
-    void attemptScroll(int retryCount) {
-      if (!mounted || retryCount <= 0) return;
+  /// Offset that rests the active line a third of the way down.
+  double? _activeTarget() {
+    final key = _lineKeys[ref.read(activeLineProvider)];
+    final renderBox = key?.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return null;
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
+    final viewport = _scrollController.position;
+    final scrollObject = viewport.context.storageContext.findRenderObject();
+    if (scrollObject == null) return null;
 
-        final key = _lineKeys[activeIndex];
-        if (key == null || key.currentContext == null) {
-          // If the key isn't found, the UI likely haven't rebuilt with the new lines yet.
-          // Retry after a short delay.
-          Future.delayed(
-            const Duration(milliseconds: 50),
-            () => attemptScroll(retryCount - 1),
-          );
-          return;
-        }
-
-        final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
-        if (renderBox == null || !renderBox.hasSize) {
-          Future.delayed(
-            const Duration(milliseconds: 50),
-            () => attemptScroll(retryCount - 1),
-          );
-          return;
-        }
-
-        final viewport = _scrollController.position;
-        final storageContext = viewport.context.storageContext;
-        final scrollObject = storageContext.findRenderObject();
-        if (scrollObject == null) return;
-
-        final lineOffset = renderBox.localToGlobal(
-          Offset.zero,
-          ancestor: scrollObject,
-        );
-
-        final targetOffset =
-            _scrollController.offset +
-            lineOffset.dy -
-            (viewport.viewportDimension * 0.33);
-
-        _scrollController.animateTo(
-          targetOffset.clamp(0.0, viewport.maxScrollExtent),
-          duration: _animDuration,
-          curve: _animCurve,
-        );
-      });
-    }
-
-    attemptScroll(5); // Try up to 5 times (250ms total) to find the new layout
+    final lineOffset = renderBox.localToGlobal(
+      Offset.zero,
+      ancestor: scrollObject,
+    );
+    return _scrollController.offset +
+        lineOffset.dy -
+        (viewport.viewportDimension * 0.33);
   }
 
   @override
@@ -837,21 +804,16 @@ class _LyricsPreviewState extends ConsumerState<_LyricsPreview> {
     final styleState = ref.watch(lyricsStyleProvider);
 
     // Trigger scroll animation whenever the active line changes OR the trigger increments.
-    ref.listen<int>(activeLineProvider, (prev, next) {
-      _scrollToActive(next);
-    });
+    ref.listen<int>(activeLineProvider, (prev, next) => _scrollToActive());
 
-    ref.listen<int>(scrollToActiveTriggerProvider, (prev, next) {
-      _scrollToActive(ref.read(activeLineProvider));
-    });
+    ref.listen<int>(
+      scrollToActiveTriggerProvider,
+      (prev, next) => _scrollToActive(),
+    );
 
     // Re-scroll after lyrics text changes (e.g. segment hidden/shown).
     ref.listen<List<String>>(lyricsLinesProvider, (prev, next) {
-      if (prev != null && prev.length != next.length) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _scrollToActive(ref.read(activeLineProvider));
-        });
-      }
+      if (prev != null && prev.length != next.length) _scrollToActive();
     });
 
     // Prune stale keys when the line count shrinks.

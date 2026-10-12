@@ -4,6 +4,7 @@ import 'app_colors.dart';
 import 'app_typography.dart';
 import 'app_radius.dart';
 import 'app_stroke.dart';
+import '../../shared/widgets/lycri_tooltip.dart';
 
 /// Assembles [ThemeData] from Lycri design tokens.
 /// All values must reference tokens — never hardcode.
@@ -139,24 +140,26 @@ class AppTheme {
 
       // ─── Tooltips ──────────────────────────────────────────────────────────
       tooltipTheme: TooltipThemeData(
-        padding: EdgeInsets.only(
-          top: AppSpacing.sm,
-          bottom: AppSpacing.md,
-          left: AppSpacing.lg,
-          right: AppSpacing.lg,
+        // Even padding: the old taller bottom inset read as extra space.
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppPadding.md,
+          vertical: AppPadding.sm,
         ),
+        // Long messages wrap instead of stretching across the window.
+        constraints: const BoxConstraints(maxWidth: 240),
+        // LycriTooltip draws the bubble (with its tip); this is the plain
+        // fallback for any bare Tooltip.
         decoration: BoxDecoration(
           color: AppColors.surfaceInverse,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          boxShadow: LycriTooltip.shadows,
         ),
-        textStyle: AppTypography.bodyMd.copyWith(color: AppColors.textInverse),
+        // Regular weight: light-on-dark text already reads heavier.
+        textStyle: AppTypography.bodyMd.copyWith(
+          color: AppColors.textInverse,
+          fontWeight: FontWeight.w400,
+        ),
+        textAlign: TextAlign.center,
         waitDuration: const Duration(milliseconds: 500),
       ),
     );

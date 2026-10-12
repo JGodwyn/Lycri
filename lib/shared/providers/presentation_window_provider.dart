@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:screen_retriever/screen_retriever.dart';
+import 'package:window_manager/window_manager.dart';
 import '../../core/ndi/ndi_service.dart';
 import 'display_mode_provider.dart';
 import 'lyrics_style_provider.dart';
@@ -29,8 +31,8 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
   ///
   /// Behaviour depends on the currently selected [DisplayOutputMode]:
   ///
-  /// - [DisplayOutputMode.thisDisplay] → opens a windowed (non-fullscreen)
-  ///   overlay on the **primary** display. Useful for debugging/preview.
+  /// - [DisplayOutputMode.thisDisplay] → opens a frameless clean-feed window
+  ///   on the display the **operator window** is on.
   /// - [DisplayOutputMode.extend] → positions the window fullscreen on the
   ///   **secondary** display (like EasyWorship / ProPresenter).
   /// - [DisplayOutputMode.ndi] → activates the NDI offscreen renderer and starts streaming.
@@ -76,17 +78,27 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
 
       Display targetDisplay;
       bool goFullScreen;
+      Map<String, double>? cleanFeedFrame;
+
+      final operatorDisplay = await _operatorDisplay(displays);
 
       if (displayOutput.type == DisplayType.external) {
-        // Use the specific display selected by the user.
+        // Use the specific display selected by the user, else any display
+        // other than the operator's.
         targetDisplay =
             displayOutput.display ??
-            (displays.length > 1 ? displays[1] : displays[0]);
+            displays.firstWhere(
+              (d) => d.id != operatorDisplay.id,
+              orElse: () => operatorDisplay,
+            );
         goFullScreen = true;
       } else {
-        // thisDisplay — always primary. Opens as a non-fullscreen debug preview.
-        targetDisplay = displays[0];
+        // thisDisplay — the operator's own display (not the OS's first or
+        // primary one, which can be the projector). Opens a frameless
+        // clean-feed window for window capture in vMix / OBS.
+        targetDisplay = operatorDisplay;
         goFullScreen = false;
+        cleanFeedFrame = _cleanFeedFrame(targetDisplay);
       }
 
       // ── Build window arguments ──────────────────────────────────────────
@@ -99,6 +111,17 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
           'y': targetDisplay.visiblePosition?.dy ?? 0.0,
           'width': targetDisplay.size.width,
           'height': targetDisplay.size.height,
+          // Windows: the units the values above are in (see
+          // _PresentationScreenPageState._setBoundsOnDisplay).
+          'scaleFactor': (targetDisplay.scaleFactor ?? 1).toDouble(),
+        },
+        'cleanFeed': cleanFeedFrame != null,
+        if (cleanFeedFrame != null) ...{
+          'cleanFeedFrame': cleanFeedFrame,
+          'cleanFeedPixels': {
+            'width': cleanFeedPixels.width,
+            'height': cleanFeedPixels.height,
+          },
         },
         // Initial Style Data
         'fontFamily': fontFamily,
@@ -169,6 +192,79 @@ class PresentationWindowNotifier extends StateNotifier<bool> {
     } finally {
       _isLaunching = false;
     }
+  }
+
+  /// The display the operator window is on, else the primary display.
+  ///
+  /// Matched by the window's center. On Windows every display (and the
+  /// window) is reported in its own monitor's scale, so a display whose
+  /// scale matches the window's is preferred.
+  Future<Display> _operatorDisplay(List<Display> displays) async {
+    try {
+      final center = (await windowManager.getBounds()).center;
+      final dpr =
+          WidgetsBinding
+              .instance
+              .platformDispatcher
+              .views
+              .first
+              .devicePixelRatio;
+      Rect area(Display d) =>
+          (d.visiblePosition ?? Offset.zero) & (d.visibleSize ?? d.size);
+      bool sameScale(Display d) =>
+          d.scaleFactor == null || (d.scaleFactor! - dpr).abs() < 0.01;
+
+      final containing = displays.where((d) => area(d).contains(center));
+      final match =
+          containing.where(sameScale).firstOrNull ?? containing.firstOrNull;
+      if (match != null) return match;
+
+      // Center off every display (e.g. dragged half off-screen): nearest.
+      double distance(Display d) {
+        final r = area(d);
+        final dx = math.max(
+          0.0,
+          math.max(r.left - center.dx, center.dx - r.right),
+        );
+        final dy = math.max(
+          0.0,
+          math.max(r.top - center.dy, center.dy - r.bottom),
+        );
+        return dx * dx + dy * dy;
+      }
+
+      if (displays.isNotEmpty) {
+        return displays.reduce((a, b) => distance(a) <= distance(b) ? a : b);
+      }
+    } catch (e) {
+      debugPrint('Operator display lookup failed: $e');
+    }
+    return ScreenRetriever.instance.getPrimaryDisplay();
+  }
+
+  /// Pixel size of the clean feed captured by vMix / OBS.
+  static const Size cleanFeedPixels = Size(1920, 1080);
+
+  /// Window frame (logical units) for the clean feed, centered on [display].
+  ///
+  /// Capture tools grab the window at physical pixels, so the logical size is
+  /// divided by the display scale to land on exactly [cleanFeedPixels].
+  /// screen_retriever only reports the scale on Windows; macOS sizes the
+  /// window natively from `cleanFeedPixels`.
+  Map<String, double> _cleanFeedFrame(Display display) {
+    final scale = (display.scaleFactor ?? 1).toDouble();
+    final w = cleanFeedPixels.width / scale;
+    final h = cleanFeedPixels.height / scale;
+    final origin = display.visiblePosition ?? Offset.zero;
+    final area = display.visibleSize ?? display.size;
+    // On a 1080p screen at 100% the feed is as big as the screen; keep its
+    // top edge on-screen and let the remainder run past the bottom.
+    return {
+      'x': origin.dx + math.max(0, (area.width - w) / 2),
+      'y': origin.dy + math.max(0, (area.height - h) / 2),
+      'width': w,
+      'height': h,
+    };
   }
 
   /// Hide the presentation window (End Live).

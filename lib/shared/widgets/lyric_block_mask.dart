@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 /// "Clipped" lyrics on the output: fades everything outside the resting
 /// lyric block, so paging lyrics enter and leave through soft edges just
@@ -9,9 +10,10 @@ import 'package:flutter/material.dart';
 /// rest that is also its rect in the view. It returns null while the page
 /// isn't laid out yet (the current band is kept), or [showAll] when the page
 /// has no block to clip to (continuous mode, a large segment that scrolls on
-/// its own). It's re-read after each build and while [listenable] (the page
-/// controller) ticks — the incoming page is only built once it scrolls into
-/// view. The visible band animates between blocks of different heights.
+/// its own). It's re-read every frame for [duration] after each build (style
+/// changes animate the lines' layout: size, line gap) and while [listenable]
+/// (the page controller) ticks — the incoming page is only built once it
+/// scrolls into view. The visible band animates between blocks of different heights.
 ///
 /// Continuous lyrics (no pages) use it too: [measure] then returns the
 /// band the active lines are scrolled to (see [bandHeight]).
@@ -130,12 +132,30 @@ class _LyricBlockMaskState extends State<LyricBlockMask> {
 
   bool _measureScheduled = false;
 
+  /// Frame of the last build: the layout below may still be animating, so
+  /// keep re-measuring every frame for [LyricBlockMask.duration] after it.
+  Duration? _builtAt;
+
+  static Duration? get _frameTime {
+    final scheduler = SchedulerBinding.instance;
+    return scheduler.schedulerPhase == SchedulerPhase.idle
+        ? null
+        : scheduler.currentFrameTimeStamp;
+  }
+
   void _scheduleMeasure() {
     if (_measureScheduled) return;
     _measureScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measureScheduled = false;
       if (!mounted) return;
+      final now = _frameTime;
+      if (_builtAt != null &&
+          now != null &&
+          now - _builtAt! <= widget.duration) {
+        _scheduleMeasure();
+        WidgetsBinding.instance.scheduleFrame();
+      }
       final Rect? next;
       if (!widget.enabled) {
         next = null;
@@ -156,6 +176,7 @@ class _LyricBlockMaskState extends State<LyricBlockMask> {
 
   @override
   Widget build(BuildContext context) {
+    _builtAt = _frameTime ?? _builtAt;
     _scheduleMeasure();
     return LayoutBuilder(
       builder: (context, constraints) {

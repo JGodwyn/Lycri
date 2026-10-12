@@ -7,6 +7,7 @@ import '../../core/theme/app_stroke.dart';
 import 'cassette_press.dart';
 import 'fade_text.dart';
 import '../../core/theme/app_typography.dart';
+import 'lycri_tooltip.dart';
 
 /// Compact 32px value pill (Figma: editor "Font color", "Colors", "Image",
 /// "Recently used"): a leading preview (swatch / thumbnail) joined to a
@@ -119,7 +120,7 @@ class _LycriValueChipState extends State<LycriValueChip> {
               ),
             );
     if (widget.tooltip != null) {
-      chip = Tooltip(message: widget.tooltip!, child: chip);
+      chip = LycriTooltip(message: widget.tooltip!, child: chip);
     }
     if (!hasDelete) return chip;
 
@@ -127,37 +128,34 @@ class _LycriValueChipState extends State<LycriValueChip> {
       children: [
         Expanded(child: chip),
         const SizedBox(width: AppSpacing.xs),
-        Tooltip(
-          message: 'Remove',
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: CassettePress(
-              onTap: widget.onDelete,
-              builder:
-                  (context, t) => Container(
-                    width: 40,
-                    height: LycriValueChip.height,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color:
-                          Color.lerp(
-                            AppColors.btnDangerSecondaryRest,
-                            AppColors.btnDangerSecondaryHover,
-                            t.clamp(0.0, 1.0),
-                          )!,
-                      borderRadius: right,
-                    ),
-                    child: SvgPicture.asset(
-                      'assets/vectors/delete-trash.svg',
-                      width: 16,
-                      height: 16,
-                      colorFilter: const ColorFilter.mode(
-                        AppColors.iconDanger,
-                        BlendMode.srcIn,
-                      ),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: CassettePress(
+            onTap: widget.onDelete,
+            builder:
+                (context, t) => Container(
+                  width: 40,
+                  height: LycriValueChip.height,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color:
+                        Color.lerp(
+                          AppColors.btnDangerSecondaryRest,
+                          AppColors.btnDangerSecondaryHover,
+                          t.clamp(0.0, 1.0),
+                        )!,
+                    borderRadius: right,
+                  ),
+                  child: SvgPicture.asset(
+                    'assets/vectors/delete-trash.svg',
+                    width: 16,
+                    height: 16,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.iconDanger,
+                      BlendMode.srcIn,
                     ),
                   ),
-            ),
+                ),
           ),
         ),
       ],

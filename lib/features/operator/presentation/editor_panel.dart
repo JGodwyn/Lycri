@@ -28,6 +28,7 @@ import 'widgets/preset_search_dialog.dart';
 import '../../../shared/widgets/fade_text.dart';
 import '../../../shared/widgets/checkerboard.dart';
 import 'widgets/save_preset_menu.dart';
+import '../../../shared/widgets/lycri_tooltip.dart';
 
 /// Right panel of the operator window (Figma: "EditorWindow1–3").
 /// Sections: LYRIC (font, colour, lines, alignment), BACKGROUND (type plus
@@ -226,9 +227,8 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                       label: 'Clipped',
                       labelWidth: _labelColumn,
                       info:
-                          'Yes: when the lyrics change, they fade in and out '
-                          'just above and below the lyrics. No: they slide '
-                          'all the way to the edges of the screen.',
+                          'Yes: lyrics fade in and out in place. No: they '
+                          'slide to the screen edges.',
                       child: LycriSegmentedTray<bool>(
                         options: const [
                           LycriTrayOption(value: true, label: 'Yes'),
@@ -700,7 +700,6 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                 hasFile
                     ? _fileName(path)
                     : (isImage ? 'Choose an image' : 'Choose a video'),
-            tooltip: hasFile ? path : null,
             onTap: () => _pickFile(style.backgroundType),
             onDelete:
                 hasFile
@@ -722,7 +721,7 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
               labelWidth: _labelColumn,
               info:
                   'A soft gradient behind the lyrics, so they stay readable '
-                  'over busy video. It sits where the lyrics are positioned.',
+                  'over video.',
               child: LycriSegmentedTray<bool>(
                 options: const [
                   LycriTrayOption(value: true, label: 'Yes'),
@@ -777,12 +776,12 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
                       )
                       : const SizedBox(width: double.infinity),
             ),
-            const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: AppSpacing.lg),
             Text(
               'Only the NDI output is transparent, ready to layer over video '
               'in vMix, OBS or a switcher. Screens and projectors show a '
               'black background.',
-              style: AppTypography.bodyLg.copyWith(color: AppColors.textSubtle),
+              style: AppTypography.bodyMd.copyWith(color: AppColors.textSubtle),
             ),
           ],
         );
@@ -810,7 +809,6 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
               leading: ChipSwatch(gradient: _gradientOf(g.type, g.colors)),
               tint: g.colors.first,
               value: g.type == GradientType.linear ? 'Linear' : 'Radial',
-              tooltip: g.colors.map(_hex).join(' → '),
               onTap: () {
                 notifier.setGradientType(g.type);
                 notifier.setGradientColors(g.colors);
@@ -823,7 +821,6 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
             LycriValueChip(
               leading: _FileThumb(path: p, isImage: true),
               value: _fileName(p),
-              tooltip: p,
               onTap: () => notifier.setBackgroundImagePath(p),
             ),
         ];
@@ -833,7 +830,6 @@ class _EditorPanelState extends ConsumerState<EditorPanel>
             LycriValueChip(
               leading: _FileThumb(path: p, isImage: false),
               value: _fileName(p),
-              tooltip: p,
               onTap: () => notifier.setBackgroundVideoPath(p),
             ),
         ];
@@ -1065,7 +1061,7 @@ class _FieldLabel extends StatelessWidget {
       children: [
         Flexible(child: label),
         const SizedBox(width: AppSpacing.sm),
-        Tooltip(
+        LycriTooltip(
           message: info!,
           child: SvgPicture.asset(
             'assets/vectors/info-circle.svg',
@@ -1323,7 +1319,6 @@ class _EditorHeaderActionsState extends ConsumerState<_EditorHeaderActions>
             label: widget.presetName,
             labelMaxWidth: 112,
             trailingSvgAsset: 'assets/vectors/unfold-more.svg',
-            tooltip: 'Presets',
             onTap: widget.onOpenPresets,
           ),
         ],

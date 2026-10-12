@@ -167,7 +167,6 @@ class _PresetSearchDialogState extends ConsumerState<PresetSearchDialog> {
                           ),
                           LycriPillSegment(
                             svgAsset: 'assets/vectors/close.svg',
-                            tooltip: 'Close',
                             onTap: () => Navigator.of(context).pop(),
                           ),
                         ],

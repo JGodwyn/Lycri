@@ -176,7 +176,6 @@ class _LyricSearchDialogState extends ConsumerState<LyricSearchDialog> {
                           ),
                           LycriPillSegment(
                             svgAsset: 'assets/vectors/close.svg',
-                            tooltip: 'Close',
                             onTap: () => Navigator.of(context).pop(),
                           ),
                         ],

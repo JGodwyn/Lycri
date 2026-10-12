@@ -5,6 +5,7 @@ import '../../core/theme/app_spacing.dart';
 import '../../core/theme/app_typography.dart';
 import 'fade_text.dart';
 import 'inner_shadow.dart';
+import 'lycri_tooltip.dart';
 
 /// One option in a [LycriSegmentedTray].
 class LycriTrayOption<T> {
@@ -161,7 +162,7 @@ class _TrayCell<T> extends StatelessWidget {
     );
 
     return option.iconBuilder != null
-        ? Tooltip(message: option.label, child: cell)
+        ? LycriTooltip(message: option.label, child: cell)
         : cell;
   }
 }

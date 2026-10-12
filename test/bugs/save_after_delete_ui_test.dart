@@ -2,6 +2,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lycri_lyrics/core/database/app_database.dart';
 import 'package:lycri_lyrics/features/library/models/song_domain_model.dart';
@@ -10,6 +11,7 @@ import 'package:lycri_lyrics/features/library/providers/song_search_provider.dar
 import 'package:lycri_lyrics/features/operator/models/lyrics_segment.dart';
 import 'package:lycri_lyrics/features/operator/presentation/lyric_input_panel.dart';
 import 'package:lycri_lyrics/shared/providers/lyrics_provider.dart';
+import 'package:lycri_lyrics/shared/widgets/lycri_pill_group.dart';
 
 const _verse = "When I see the devil's eyes\nI'll look away and smile wide";
 
@@ -28,9 +30,10 @@ void main() {
     addTearDown(c.dispose);
     final repo = c.read(songRepositoryProvider);
 
-    Future<List<String>> titles() async => (await tester.runAsync(
-      () async => (await repo.getAllSongs()).map((s) => s.title).toList(),
-    ))!;
+    Future<List<String>> titles() async =>
+        (await tester.runAsync(
+          () async => (await repo.getAllSongs()).map((s) => s.title).toList(),
+        ))!;
 
     await tester.runAsync(
       () => repo.saveSong(
@@ -73,26 +76,49 @@ void main() {
 
     // 3. Edit it (pen) and save.
     debugPrint('state after delete: ${_describe(c)}');
-    await tester.tap(find.byTooltip('Edit lyric text'));
+    // The header's pen (segments have their own pens).
+    await tester.tap(
+      find.descendant(
+        of: find.byType(LycriPillGroup),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is SvgPicture &&
+              w.bytesLoader is SvgAssetLoader &&
+              (w.bytesLoader as SvgAssetLoader).assetName ==
+                  'assets/vectors/edit-pen.svg',
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     debugPrint('state after edit tap: ${_describe(c)}');
-    await tester.enterText(find.byType(TextField).last, '$_verse\nYou found me');
+    await tester.enterText(
+      find.byType(TextField).last,
+      '$_verse\nYou found me',
+    );
     await tester.pump();
 
     final save = find.byTooltip('Save lyric');
     debugPrint('save buttons found: ${save.evaluate().length}');
     await tester.tap(save);
     await tester.pumpAndSettle();
-    debugPrint('menu open: ${find.text('NAME THIS LYRIC').evaluate().isNotEmpty}');
+    debugPrint(
+      'menu open: ${find.text('NAME THIS LYRIC').evaluate().isNotEmpty}',
+    );
     await tester.enterText(find.byType(TextField).last, 'Song A');
-    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 400)));
+    await tester.runAsync(
+      () => Future.delayed(const Duration(milliseconds: 400)),
+    );
     await tester.pump(const Duration(milliseconds: 400));
-    debugPrint('save lyric enabled: ${find.text('SAVE LYRIC').evaluate().length}');
+    debugPrint(
+      'save lyric enabled: ${find.text('SAVE LYRIC').evaluate().length}',
+    );
     await tester.tap(find.text('SAVE LYRIC'));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.runAsync(() => Future.delayed(const Duration(seconds: 2)));
     await tester.pump(const Duration(seconds: 2));
-    await tester.runAsync(() => Future.delayed(const Duration(milliseconds: 300)));
+    await tester.runAsync(
+      () => Future.delayed(const Duration(milliseconds: 300)),
+    );
     await tester.pumpAndSettle();
     debugPrint('state after save: ${_describe(c)}');
 

@@ -7,6 +7,7 @@ import '../../core/theme/app_typography.dart';
 import 'cassette_press.dart';
 import 'fade_text.dart';
 import 'inner_shadow.dart';
+import 'lycri_tooltip.dart';
 
 /// Colour treatment for a [LycriPillGroup].
 enum LycriPillTone {
@@ -31,6 +32,7 @@ class LycriPillSegment {
     this.tooltip,
     this.width,
     this.labelMaxWidth = 160,
+    this.selected = false,
   }) : assert(svgAsset != null || label != null);
 
   /// Leading icon (24×24).
@@ -51,6 +53,10 @@ class LycriPillSegment {
 
   /// Labels wider than this fade out rather than grow the pill.
   final double labelMaxWidth;
+
+  /// Toggled on: `Gray0` fill with subtle icon and label, like the
+  /// "Show live view" toggle.
+  final bool selected;
 }
 
 /// A row of joined pill buttons (Figma: segmented "Button" frames).
@@ -123,6 +129,7 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
   /// ([t] 0 → 1). No hover state: feedback is the press itself.
   Color _background(double t) {
     final (rest, pressed) = switch (widget.tone) {
+      _ when widget.segment.selected => (AppColors.gray0, AppColors.surface2),
       LycriPillTone.light => (AppColors.surface3, AppColors.surface1),
       LycriPillTone.dark => (AppColors.gray600, AppColors.gray800),
       LycriPillTone.muted => (AppColors.gray500, AppColors.gray700),
@@ -137,7 +144,7 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
         LycriPillTone.dark => AppColors.iconSubtle,
       };
     }
-    return widget.tone == LycriPillTone.light
+    return widget.tone == LycriPillTone.light || widget.segment.selected
         ? AppColors.iconSubtle
         : AppColors.iconInverse;
   }
@@ -194,7 +201,8 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
                           style: AppTypography.titleLg.copyWith(
                             color:
                                 _enabled
-                                    ? (widget.tone == LycriPillTone.light
+                                    ? (widget.tone == LycriPillTone.light ||
+                                            s.selected
                                         ? AppColors.textSubtle
                                         : AppColors.textInverse)
                                     : fg,
@@ -213,7 +221,7 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
     );
 
     if (s.tooltip != null) {
-      button = Tooltip(message: s.tooltip!, child: button);
+      button = LycriTooltip(message: s.tooltip!, child: button);
     }
     return button;
   }

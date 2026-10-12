@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../shared/utils/lyric_scroll_follower.dart';
 import '../../../shared/providers/lyrics_style_provider.dart'
     show LyricsOverlayTone, LyricsPosition, LyricsSize, LyricsStyleState;
 import '../../../shared/widgets/lyric_block_mask.dart';
@@ -30,7 +31,8 @@ class PresentationScreenPage extends StatefulWidget {
   State<PresentationScreenPage> createState() => _PresentationScreenPageState();
 }
 
-class _PresentationScreenPageState extends State<PresentationScreenPage> {
+class _PresentationScreenPageState extends State<PresentationScreenPage>
+    with SingleTickerProviderStateMixin {
   /// Raw lyrics text received from the operator.
   String? _rawLyrics;
 
@@ -92,6 +94,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
   /// Scroll controller for smooth auto-scrolling to the active line.
   final ScrollController _scrollController = ScrollController();
+  late final LyricScrollFollower _follower;
 
   /// Page controller for smoothly paginating via full pushes.
   PageController _pageController = PageController();
@@ -112,9 +115,19 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
   WindowController? _windowController;
 
+  /// Whether this window is the frameless clean feed ("This display" mode).
+  bool _cleanFeed = false;
+
   @override
   void initState() {
     super.initState();
+    _follower = LyricScrollFollower(
+      vsync: this,
+      controller: _scrollController,
+      target: _activeTarget,
+      // Hide the sweep on big jumps (e.g. into another section).
+      jumpBeyondViewport: true,
+    );
 
     // Ensure this window's process does not nap during presentation.
     // App Nap is macOS-only; skip on other platforms.
@@ -292,44 +305,56 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     return 0;
   }
 
+  /// Window title shown in vMix / OBS window-capture pickers.
+  static const _cleanFeedTitle = 'Lycri Output';
+
+  /// Layout size of the clean feed — same as `LyricsOutputCanvas`.
+  static const _cleanFeedCanvas = Size(1920, 1080);
+
   Future<void> _applyWindowSetup(Map<String, dynamic> args) async {
-    // NOTE: We do NOT use the window_manager package here. Its Swift plugin
-    // force-unwraps NSApp.mainWindow which is nil inside a sub-window context,
-    // causing a fatal crash (WindowManager.swift:60). Instead, we use the
-    // 'lycri/window_setup' native channel registered in MainFlutterWindow.swift
-    // which holds a direct, safe reference to this sub-window's NSWindow.
-    //
-    // On Windows, the equivalent C++ handler will be registered in the
-    // windows/ runner. Until that's implemented, this is a no-op.
+    // NOTE: We do NOT use the window_manager package on macOS. Its Swift
+    // plugin force-unwraps NSApp.mainWindow which is nil inside a sub-window
+    // context, causing a fatal crash (WindowManager.swift:60). Instead, we use
+    // the 'lycri/window_setup' native channel registered in
+    // MainFlutterWindow.swift which holds a direct, safe reference to this
+    // sub-window's NSWindow. On Windows, window_manager targets the
+    // sub-window's own HWND and is safe to use.
+    final targetDisplay = args['targetDisplay'];
+    if (targetDisplay == null) return;
+
+    final bool goFullScreen = args['goFullScreen'] as bool? ?? true;
+    final bool cleanFeed = args['cleanFeed'] as bool? ?? false;
+    // Clean feed: frameless window sized to the capture resolution.
+    // Otherwise: the target display's bounds.
+    final Map frame =
+        cleanFeed ? args['cleanFeedFrame'] as Map : targetDisplay as Map;
+    final double x = (frame['x'] as num).toDouble();
+    final double y = (frame['y'] as num).toDouble();
+    final double w = (frame['width'] as num).toDouble();
+    final double h = (frame['height'] as num).toDouble();
+
+    if (mounted && cleanFeed != _cleanFeed) {
+      setState(() => _cleanFeed = cleanFeed);
+    }
+
     if (Platform.isWindows) {
       try {
-        final targetDisplay = args['targetDisplay'];
-        final bool goFullScreen = args['goFullScreen'] as bool? ?? true;
-
-        if (targetDisplay == null) return;
-
-        final double x = (targetDisplay['x'] as num).toDouble();
-        final double y = (targetDisplay['y'] as num).toDouble();
-        final double w = (targetDisplay['width'] as num).toDouble();
-        final double h = (targetDisplay['height'] as num).toDouble();
-
         await windowManager.ensureInitialized();
+        final frameRect = Rect.fromLTWH(x, y, w, h);
+        final displayScale =
+            (targetDisplay['scaleFactor'] as num?)?.toDouble() ??
+            windowManager.getDevicePixelRatio();
 
-        if (goFullScreen) {
-          await windowManager.setBounds(Rect.fromLTWH(x, y, w, h));
-          await windowManager.setFullScreen(true);
-        } else {
-          const double overlayW = 1280;
-          const double overlayH = 720;
-          await windowManager.setBounds(
-            Rect.fromLTWH(
-              x + (w - overlayW) / 2,
-              y + (h - overlayH) / 2,
-              overlayW,
-              overlayH,
-            ),
-          );
+        if (cleanFeed) {
           await windowManager.setFullScreen(false);
+          await windowManager.setAsFrameless();
+          await windowManager.setHasShadow(false);
+          await windowManager.setTitle(_cleanFeedTitle);
+          await _setBoundsOnDisplay(frameRect, displayScale);
+        } else {
+          await windowManager.setTitleBarStyle(TitleBarStyle.normal);
+          await _setBoundsOnDisplay(frameRect, displayScale);
+          await windowManager.setFullScreen(goFullScreen);
         }
       } catch (e) {
         debugPrint('window_manager setup error: $e');
@@ -344,17 +369,21 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     const setupChannel = MethodChannel('lycri/window_setup');
 
     try {
-      final targetDisplay = args['targetDisplay'];
-      final bool goFullScreen = args['goFullScreen'] as bool? ?? true;
-
-      if (targetDisplay == null) return;
-
-      final double x = (targetDisplay['x'] as num).toDouble();
-      final double y = (targetDisplay['y'] as num).toDouble();
-      final double w = (targetDisplay['width'] as num).toDouble();
-      final double h = (targetDisplay['height'] as num).toDouble();
-
-      if (goFullScreen) {
+      if (cleanFeed) {
+        // Sized and centered natively: screen_retriever doesn't report the
+        // display scale on macOS.
+        final pixels = args['cleanFeedPixels'] as Map;
+        await setupChannel.invokeMethod('setCleanFeed', {
+          'enabled': true,
+          'title': _cleanFeedTitle,
+          'pixelWidth': (pixels['width'] as num).toDouble(),
+          'pixelHeight': (pixels['height'] as num).toDouble(),
+          // A point on the target (operator's) display, top-left origin.
+          'screenX': x + 1,
+          'screenY': y + 1,
+        });
+      } else {
+        await setupChannel.invokeMethod('setCleanFeed', {'enabled': false});
         // Position at the target display origin first, then go fullscreen.
         await setupChannel.invokeMethod('setFrame', {
           'x': x,
@@ -362,21 +391,52 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
           'width': w,
           'height': h,
         });
-        await setupChannel.invokeMethod('setFullScreen', {'fullScreen': true});
-      } else {
-        // Center the 1280x720 overlay windowed mode on the primary screen.
-        const double overlayW = 1280;
-        const double overlayH = 720;
-        await setupChannel.invokeMethod('setFrame', {
-          'x': x + (w - overlayW) / 2,
-          'y': y + (h - overlayH) / 2,
-          'width': overlayW,
-          'height': overlayH,
+        await setupChannel.invokeMethod('setFullScreen', {
+          'fullScreen': goFullScreen,
         });
-        await setupChannel.invokeMethod('setFullScreen', {'fullScreen': false});
       }
     } catch (e) {
       debugPrint('lycri/window_setup error: $e');
+    }
+  }
+
+  /// Windows: places this window at [frame], given in the target display's
+  /// logical units ([displayScale]).
+  ///
+  /// screen_retriever reports each monitor in its own scale, but
+  /// window_manager converts with the scale of the monitor the window is on
+  /// now. With mixed scaling (a 150% laptop beside a 100% projector) the raw
+  /// values land on the wrong screen, so convert through physical pixels —
+  /// and again once the move has given the window its new monitor's scale.
+  Future<void> _setBoundsOnDisplay(Rect frame, double displayScale) async {
+    final physical = Rect.fromLTRB(
+      frame.left * displayScale,
+      frame.top * displayScale,
+      frame.right * displayScale,
+      frame.bottom * displayScale,
+    );
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final dpr = windowManager.getDevicePixelRatio();
+      await windowManager.setBounds(
+        Rect.fromLTRB(
+          physical.left / dpr,
+          physical.top / dpr,
+          physical.right / dpr,
+          physical.bottom / dpr,
+        ),
+      );
+      // Let the DPI change (if any) reach this engine.
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      if (windowManager.getDevicePixelRatio() == dpr) break;
+    }
+  }
+
+  /// Moves the frameless clean-feed window when it is dragged.
+  void _startWindowDrag() {
+    if (Platform.isWindows) {
+      windowManager.startDragging();
+    } else if (Platform.isMacOS) {
+      const MethodChannel('lycri/window_setup').invokeMethod('startDrag');
     }
   }
 
@@ -385,6 +445,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
     try {
       _windowController?.setWindowMethodHandler(null);
     } catch (_) {}
+    _follower.dispose();
     _scrollController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -619,10 +680,6 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
   }
 
   /// Scrolls to the active line within the current view.
-  ///
-  /// Uses the same multi-delay retry pattern as NDI: try immediately after
-  /// the next frame, then at 100ms, then at 400ms (matching the page
-  /// animation duration) to guarantee the scroll controller is attached.
   void _scrollToActive(int activeIndex) {
     if (!mounted) return;
 
@@ -642,47 +699,33 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
 
     if (!isContinuous && !shouldScrollInternally) return;
 
-    // Attempt 1: immediately after next frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _performScrollAnimation(activeIndex);
-    });
-
-    // Attempt 2: after a short delay for segment switches.
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) _performScrollAnimation(activeIndex);
-    });
-
-    // Attempt 3: after the page animation completes (400ms).
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) _performScrollAnimation(activeIndex);
-    });
+    _follower.follow();
   }
 
-  /// Performs the actual scroll animation (mirrors NDI's _performLineScrollAnimation).
-  void _performScrollAnimation(int activeIndex) {
-    if (!_scrollController.hasClients) return;
+  /// Offset that rests the active line (or its pinned band) in place
+  /// (mirrors NDI's _lineTarget).
+  double? _activeTarget() {
+    if (!_scrollController.hasClients) return null;
 
     // Clipped continuous lyrics pin their band's first line; otherwise the
     // active line is the anchor.
-    final band = _clippedContinuous ? _bandHeight(activeIndex) : null;
+    final band = _clippedContinuous ? _bandHeight(_activeLine) : null;
     final anchor =
         band != null
             ? LyricBlockMask.bandRange(
-              activeIndex,
+              _activeLine,
               _lines.length,
               slot: _position.index,
             ).$1
-            : activeIndex;
+            : _activeLine;
 
     final key = _lineKeys[anchor];
-    if (key == null || key.currentContext == null) return;
-
-    final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
+    final renderBox = key?.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return null;
 
     final viewport = _scrollController.position;
     final scrollObject = viewport.context.storageContext.findRenderObject();
-    if (scrollObject == null) return;
+    if (scrollObject == null) return null;
 
     final lineOffset = renderBox.localToGlobal(
       Offset.zero,
@@ -700,20 +743,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
             )
             : viewport.viewportDimension * _position.scrollAnchor;
 
-    final targetOffset = (_scrollController.offset + lineOffset.dy - restY)
-        .clamp(0.0, viewport.maxScrollExtent);
-
-    // Jump instantly for large offsets to hide correction glance.
-    if ((_scrollController.offset - targetOffset).abs() >
-        viewport.viewportDimension) {
-      _scrollController.jumpTo(targetOffset);
-    } else {
-      _scrollController.animateTo(
-        targetOffset,
-        duration: _animDuration,
-        curve: _animCurve,
-      );
-    }
+    return _scrollController.offset + lineOffset.dy - restY;
   }
 
   /// The active page's lyric block within its page, for [LyricBlockMask].
@@ -1051,7 +1081,7 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
             ? const BoxDecoration(color: Colors.black)
             : BoxDecoration(color: _backgroundColor);
 
-    return Scaffold(
+    final Widget output = Scaffold(
       body: Container(
         decoration: decoration,
         child: Stack(
@@ -1079,6 +1109,18 @@ class _PresentationScreenPageState extends State<PresentationScreenPage> {
             ),
           ],
         ),
+      ),
+    );
+
+    if (!_cleanFeed) return output;
+    // Lay out on the 1080p canvas the live view and NDI use, then scale to
+    // the window, so the feed matches them whatever the display scale.
+    // The clean feed has no title bar, so the whole window drags.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanStart: (_) => _startWindowDrag(),
+      child: FittedBox(
+        child: SizedBox.fromSize(size: _cleanFeedCanvas, child: output),
       ),
     );
   }

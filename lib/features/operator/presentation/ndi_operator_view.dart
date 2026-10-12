@@ -13,6 +13,7 @@ import '../../../shared/providers/active_line_provider.dart';
 import '../../../shared/providers/lyrics_provider.dart';
 import '../../../shared/providers/lyrics_style_provider.dart';
 import '../../../shared/providers/lyrics_visibility_provider.dart';
+import '../../../shared/utils/lyric_scroll_follower.dart';
 import '../../../shared/widgets/checkerboard.dart';
 import '../../../shared/widgets/lyric_block_mask.dart';
 import '../../../shared/widgets/lyrics_overlay.dart';
@@ -266,8 +267,10 @@ class _NdiLyricsPreview extends ConsumerStatefulWidget {
   ConsumerState<_NdiLyricsPreview> createState() => _NdiLyricsPreviewState();
 }
 
-class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
+class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview>
+    with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
+  late final LyricScrollFollower _follower;
   late PageController _pageController;
   final Map<int, GlobalKey> _lineKeys = {};
 
@@ -284,6 +287,13 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
   @override
   void initState() {
     super.initState();
+    _follower = LyricScrollFollower(
+      vsync: this,
+      controller: _scrollController,
+      target: _lineTarget,
+      // Hide the sweep on big jumps (e.g. into another section).
+      jumpBeyondViewport: true,
+    );
     final style = ref.read(lyricsStyleProvider);
     final lines = ref.read(lyricsLinesProvider);
     final activeIndex = ref.read(activeLineProvider);
@@ -314,6 +324,7 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
 
   @override
   void dispose() {
+    _follower.dispose();
     _scrollController.dispose();
     _pageController.dispose();
     super.dispose();
@@ -356,26 +367,12 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
     }
   }
 
-  void _scrollToLine(int lineIndex) {
-    // First attempt immediately after build.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _performLineScrollAnimation(lineIndex);
-    });
+  void _scrollToLine(int lineIndex) => _follower.follow();
 
-    // Also retry after a small delay for segment switches.
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) _performLineScrollAnimation(lineIndex);
-    });
-
-    // Final check for slow page transitions.
-    Future.delayed(const Duration(milliseconds: 400), () {
-      if (mounted) _performLineScrollAnimation(lineIndex);
-    });
-  }
-
-  void _performLineScrollAnimation(int lineIndex) {
-    if (!_scrollController.hasClients) return;
+  /// Offset that rests the active line (or its pinned band) in place.
+  double? _lineTarget() {
+    if (!_scrollController.hasClients) return null;
+    final lineIndex = ref.read(activeLineProvider);
 
     // Clipped continuous lyrics pin their band's first line; otherwise the
     // active line is the anchor.
@@ -391,14 +388,12 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
             : lineIndex;
 
     final key = _lineKeys[anchor];
-    if (key == null || key.currentContext == null) return;
-
-    final renderBox = key.currentContext!.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
+    final renderBox = key?.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) return null;
 
     final viewport = _scrollController.position;
     final scrollObject = viewport.context.storageContext.findRenderObject();
-    if (scrollObject == null) return;
+    if (scrollObject == null) return null;
 
     final lineOffset = renderBox.localToGlobal(
       Offset.zero,
@@ -417,20 +412,7 @@ class _NdiLyricsPreviewState extends ConsumerState<_NdiLyricsPreview> {
             )
             : viewport.viewportDimension * position.scrollAnchor;
 
-    final targetOffset = (_scrollController.offset + lineOffset.dy - restY)
-        .clamp(0.0, viewport.maxScrollExtent);
-
-    // Jump instantly for large switches to hide correction glance.
-    if ((_scrollController.offset - targetOffset).abs() >
-        viewport.viewportDimension) {
-      _scrollController.jumpTo(targetOffset);
-    } else {
-      _scrollController.animateTo(
-        targetOffset,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+    return _scrollController.offset + lineOffset.dy - restY;
   }
 
   /// Continuous mode (All, or Auto without sections) with clipping on: the

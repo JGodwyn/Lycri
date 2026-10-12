@@ -45,7 +45,6 @@ class LycriStepper extends StatelessWidget {
         children: [
           _StepKey(
             svgAsset: 'assets/vectors/minus.svg',
-            tooltip: 'Decrease',
             enabled: canDecrease,
             onTap: () => onChanged((value - step).clamp(min, max)),
             borderRadius: const BorderRadius.horizontal(
@@ -70,7 +69,6 @@ class LycriStepper extends StatelessWidget {
           const SizedBox(width: AppSpacing.xs),
           _StepKey(
             svgAsset: 'assets/vectors/plus.svg',
-            tooltip: 'Increase',
             enabled: canIncrease,
             onTap: () => onChanged((value + step).clamp(min, max)),
             borderRadius: const BorderRadius.horizontal(
@@ -86,58 +84,53 @@ class LycriStepper extends StatelessWidget {
 class _StepKey extends StatelessWidget {
   const _StepKey({
     required this.svgAsset,
-    required this.tooltip,
     required this.enabled,
     required this.onTap,
     required this.borderRadius,
   });
 
   final String svgAsset;
-  final String tooltip;
   final bool enabled;
   final VoidCallback onTap;
   final BorderRadius borderRadius;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        child: CassettePress(
-          enabled: enabled,
-          onTap: onTap,
-          builder:
-              (context, t) => InnerShadow(
-                color: Colors.black.withValues(
-                  alpha: CassettePress.shadowAlpha(0.15, t),
-                ),
-                offset: CassettePress.shadowOffset(t),
-                borderRadius: borderRadius,
-                child: Container(
-                  width: LycriStepper._keyWidth,
-                  height: LycriStepper._height,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Color.lerp(
-                      AppColors.surface3,
-                      AppColors.surface1,
-                      t.clamp(0.0, 1.0),
-                    ),
-                    borderRadius: borderRadius,
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: CassettePress(
+        enabled: enabled,
+        onTap: onTap,
+        builder:
+            (context, t) => InnerShadow(
+              color: Colors.black.withValues(
+                alpha: CassettePress.shadowAlpha(0.15, t),
+              ),
+              offset: CassettePress.shadowOffset(t),
+              borderRadius: borderRadius,
+              child: Container(
+                width: LycriStepper._keyWidth,
+                height: LycriStepper._height,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Color.lerp(
+                    AppColors.surface3,
+                    AppColors.surface1,
+                    t.clamp(0.0, 1.0),
                   ),
-                  child: SvgPicture.asset(
-                    svgAsset,
-                    width: 20,
-                    height: 20,
-                    colorFilter: ColorFilter.mode(
-                      enabled ? AppColors.iconSubtle : AppColors.iconMinimal,
-                      BlendMode.srcIn,
-                    ),
+                  borderRadius: borderRadius,
+                ),
+                child: SvgPicture.asset(
+                  svgAsset,
+                  width: 20,
+                  height: 20,
+                  colorFilter: ColorFilter.mode(
+                    enabled ? AppColors.iconSubtle : AppColors.iconMinimal,
+                    BlendMode.srcIn,
                   ),
                 ),
               ),
-        ),
+            ),
       ),
     );
   }

@@ -617,28 +617,25 @@ class _CloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Hide live view',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceInverse.withValues(alpha: 0.6),
-              shape: BoxShape.circle,
-            ),
-            child: SvgPicture.asset(
-              'assets/vectors/close.svg',
-              width: 16,
-              height: 16,
-              colorFilter: const ColorFilter.mode(
-                AppColors.iconInverse,
-                BlendMode.srcIn,
-              ),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceInverse.withValues(alpha: 0.6),
+            shape: BoxShape.circle,
+          ),
+          child: SvgPicture.asset(
+            'assets/vectors/close.svg',
+            width: 16,
+            height: 16,
+            colorFilter: const ColorFilter.mode(
+              AppColors.iconInverse,
+              BlendMode.srcIn,
             ),
           ),
         ),

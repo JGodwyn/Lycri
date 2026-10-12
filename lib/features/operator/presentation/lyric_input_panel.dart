@@ -499,7 +499,6 @@ class _LyricInputPanelState extends ConsumerState<LyricInputPanel>
                 segments: [
                   LycriPillSegment(
                     svgAsset: 'assets/vectors/edit-pen.svg',
-                    tooltip: 'Edit lyric text',
                     enabled: state.isSegmented,
                     onTap: () => _editLyric(state),
                   ),
