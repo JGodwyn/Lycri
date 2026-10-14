@@ -25,6 +25,7 @@ enum LycriPillTone {
 class LycriPillSegment {
   const LycriPillSegment({
     this.svgAsset,
+    this.iconBuilder,
     this.label,
     this.trailingSvgAsset,
     this.onTap,
@@ -33,13 +34,28 @@ class LycriPillSegment {
     this.width,
     this.labelMaxWidth = 160,
     this.selected = false,
-  }) : assert(svgAsset != null || label != null);
+    this.labelStyle,
+    this.horizontalPadding,
+  }) : assert(svgAsset != null || iconBuilder != null || label != null);
 
   /// Leading icon (24×24).
   final String? svgAsset;
 
-  /// Optional label, rendered in `title-lg` uppercase.
+  /// Custom leading icon in place of [svgAsset] (e.g. an animated one),
+  /// built with the segment's icon colour.
+  final Widget Function(Color color)? iconBuilder;
+
+  /// Optional label, rendered in `title-lg` uppercase unless [labelStyle]
+  /// is set.
   final String? label;
+
+  /// Replaces `title-lg` for the label (colour still follows the segment's
+  /// state). Body styles aren't uppercase in Figma, so the label is shown as
+  /// written.
+  final TextStyle? labelStyle;
+
+  /// Side padding for labelled segments; defaults to `pad-md`.
+  final double? horizontalPadding;
 
   /// Optional trailing icon (24×24), e.g. `unfold-more`.
   final String? trailingSvgAsset;
@@ -71,12 +87,19 @@ class LycriPillGroup extends StatelessWidget {
     this.tone = LycriPillTone.light,
     this.height = 40,
     this.iconSize = 24,
+    this.roundStart = true,
+    this.roundEnd = true,
   });
 
   final List<LycriPillSegment> segments;
   final LycriPillTone tone;
   final double height;
   final double iconSize;
+
+  /// Round the outer ends. Turn one off to butt another pill-styled widget
+  /// against that end so the two read as one pill.
+  final bool roundStart;
+  final bool roundEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -91,9 +114,13 @@ class LycriPillGroup extends StatelessWidget {
             height: height,
             iconSize: iconSize,
             borderRadius: BorderRadius.horizontal(
-              left: Radius.circular(i == 0 ? AppRadius.full : AppRadius.none),
+              left: Radius.circular(
+                i == 0 && roundStart ? AppRadius.full : AppRadius.none,
+              ),
               right: Radius.circular(
-                i == segments.length - 1 ? AppRadius.full : AppRadius.none,
+                i == segments.length - 1 && roundEnd
+                    ? AppRadius.full
+                    : AppRadius.none,
               ),
             ),
           ),
@@ -153,6 +180,7 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
   Widget build(BuildContext context) {
     final s = widget.segment;
     final iconOnly = s.label == null && s.trailingSvgAsset == null;
+    final hasIcon = s.svgAsset != null || s.iconBuilder != null;
     final fg = _foreground;
 
     Widget icon(String asset) => SvgPicture.asset(
@@ -181,7 +209,9 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
                 padding:
                     iconOnly
                         ? EdgeInsets.zero
-                        : const EdgeInsets.symmetric(horizontal: AppPadding.md),
+                        : EdgeInsets.symmetric(
+                          horizontal: s.horizontalPadding ?? AppPadding.md,
+                        ),
                 decoration: BoxDecoration(
                   color: _background(t),
                   borderRadius: widget.borderRadius,
@@ -190,22 +220,37 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (s.svgAsset != null) icon(s.svgAsset!),
-                    if (s.svgAsset != null && s.label != null)
+                    if (s.iconBuilder != null)
+                      SizedBox.square(
+                        dimension: widget.iconSize,
+                        child: s.iconBuilder!(fg),
+                      )
+                    else if (s.svgAsset != null)
+                      icon(s.svgAsset!),
+                    if (hasIcon && s.label != null)
                       const SizedBox(width: AppSpacing.md),
                     if (s.label != null)
-                      ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: s.labelMaxWidth),
-                        child: FadeText(
-                          s.label!.toUpperCase(),
-                          style: AppTypography.titleLg.copyWith(
-                            color:
-                                _enabled
-                                    ? (widget.tone == LycriPillTone.light ||
-                                            s.selected
-                                        ? AppColors.textSubtle
-                                        : AppColors.textInverse)
-                                    : fg,
+                      _flexibleIfFixed(
+                        fixed: s.width != null,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: s.labelMaxWidth,
+                          ),
+                          child: FadeText(
+                            s.labelStyle == null
+                                ? s.label!.toUpperCase()
+                                : s.label!,
+                            style: (s.labelStyle ?? AppTypography.titleLg)
+                                .copyWith(
+                                  color:
+                                      _enabled
+                                          ? (widget.tone ==
+                                                      LycriPillTone.light ||
+                                                  s.selected
+                                              ? AppColors.textSubtle
+                                              : AppColors.textInverse)
+                                          : fg,
+                                ),
                           ),
                         ),
                       ),
@@ -225,4 +270,11 @@ class _PillSegmentButtonState extends State<_PillSegmentButton> {
     }
     return button;
   }
+
+  /// In a fixed-width segment the label fades at the edge instead of
+  /// overflowing (unbounded segments size to the label).
+  static Widget _flexibleIfFixed({
+    required bool fixed,
+    required Widget child,
+  }) => fixed ? Flexible(child: child) : child;
 }

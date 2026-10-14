@@ -20,6 +20,8 @@ import '../../../shared/providers/lyrics_visibility_provider.dart';
 import '../../../shared/providers/presentation_window_provider.dart';
 import '../../../shared/utils/lyric_scroll_follower.dart';
 import '../../operator/models/lyrics_segment.dart';
+import 'widgets/auto_scroll_control.dart';
+import '../../../shared/providers/auto_scroll_provider.dart';
 import 'widgets/live_view_pip.dart';
 import '../../../shared/widgets/static_video_background.dart';
 import '../../../shared/widgets/cassette_press.dart';
@@ -603,15 +605,26 @@ class _StopButtonState extends State<_StopButton> {
 
 // ─── Bottom bar ─────────────────────────────────────────────────────────────
 
-/// `Gray600` bar under the preview: lyric visibility + more on the left,
-/// live-view toggle on the right.
-class _PresenterBottomBar extends ConsumerWidget {
+/// `Gray600` bar under the preview: lyric visibility + auto-scroll on the
+/// left, live-view toggle on the right.
+class _PresenterBottomBar extends ConsumerStatefulWidget {
   const _PresenterBottomBar();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PresenterBottomBar> createState() =>
+      _PresenterBottomBarState();
+}
+
+class _PresenterBottomBarState extends ConsumerState<_PresenterBottomBar> {
+  bool _autoScrollOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final lyricsVisible = ref.watch(lyricsVisibilityProvider);
     final showLive = ref.watch(liveViewVisibleProvider);
+    final autoScrolling = ref.watch(
+      autoScrollProvider.select((s) => s.playing),
+    );
 
     return Container(
       padding: const EdgeInsets.all(AppPadding.xs),
@@ -625,29 +638,43 @@ class _PresenterBottomBar extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          LycriPillGroup(
-            tone: LycriPillTone.muted,
-            height: 32,
-            iconSize: 20,
-            segments: [
-              LycriPillSegment(
-                svgAsset: 'assets/vectors/list-play.svg',
-                label: lyricsVisible ? 'Hide lyrics' : 'Show lyrics',
-                selected: !lyricsVisible,
-                onTap: () {
-                  final next = !lyricsVisible;
-                  ref.read(lyricsVisibilityProvider.notifier).state = next;
-                  ref
-                      .read(presentationWindowProvider.notifier)
-                      .syncLyricsVisibility(next);
-                },
+          // Hide lyrics + auto-scroll toggle; open, the auto-scroll tray
+          // continues the same pill (Figma: autoscroll).
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LycriPillGroup(
+                tone: LycriPillTone.muted,
+                height: 32,
+                iconSize: 20,
+                roundEnd: !_autoScrollOpen,
+                segments: [
+                  LycriPillSegment(
+                    svgAsset: 'assets/vectors/list-play.svg',
+                    label: lyricsVisible ? 'Hide lyrics' : 'Show lyrics',
+                    selected: !lyricsVisible,
+                    onTap: () {
+                      final next = !lyricsVisible;
+                      ref.read(lyricsVisibilityProvider.notifier).state = next;
+                      ref
+                          .read(presentationWindowProvider.notifier)
+                          .syncLyricsVisibility(next);
+                    },
+                  ),
+                  LycriPillSegment(
+                    iconBuilder: (color) => AutoScrollChevron(color: color),
+                    tooltip: 'Auto-scroll',
+                    width: 40,
+                    // White while open, and while auto-scroll runs with the
+                    // tray closed so it's still visibly on.
+                    selected: _autoScrollOpen || autoScrolling,
+                    onTap:
+                        () =>
+                            setState(() => _autoScrollOpen = !_autoScrollOpen),
+                  ),
+                ],
               ),
-              // TODO(design): the "…" menu's contents aren't specified yet.
-              const LycriPillSegment(
-                svgAsset: 'assets/vectors/more-horizontal.svg',
-                enabled: false,
-                width: 40,
-              ),
+              AutoScrollTray(open: _autoScrollOpen),
             ],
           ),
           const SizedBox(width: AppSpacing.md),

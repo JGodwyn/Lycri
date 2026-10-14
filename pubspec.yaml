@@ -40,6 +40,7 @@ dependencies:
   ffi: ^2.2.0
   uuid: ^4.5.1
   video_player_win: ^3.2.2
+  clock: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -50,6 +51,7 @@ dev_dependencies:
   drift_dev: ^2.18.0
   ffigen: ^20.1.1
   flutter_launcher_icons: ^0.14.4
+  fake_async: ^1.3.3
 
 flutter:
   uses-material-design: true

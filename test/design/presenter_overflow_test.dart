@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lycri_lyrics/core/theme/app_colors.dart';
 import 'package:lycri_lyrics/features/operator/presentation/presenter_panel.dart';
+import 'package:lycri_lyrics/features/operator/presentation/widgets/auto_scroll_control.dart';
 import 'package:lycri_lyrics/shared/providers/display_mode_provider.dart';
 import 'package:lycri_lyrics/shared/providers/presentation_window_provider.dart';
 import 'package:lycri_lyrics/shared/providers/recent_backgrounds_provider.dart';
@@ -48,6 +49,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required bool live,
   double width = 563,
+  bool openAutoScroll = false,
 }) async {
   // Minimum window 1280 − padding 2×16 − lyric column 320 − editor 333 −
   // gaps 2×16 = 563.
@@ -80,6 +82,12 @@ Future<void> _pump(
   );
   await tester.pump(const Duration(milliseconds: 500));
   expect(tester.takeException(), isNull);
+  if (openAutoScroll) {
+    await tester.tap(find.byType(AutoScrollChevron));
+    await tester.pumpAndSettle();
+    expect(find.text('Set time'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }
   await tester.pumpWidget(const SizedBox());
 }
 
@@ -102,5 +110,13 @@ void main() {
     tester,
   ) async {
     await _pump(tester, live: true, width: 440);
+  });
+
+  // The auto-scroll tray opens inside the bottom bar; the live-view label
+  // fades to make room rather than overflowing.
+  testWidgets('bottom bar fits at minimum width with auto-scroll open', (
+    tester,
+  ) async {
+    await _pump(tester, live: true, openAutoScroll: true);
   });
 }
