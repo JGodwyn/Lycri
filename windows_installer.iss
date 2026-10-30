@@ -1,17 +1,25 @@
+; Version is passed in by CI from the git tag: iscc /DAppVersion=1.2.3
+; Falls back to 1.0.0 for local builds without the flag.
+#ifndef AppVersion
+  #define AppVersion "1.0.0"
+#endif
+
 [Setup]
 AppId={{C6D27301-B136-4190-8E1E-D2A287B66D60}
 AppName=Lycri
-AppVersion=1.0.0
+AppVersion={#AppVersion}
 AppPublisher=com.lycri
-AppPublisherURL=https://lycri.app
-AppSupportURL=https://lycri.app
-AppUpdatesURL=https://lycri.app
+AppPublisherURL=https://lycri.godwinjohn.com
+AppSupportURL=https://lycri.godwinjohn.com
+AppUpdatesURL=https://lycri.godwinjohn.com
 DefaultDirName={autopf}\Lycri
 DisableProgramGroupPage=yes
 ; Remove the following line to run in administrative install mode (install for all users.)
 PrivilegesRequired=lowest
 OutputDir=build\installer
-OutputBaseFilename=Lycri_Setup_v1.0.0
+; Unversioned so github.com/JGodwyn/Lycri/releases/latest/download/Lycri_Setup.exe
+; always resolves to the newest release.
+OutputBaseFilename=Lycri_Setup
 SetupIconFile=windows\runner\resources\app_icon.ico
 Compression=lzma
 SolidCompression=yes

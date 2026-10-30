@@ -1,0 +1,79 @@
+name: Release (Windows)
+
+# Cut a release by pushing a version tag:
+#   git tag v1.2.3 && git push --tags
+# The installer is published as Lycri_Setup.exe so the landing page can link to
+# https://github.com/JGodwyn/Lycri/releases/latest/download/Lycri_Setup.exe
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # pubspec.yaml: sdk ^3.7.0; pubspec.lock needs Flutter >= 3.38.4.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # .env is gitignored but bundled as an asset, so the build needs one.
+      # Set SUPABASE_URL / SUPABASE_ANON_KEY as repository secrets.
+      - name: Write .env
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          printf 'SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\n' \
+            "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > .env
+
+      - name: Build
+        run: |
+          flutter pub get
+          flutter build windows --release --build-name=${{ steps.version.outputs.version }}
+
+      # Code signing (e.g. Azure Trusted Signing via azure/trusted-signing-action)
+      # slots in here: sign build\windows\x64\runner\Release\lycri_lyrics.exe
+      # before it is packaged, then sign build\installer\Lycri_Setup.exe after
+      # the Inno Setup step below.
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          & $iscc.FullName "/DAppVersion=${{ steps.version.outputs.version }}" windows_installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Tags with a suffix (v1.2.0-beta.1) become prereleases, which
+      # /releases/latest skips.
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          asset="build/installer/Lycri_Setup.exe"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" "$asset" --clobber
+          else
+            flags=()
+            [[ "$tag" == *-* ]] && flags+=(--prerelease)
+            gh release create "$tag" "$asset" --title "Lycri $tag" --generate-notes "${flags[@]}"
+          fi
